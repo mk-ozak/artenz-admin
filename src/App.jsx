@@ -5,6 +5,7 @@ import Diary from './components/Diary'
 import LoginPage from './pages/LoginPage'
 import Settings from './pages/Settings'
 import ProtectedRoute from './components/ProtectedRoute'
+import Toast from './components/Toast'
 import { useAuthStore } from './store/auth'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <Toast />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>

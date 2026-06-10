@@ -37,6 +37,7 @@ export default function Diary() {
     return supabase
       .from('bookings')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', start)
       .lte('date', end)
       .order('date')
@@ -69,6 +70,7 @@ export default function Diary() {
         supabase
           .from('bookings')
           .select('*')
+          .is('deleted_at', null)
           .gte('date', start)
           .lte('date', end)
           .order('date')
@@ -100,6 +102,7 @@ export default function Diary() {
       notes:         b.notes ?? '',
       googleEventId: b.google_calendar_event_id ?? null,
       status:        b.status ?? 'dopyt',
+      phone:         b.customer_phone ?? null,
     }
   }
 

@@ -11,6 +11,7 @@ import NextEventCard from '../components/dashboard/NextEventCard'
 import NavGrid from '../components/dashboard/NavGrid'
 import StatCards from '../components/dashboard/StatCards'
 import HallStatusToday from '../components/dashboard/HallStatusToday'
+import DeletedBookings from '../components/dashboard/DeletedBookings'
 
 function useTodayBookings() {
   const [bookings, setBookings] = useState([])
@@ -19,6 +20,7 @@ function useTodayBookings() {
     supabase
       .from('bookings')
       .select('id, hall, customer_name, event_type')
+      .is('deleted_at', null)
       .eq('date', today)
       .then(({ data }) => setBookings(data ?? []))
   }, [])
@@ -45,6 +47,9 @@ export default function Dashboard() {
         <div className="px-4 pb-2">
           <HallStatusToday bookings={todayBookings} />
         </div>
+        <div className="px-4 pb-2">
+          <DeletedBookings />
+        </div>
         <div className="flex-1" />
         <BottomNav />
       </div>
@@ -60,6 +65,7 @@ export default function Dashboard() {
               <NextEventCard event={nextEvent ?? null} />
               <HallStatusToday bookings={todayBookings} />
             </div>
+            <DeletedBookings />
           </main>
         </div>
       </div>

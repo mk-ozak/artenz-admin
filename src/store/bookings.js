@@ -24,6 +24,7 @@ function toFrontend(row) {
     notes:          row.notes ?? '',
     googleEventId:  row.google_calendar_event_id ?? null,
     status:         row.status ?? 'dopyt',
+    phone:          row.customer_phone ?? null,
   }
 }
 
@@ -57,6 +58,7 @@ function toBackend(b) {
     guest_count: b.guestCount !== '' && b.guestCount != null ? Number(b.guestCount) : null,
     notes:  b.notes || null,
     status: b.status ?? 'dopyt',
+    customer_phone: b.phone?.trim() || null,
   }
 }
 
@@ -66,6 +68,7 @@ export const useBookingsStore = create((set, get) => ({
   error: null,
   selectedBooking: null,
   modalState: null,   // { mode: 'add'|'edit', date?, venue?, booking? }
+  toast: null,        // { message, bookingId? } | null
   _channel: null,
   currentYear: null,
   currentMonth: null,
@@ -79,6 +82,7 @@ export const useBookingsStore = create((set, get) => ({
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', start)
       .lte('date', end)
       .order('date')
@@ -126,6 +130,9 @@ export const useBookingsStore = create((set, get) => ({
 
   selectBooking: (booking) => set({ selectedBooking: booking }),
   clearSelection: () => set({ selectedBooking: null }),
+
+  showToast: (toast) => set({ toast }),
+  hideToast: () => set({ toast: null }),
 
   openAddModal: (date, venue) => {
     console.log('[bookings] openAddModal', date, venue)
@@ -185,17 +192,33 @@ export const useBookingsStore = create((set, get) => ({
     return null
   },
 
-  deleteBooking: async (id, googleEventId) => {
-    console.log('[bookings] deleteBooking', id)
-    if (googleEventId) {
-      await syncCalendar('DELETE', { eventId: googleEventId })
-    }
-    const { error } = await supabase.from('bookings').delete().eq('id', id)
+  // Soft delete – riadok sa fyzicky nemaže, len sa nastaví deleted_at.
+  // Google Calendar event zámerne ostáva, aby sa rezervácia dala čisto obnoviť.
+  deleteBooking: async (id) => {
+    console.log('[bookings] deleteBooking (soft)', id)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
     if (error) {
       console.error('[bookings] deleteBooking error:', error)
       return error.message
     }
     set({ selectedBooking: null })
+    return null
+  },
+
+  // Obnova soft-deleted rezervácie – deleted_at späť na null.
+  restoreBooking: async (id) => {
+    console.log('[bookings] restoreBooking', id)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ deleted_at: null })
+      .eq('id', id)
+    if (error) {
+      console.error('[bookings] restoreBooking error:', error)
+      return error.message
+    }
     return null
   },
 }))

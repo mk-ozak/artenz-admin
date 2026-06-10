@@ -20,6 +20,7 @@ export function useStatsThisMonth() {
     supabase
       .from('bookings')
       .select('hall')
+      .is('deleted_at', null)
       .gte('date', start)
       .lte('date', end)
       .then(({ data }) => {

@@ -22,6 +22,7 @@ const STATUSES = [
 
 const EMPTY = {
   customerName: '',
+  phone: '',
   type: 'svadba',
   status: 'dopyt',
   guestCount: '',
@@ -31,17 +32,21 @@ const EMPTY = {
 }
 
 export default function BookingModal() {
-  const { modalState, closeModal, addBooking, updateBooking, deleteBooking } = useBookingsStore()
+  const { modalState, closeModal, addBooking, updateBooking, deleteBooking, showToast } = useBookingsStore()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   useEffect(() => {
     if (!modalState) return
     console.log('[BookingModal] opened, mode:', modalState.mode, modalState)
     setError('')
     setSaving(false)
+    setConfirmDelete(false)
+    setConfirmText('')
     if (modalState.mode === 'add') {
       setForm({ ...EMPTY, date: modalState.date, venue: modalState.venue })
     } else {
@@ -56,14 +61,30 @@ export default function BookingModal() {
         deposit:      b.deposit || '',
         depositPaid:  b.depositPaid ?? false,
         notes:        b.notes ?? '',
+        phone:        b.phone ?? '',
       })
     }
   }, [modalState])
 
   if (!modalState) return null
 
-  const isEdit    = modalState.mode === 'edit'
-  const venueName = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
+  const isEdit     = modalState.mode === 'edit'
+  const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
+  const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
+  const eventTitle = `${typeLabel} – ${form.customerName}`
+  const canDelete  =
+    confirmText.trim() !== '' &&
+    confirmText.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError('')
+    const err = await deleteBooking(modalState.booking.id)
+    setDeleting(false)
+    if (err) { setError(err); setConfirmDelete(false); return }
+    showToast({ message: 'Rezervácia vymazaná', bookingId: modalState.booking.id })
+    closeModal()
+  }
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -134,6 +155,29 @@ export default function BookingModal() {
               value={form.customerName}
               onChange={e => set('customerName', e.target.value)}
               placeholder="Meno zákazníka / firmy"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Phone */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-gray-700">Telefón</label>
+              {form.phone?.trim() && (
+                <a
+                  href={`tel:${form.phone.replace(/\s+/g, '')}`}
+                  className="md:hidden text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                >
+                  Zavolať
+                </a>
+              )}
+            </div>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={e => set('phone', e.target.value)}
+              placeholder="+421 905 123 456"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
@@ -233,17 +277,11 @@ export default function BookingModal() {
               <button
                 type="button"
                 disabled={deleting || saving}
-                onClick={async () => {
-                  if (!confirm('Naozaj chcete zrušiť túto rezerváciu?')) return
-                  setDeleting(true)
-                  await deleteBooking(modalState.booking.id, modalState.booking.googleEventId)
-                  setDeleting(false)
-                  closeModal()
-                }}
+                onClick={() => { setConfirmText(''); setConfirmDelete(true) }}
                 className="w-full px-4 py-2.5 border border-red-300 text-red-600 text-sm
                   font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                {deleting ? 'Ruším…' : 'Zrušiť rezerváciu'}
+                Vymazať rezerváciu
               </button>
             )}
             <div className="flex gap-3">
@@ -267,6 +305,94 @@ export default function BookingModal() {
           </div>
         </form>
       </div>
+
+      {/* Potvrdenie vymazania */}
+      {confirmDelete && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => { if (e.target === e.currentTarget && !deleting) setConfirmDelete(false) }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-red-600 px-5 py-4">
+              <h2 className="text-white font-semibold text-sm">Vymazať rezerváciu?</h2>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Zhrnutie rezervácie */}
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 space-y-1.5">
+                <p className="font-semibold text-gray-900 text-sm">{eventTitle}</p>
+                <dl className="text-xs text-gray-600 space-y-0.5">
+                  <div className="flex gap-2">
+                    <dt className="text-gray-400 w-14 shrink-0">Dátum</dt>
+                    <dd className="font-medium text-gray-700">{form.date}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="text-gray-400 w-14 shrink-0">Sála</dt>
+                    <dd className="font-medium text-gray-700">{venueName}</dd>
+                  </div>
+                  {form.phone?.trim() && (
+                    <div className="flex gap-2">
+                      <dt className="text-gray-400 w-14 shrink-0">Telefón</dt>
+                      <dd className="font-medium text-gray-700">
+                        <a
+                          href={`tel:${form.phone.replace(/\s+/g, '')}`}
+                          className="text-indigo-600 underline md:text-gray-700 md:no-underline md:pointer-events-none"
+                        >
+                          {form.phone}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Pre potvrdenie prepíš meno zákazníka:{' '}
+                  <span className="font-semibold text-gray-900">{form.customerName}</span>
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={confirmText}
+                  onChange={e => setConfirmText(e.target.value)}
+                  placeholder="Meno zákazníka"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                  {error}
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                    font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Späť
+                </button>
+                <button
+                  type="button"
+                  disabled={!canDelete || deleting}
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-medium
+                    rounded-lg hover:bg-red-700 transition-colors
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Mažem…' : 'Vymazať'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

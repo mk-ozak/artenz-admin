@@ -9,6 +9,7 @@ export function useNextEvent() {
     supabase
       .from('bookings')
       .select('id, date, hall, customer_name, event_type')
+      .is('deleted_at', null)
       .gte('date', today)
       .order('date')
       .limit(1)
