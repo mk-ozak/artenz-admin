@@ -7,8 +7,8 @@ const HALL_STRIP = {
 
 const STATUS_BG = {
   dopyt:     '#f0f2f4',
-  potvrdene: '#fff5e6',
-  zaplatene: '#eaf7f0',
+  zaloha:    '#fff5e6',
+  potvrdene: '#eaf7f0',
 }
 
 const SIZE_CLS = {

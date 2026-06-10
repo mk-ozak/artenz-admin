@@ -14,9 +14,16 @@ const EVENT_TYPES = [
   { value: 'firmovna', label: 'Firemná akcia' },
 ]
 
+const STATUSES = [
+  { value: 'dopyt',     label: 'Nezáväzný dopyt' },
+  { value: 'zaloha',    label: 'Čakajúca záloha' },
+  { value: 'potvrdene', label: 'Potvrdené' },
+]
+
 const EMPTY = {
   customerName: '',
   type: 'svadba',
+  status: 'dopyt',
   guestCount: '',
   deposit: '',
   depositPaid: false,
@@ -44,6 +51,7 @@ export default function BookingModal() {
         date:         b.date,
         venue:        b.venue,
         type:         b.type ?? 'svadba',
+        status:       b.status ?? 'dopyt',
         guestCount:   b.guestCount || '',
         deposit:      b.deposit || '',
         depositPaid:  b.depositPaid ?? false,
@@ -142,6 +150,21 @@ export default function BookingModal() {
             >
               {EVENT_TYPES.map(t => (
                 <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
+            <select
+              value={form.status}
+              onChange={e => set('status', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              {STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>

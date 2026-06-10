@@ -23,6 +23,7 @@ function toFrontend(row) {
     guestCount:     row.guest_count ?? 0,
     notes:          row.notes ?? '',
     googleEventId:  row.google_calendar_event_id ?? null,
+    status:         row.status ?? 'dopyt',
   }
 }
 
@@ -54,7 +55,8 @@ function toBackend(b) {
     deposit_amount: b.deposit !== '' && b.deposit != null ? Number(b.deposit) : null,
     deposit_paid: b.depositPaid ?? false,
     guest_count: b.guestCount !== '' && b.guestCount != null ? Number(b.guestCount) : null,
-    notes: b.notes || null,
+    notes:  b.notes || null,
+    status: b.status ?? 'dopyt',
   }
 }
 

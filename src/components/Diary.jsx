@@ -36,13 +36,13 @@ export default function Diary() {
     const end   = `${yr}-12-31`
     return supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, deposit_paid, deposit_amount, guest_count, notes')
+      .select('*')
       .gte('date', start)
       .lte('date', end)
       .order('date')
       .then(({ data, error }) => {
         if (error) console.error('[Diary] fetch error:', error.message)
-        setBookings((data ?? []).map(b => ({ ...b, status: 'dopyt' })))
+        setBookings(data ?? [])
       })
   }
 
@@ -68,12 +68,12 @@ export default function Diary() {
         const end   = `${year}-12-31`
         supabase
           .from('bookings')
-          .select('id, date, hall, customer_name, event_type, deposit_paid, deposit_amount, guest_count, notes')
+          .select('*')
           .gte('date', start)
           .lte('date', end)
           .order('date')
           .then(({ data }) => {
-            setBookings((data ?? []).map(b => ({ ...b, status: 'dopyt' })))
+            setBookings(data ?? [])
           })
       })
       .subscribe()
@@ -99,6 +99,7 @@ export default function Diary() {
       guestCount:    b.guest_count ?? 0,
       notes:         b.notes ?? '',
       googleEventId: b.google_calendar_event_id ?? null,
+      status:        b.status ?? 'dopyt',
     }
   }
 
