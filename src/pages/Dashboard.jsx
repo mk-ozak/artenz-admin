@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/auth'
 
 const STATS = [
   { label: 'Tento mesiac', value: 18, sub: 'rezervácií' },
@@ -55,13 +56,15 @@ const TILES = [
           d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
-    active: false,
-    color: 'bg-gray-100 text-gray-400 cursor-not-allowed',
+    route: '/settings',
+    active: true,
+    color: 'bg-slate-700 hover:bg-slate-800 text-white',
   },
 ]
 
 export default function Dashboard() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const signOut   = useAuthStore((s) => s.signOut)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -82,6 +85,18 @@ export default function Dashboard() {
             className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
           >
             Diár
+          </button>
+          <button
+            onClick={() => navigate('/settings')}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            Nastavenia
+          </button>
+          <button
+            onClick={signOut}
+            className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors ml-2"
+          >
+            Odhlásiť
           </button>
         </nav>
       </header>
