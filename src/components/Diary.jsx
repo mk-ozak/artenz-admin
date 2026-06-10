@@ -202,13 +202,9 @@ export default function Diary() {
                         ) : (
                           <button
                             onClick={() => openAddModal(formatDate(year, month, day), v.key)}
-                            className="w-full h-7 rounded text-xs transition-all flex items-center justify-center gap-1
-                              text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 border border-transparent hover:border-indigo-200"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                            className="w-full h-8 rounded transition-colors border border-transparent border-dashed
+                              hover:bg-indigo-50 hover:border-indigo-200"
+                          />
                         )}
                       </td>
                     )
