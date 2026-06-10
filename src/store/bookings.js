@@ -13,16 +13,36 @@ function pad(n) { return String(n).padStart(2, '0') }
 
 function toFrontend(row) {
   return {
-    id: row.id,
-    customerName: row.customer_name,
-    date: row.date,
-    venue: HALL_REVERSE[row.hall] ?? row.hall.toLowerCase(),
-    type: row.event_type ?? 'svadba',
-    deposit: row.deposit_amount != null ? Number(row.deposit_amount) : 0,
-    depositPaid: row.deposit_paid ?? false,
-    guestCount: row.guest_count ?? 0,
-    notes: row.notes ?? '',
+    id:             row.id,
+    customerName:   row.customer_name,
+    date:           row.date,
+    venue:          HALL_REVERSE[row.hall] ?? row.hall.toLowerCase(),
+    type:           row.event_type ?? 'svadba',
+    deposit:        row.deposit_amount != null ? Number(row.deposit_amount) : 0,
+    depositPaid:    row.deposit_paid ?? false,
+    guestCount:     row.guest_count ?? 0,
+    notes:          row.notes ?? '',
+    googleEventId:  row.google_calendar_event_id ?? null,
   }
+}
+
+async function syncCalendar(method, body) {
+  try {
+    const res = await fetch('/api/calendar', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    return await res.json()
+  } catch (e) {
+    console.warn('[bookings] Google Calendar sync failed:', e.message)
+    return null
+  }
+}
+
+function calendarTitle(formData) {
+  return `${formData.type ?? 'Akcia'} – ${formData.customerName}`
 }
 
 function toBackend(b) {
@@ -126,12 +146,24 @@ export const useBookingsStore = create((set, get) => ({
       console.error('[bookings] addBooking error:', error)
       return error.message
     }
-    console.log('[bookings] addBooking success:', data)
+    const newRow = data[0]
+    const result = await syncCalendar('POST', {
+      title: calendarTitle(formData),
+      hall:  HALL_MAP[formData.venue] ?? formData.venue.toUpperCase(),
+      date:  formData.date,
+    })
+    if (result?.eventId) {
+      await supabase
+        .from('bookings')
+        .update({ google_calendar_event_id: result.eventId })
+        .eq('id', newRow.id)
+    }
+    console.log('[bookings] addBooking success:', newRow.id)
     set({ modalState: null })
     return null
   },
 
-  updateBooking: async (id, formData) => {
+  updateBooking: async (id, formData, googleEventId) => {
     const payload = toBackend(formData)
     console.log('[bookings] updateBooking', id, payload)
     const { error } = await supabase.from('bookings').update(payload).eq('id', id)
@@ -139,12 +171,23 @@ export const useBookingsStore = create((set, get) => ({
       console.error('[bookings] updateBooking error:', error)
       return error.message
     }
+    if (googleEventId) {
+      await syncCalendar('PATCH', {
+        eventId: googleEventId,
+        title:   calendarTitle(formData),
+        hall:    HALL_MAP[formData.venue] ?? formData.venue.toUpperCase(),
+        date:    formData.date,
+      })
+    }
     set({ modalState: null, selectedBooking: null })
     return null
   },
 
-  deleteBooking: async (id) => {
+  deleteBooking: async (id, googleEventId) => {
     console.log('[bookings] deleteBooking', id)
+    if (googleEventId) {
+      await syncCalendar('DELETE', { eventId: googleEventId })
+    }
     const { error } = await supabase.from('bookings').delete().eq('id', id)
     if (error) {
       console.error('[bookings] deleteBooking error:', error)

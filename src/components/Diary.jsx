@@ -89,15 +89,16 @@ export default function Diary() {
 
   function toFrontend(b) {
     return {
-      id:           b.id,
-      customerName: b.customer_name,
-      date:         b.date,
-      venue:        HALL_VENUE[b.hall] ?? b.hall.toLowerCase(),
-      type:         b.event_type ?? 'svadba',
-      deposit:      b.deposit_amount != null ? Number(b.deposit_amount) : 0,
-      depositPaid:  b.deposit_paid ?? false,
-      guestCount:   b.guest_count ?? 0,
-      notes:        b.notes ?? '',
+      id:            b.id,
+      customerName:  b.customer_name,
+      date:          b.date,
+      venue:         HALL_VENUE[b.hall] ?? b.hall.toLowerCase(),
+      type:          b.event_type ?? 'svadba',
+      deposit:       b.deposit_amount != null ? Number(b.deposit_amount) : 0,
+      depositPaid:   b.deposit_paid ?? false,
+      guestCount:    b.guest_count ?? 0,
+      notes:         b.notes ?? '',
+      googleEventId: b.google_calendar_event_id ?? null,
     }
   }
 

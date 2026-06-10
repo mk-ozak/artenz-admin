@@ -24,9 +24,10 @@ const EMPTY = {
 }
 
 export default function BookingModal() {
-  const { modalState, closeModal, addBooking, updateBooking } = useBookingsStore()
+  const { modalState, closeModal, addBooking, updateBooking, deleteBooking } = useBookingsStore()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export default function BookingModal() {
     setError('')
     console.log('[BookingModal] submitting form:', form)
     const err = isEdit
-      ? await updateBooking(modalState.booking.id, form)
+      ? await updateBooking(modalState.booking.id, form, modalState.booking.googleEventId)
       : await addBooking(form)
     setSaving(false)
     if (err) {
@@ -204,23 +205,42 @@ export default function BookingModal() {
             </p>
           )}
 
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
-                font-medium rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Zrušiť
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
-                rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Ukladám…' : isEdit ? 'Uložiť zmeny' : 'Pridať rezerváciu'}
-            </button>
+          <div className="flex flex-col gap-2 pt-1">
+            {isEdit && (
+              <button
+                type="button"
+                disabled={deleting || saving}
+                onClick={async () => {
+                  if (!confirm('Naozaj chcete zrušiť túto rezerváciu?')) return
+                  setDeleting(true)
+                  await deleteBooking(modalState.booking.id, modalState.booking.googleEventId)
+                  setDeleting(false)
+                  closeModal()
+                }}
+                className="w-full px-4 py-2.5 border border-red-300 text-red-600 text-sm
+                  font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Ruším…' : 'Zrušiť rezerváciu'}
+              </button>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                  font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Zrušiť
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
+                  rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Ukladám…' : isEdit ? 'Uložiť zmeny' : 'Pridať rezerváciu'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
