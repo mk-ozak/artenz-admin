@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+@theme {
+  --radius-phone: 44px;
+  --radius-tile:  20px;
+  --radius-card:  16px;
+  --radius-row:   11px;
+
+  --color-brand-bg:        #354d5d;
+  --color-brand-light:     #ddeef6;
+  --color-hall-ap:         #4cbfb3;
+  --color-hall-a:          #d4a036;
+  --color-hall-luna:       #b55db8;
+  --color-hall-cat:        #7aaaca;
+  --color-status-dopyt:    #f0f2f4;
+  --color-status-potvrdene:#fff5e6;
+  --color-status-zaplatene:#eaf7f0;
+  --color-month-even:      #ffffff;
+  --color-month-odd:       #f4f7f9;
+  --color-month-odd-date:  #ebeff3;
+}
+
+/* Diary table row heights */
+.diary-table tr.sun-row  td { height: 36px; }
+.diary-table tr.wday-row td { height: 64px; }
+.diary-table tr.fri-row  td { height: 46px; }
+.diary-table tr.sat-row  td { height: 76px; padding: 0; }
+
+/* Sat: inner flex wrapper (TD stays table-cell) */
+.diary-table tr.sat-row td.hc > .sat-inner {
+  display: flex; flex-direction: column; height: 100%;
+}
+.diary-table tr.sat-row td.hc > .sat-inner > .evl {
+  flex: 1; margin: 4px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.diary-table tr.sat-row td.hc > .sat-inner > .cat-exp {
+  display: flex; flex-direction: column; flex: 1; padding: 3px 3px 2px;
+}
+.diary-table tr.sat-row td.hc > .sat-inner > .cat-exp > .evl {
+  flex: 1; margin: 0 0 3px;
+}
