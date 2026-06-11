@@ -10,16 +10,22 @@ export default function DiaryMonth({ year, month, isOdd, dimmed, todayISO, booki
   const weeks = getMonthWeeks(year, month)
   const bg    = isOdd ? 'bg-[#f4f7f9]' : 'bg-white'
 
-  // Staré (celé minulé) mesiace prekryjeme jemnou priehľadnou šedou aj v titulku.
-  const baseBg = isOdd ? 'bg-[#f4f7f9]' : 'bg-white'
+  // Titulok mesiaca je sticky pod hlavičkou so sálami (top ≈ výška thead).
+  // Pozadie musí byť nepriehľadné, inak by cez ukotvený titulok presvitali riadky
+  // (pre staré mesiace je to plná obdoba šedého prekrytia ~10 %).
+  const titleBg = dimmed ? '#eceff1' : (isOdd ? '#f4f7f9' : '#ffffff')
 
   return (
     <tbody className={bg}>
       <tr className="mth-row">
         <td colSpan={5}
-            className={`px-4 py-2.5 text-[15px] font-bold text-[#354d5d]
-                        border-b-2 border-[#e0e8ec] ${baseBg}`}
-            style={dimmed ? { background: 'rgba(99, 116, 133, 0.10)', borderColor: '#ffffff' } : undefined}>
+            className="sticky z-[5] px-4 py-2.5 text-[15px] font-bold text-[#354d5d]
+                       border-b-2 border-[#e0e8ec]"
+            style={{
+              top: 37,
+              background: titleBg,
+              ...(dimmed ? { borderColor: '#ffffff' } : {}),
+            }}>
           {SK_MONTHS[month]} {year}
         </td>
       </tr>

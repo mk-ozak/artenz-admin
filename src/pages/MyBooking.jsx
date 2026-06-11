@@ -33,7 +33,7 @@ const STATUS_STYLE = {
 
 // Zákaznícky pohľad – len na čítanie, RLS vráti iba jeho rezerváciu.
 export default function MyBooking() {
-  const { signOut } = useAuthStore()
+  const { fullName, signOut } = useAuthStore()
   const [booking, setBooking] = useState(undefined)
 
   useEffect(() => {
@@ -62,6 +62,12 @@ export default function MyBooking() {
             <p className="text-[22px] font-bold leading-tight" style={{ color: '#ddeef6' }}>
               Moja rezervácia
             </p>
+            {fullName?.trim() && (
+              <p className="text-[13px] mt-1" style={{ color: '#8aaabb' }}>
+                Dobrý deň vážený zákazník{' '}
+                <span className="font-semibold" style={{ color: '#b0ccd8' }}>{fullName.trim()}</span>
+              </p>
+            )}
           </div>
           <button
             onClick={signOut}

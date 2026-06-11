@@ -258,13 +258,14 @@ export default function Diary() {
                 <th className="w-14 py-2.5 px-1 text-[10px] font-semibold text-[#5a7a8c]
                                bg-[#243545] border-r border-[#354d5d] text-center" />
                 {[
-                  ['ARTENZ PLUS', 'ARTENZ_PLUS'],
-                  ['ARTENZ',      'ARTENZ'],
-                  ['LUNA',        'LUNA'],
-                  ['CATERING',    'CATERING'],
+                  ['ARTENZ+', 'ARTENZ_PLUS'],
+                  ['ARTENZ',  'ARTENZ'],
+                  ['LUNA',    'LUNA'],
+                  ['CATERING','CATERING'],
                 ].map(([label, key]) => (
                   <th key={key}
                       className="py-2.5 px-3 text-left text-[12px] font-bold tracking-[.08em]
+                                 whitespace-nowrap overflow-hidden
                                  bg-[#2b3f4e] text-[#c0d8e8] border-r border-[#354d5d] last:border-r-0"
                       style={{ boxShadow: `inset 0 3px 0 ${HALL_COLOR[key]}` }}>
                     {label}
