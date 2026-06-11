@@ -38,13 +38,11 @@ export default function Dashboard() {
         {/* 4.–6. Mobil/tablet: jeden stĺpec; desktop: dva stĺpce
             (vľavo akcie, vpravo očakávané zálohy + posledné vymazané) */}
         <div className="px-4 pb-2 grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
-          <div className="min-w-0 xl:col-start-1 xl:row-start-1 xl:row-span-2">
+          <div className="min-w-0">
             <UpcomingEvents />
           </div>
-          <div className="min-w-0 xl:col-start-2 xl:row-start-1">
+          <div className="min-w-0 flex flex-col gap-2">
             <ExpectedDeposits />
-          </div>
-          <div className="min-w-0 xl:col-start-2 xl:row-start-2">
             <DeletedBookings />
           </div>
         </div>
