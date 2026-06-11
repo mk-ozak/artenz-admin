@@ -7,6 +7,7 @@ import { formatDateSk } from '../utils/format'
 import { EVENT_TYPES, EVENT_LABEL } from '../lib/eventTypes'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
+import { toISO } from '../utils/diaryWeeks'
 import BottomNav from '../components/layout/BottomNav'
 
 const HALL_COLOR = {
@@ -165,10 +166,13 @@ export default function BookingDetail() {
     })
   }
 
-  const color = booking ? (HALL_COLOR[booking.hall] ?? '#4cbfb3') : '#4cbfb3'
-  const title = form
-    ? `${EVENT_LABEL[form.type] ?? form.type ?? 'Akcia'} – ${form.customerName}`
-    : ''
+  // Rezervácia v minulosti sa už nedá upravovať (ani adminom).
+  // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
+  const isPastBooking = !!booking && booking.date < toISO(new Date())
+  const editable      = isAdmin && !isPastBooking
+
+  const color     = booking ? (HALL_COLOR[booking.hall] ?? '#4cbfb3') : '#4cbfb3'
+  const typeLabel = form ? (EVENT_LABEL[form.type] ?? form.type ?? 'Akcia') : ''
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -200,7 +204,12 @@ export default function BookingDetail() {
             <div className="relative rounded-card bg-white border border-[#e0e8ec] px-4 py-3 pl-5 overflow-hidden">
               <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
               <div className="flex items-start justify-between gap-3">
-                <p className="text-[17px] font-semibold text-[#1a2830]">{title}</p>
+                <p className="text-[17px] font-semibold text-[#1a2830]">
+                  {form.customerName}
+                  <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
+                    {typeLabel}
+                  </span>
+                </p>
                 <span className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"
                       style={STATUS_STYLE[form.status ?? 'dopyt']}>
                   {STATUSES.find(s => s.value === form.status)?.label ?? form.status}
@@ -229,7 +238,7 @@ export default function BookingDetail() {
                     </a>
                     <a
                       href={`sms:${form.phone.replace(/\s+/g, '')}?body=${encodeURIComponent(
-                        `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${title}, ${formatDateSk(booking.date)}). `
+                        `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${typeLabel}, ${formatDateSk(booking.date)}). `
                       )}`}
                       title={`SMS na ${form.phone}`}
                       aria-label="Poslať SMS"
@@ -244,8 +253,14 @@ export default function BookingDetail() {
               </div>
             </div>
 
-            {/* read_only: všetky polia sú len na čítanie */}
-            <fieldset disabled={!isAdmin} className="flex flex-col gap-3 min-w-0">
+            {isPastBooking && (
+              <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
+                Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
+              </p>
+            )}
+
+            {/* read_only / minulá rezervácia: všetky polia sú len na čítanie */}
+            <fieldset disabled={!editable} className="flex flex-col gap-3 min-w-0">
 
             {/* Rezervácia – základné údaje (ako v modáli) */}
             <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
@@ -521,7 +536,7 @@ export default function BookingDetail() {
               </p>
             )}
 
-            {isAdmin && (
+            {editable && (
             <button
               onClick={handleSave}
               disabled={saving}

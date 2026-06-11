@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconHome, IconPlus, IconTrash } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { useAuthStore } from '../store/auth'
@@ -13,9 +13,9 @@ const ROLES = [
 ]
 
 const ROLE_BADGE = {
-  admin:     'bg-indigo-100 text-indigo-700',
+  admin:     'bg-[#eaf7f5] text-[#2a8d83]',
   read_only: 'bg-gray-100 text-gray-600',
-  customer:  'bg-emerald-100 text-emerald-700',
+  customer:  'bg-[#fff5e6] text-[#a87d20]',
 }
 
 function initials(name) {
@@ -125,46 +125,61 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#354d5d' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white text-sm font-bold">A</span>
+          <button
+            onClick={() => navigate('/')}
+            aria-label="Domov"
+            className="w-10 h-10 xl:w-8 xl:h-8 rounded flex items-center justify-center
+                       transition-opacity opacity-60 hover:opacity-100"
+            style={{ color: '#ddeef6' }}
+          >
+            <IconHome className="w-7 h-7 xl:w-5 xl:h-5" stroke={2} />
+          </button>
+          <div>
+            <p className="text-[10px] tracking-[.16em] uppercase"
+               style={{ color: 'rgba(255,255,255,.4)' }}>ARTENZ</p>
+            <p className="text-[18px] font-bold leading-tight" style={{ color: '#ddeef6' }}>
+              Nastavenia
+            </p>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Artenz Admin</h1>
         </div>
         <nav className="flex items-center gap-1">
           <button
             onClick={() => navigate('/')}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors hover:bg-white/10"
+            style={{ color: 'rgba(221,238,246,.6)' }}
           >
             Prehľad
           </button>
           <button
             onClick={() => navigate('/diary')}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors hover:bg-white/10"
+            style={{ color: 'rgba(221,238,246,.6)' }}
           >
             Diár
           </button>
-          <button className="px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 rounded-md">
+          <button
+            className="px-3 py-1.5 text-sm font-medium rounded-md"
+            style={{ background: 'rgba(255,255,255,.12)', color: '#ddeef6' }}
+          >
             Nastavenia
           </button>
         </nav>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <h2 className="text-lg font-bold text-gray-900 mb-6">Nastavenia</h2>
-
+      <main className="max-w-3xl mx-auto px-4 py-6">
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
+        <div className="border-b border-[#dde8ec] mb-6">
           <div className="flex gap-1">
             {[['users', 'Používatelia'], ['logs', 'Logy']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`px-4 py-2.5 text-sm font-medium -mb-px transition-colors
+                className={`px-4 py-2.5 text-sm font-bold -mb-px transition-colors
                             ${tab === key
-                              ? 'text-indigo-700 border-b-2 border-indigo-600'
-                              : 'text-gray-500 hover:text-gray-800'}`}
+                              ? 'text-[#2a8d83] border-b-2 border-[#4cbfb3]'
+                              : 'text-[#7a99a8] hover:text-[#354d5d]'}`}
               >
                 {label}
               </button>
@@ -188,7 +203,7 @@ export default function Settings() {
           <ActivityLogs />
         ) : loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
@@ -314,7 +329,7 @@ export default function Settings() {
                     {/* Avatar + name + email */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-[#ddeef6] text-[#354d5d] flex items-center justify-center text-xs font-bold shrink-0">
                           {initials(p.full_name)}
                         </div>
                         <div className="min-w-0">
@@ -355,7 +370,7 @@ export default function Settings() {
                     {/* Delete + saving indicator */}
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {saving[p.id] ? (
-                        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin inline-block" />
+                        <div className="w-4 h-4 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin inline-block" />
                       ) : p.id !== currentUser?.id && (
                         <button
                           onClick={() => handleDeleteUser(p.id)}

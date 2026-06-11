@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { EVENT_LABEL } from '../lib/eventTypes'
 
 const HALL_MAP = {
   artenzPlus: 'ARTENZ_PLUS',
@@ -53,11 +54,12 @@ const HALL_LABEL = {
   CATERING:    'CATERING',
 }
 
-// Názov udalosti v kalendári: „SÁLA – typ – meno"
+// Názov udalosti v kalendári: „SÁLA – meno – typ"
 function calendarTitle(formData) {
   const hall  = HALL_MAP[formData.venue] ?? formData.venue?.toUpperCase()
   const label = HALL_LABEL[hall] ?? hall
-  return `${label} – ${formData.type ?? 'Akcia'} – ${formData.customerName}`
+  const type  = EVENT_LABEL[formData.type] ?? formData.type ?? 'Akcia'
+  return `${label} – ${formData.customerName} – ${type}`
 }
 
 function toBackend(b) {
@@ -253,7 +255,7 @@ export const useBookingsStore = create((set, get) => ({
     // Event sa pri mazaní zmazal → vytvor ho nanovo a ulož nové ID.
     if (row && !row.google_calendar_event_id) {
       const result = await syncCalendar('POST', {
-        title: `${HALL_LABEL[row.hall] ?? row.hall} – ${row.event_type ?? 'Akcia'} – ${row.customer_name}`,
+        title: `${HALL_LABEL[row.hall] ?? row.hall} – ${row.customer_name} – ${EVENT_LABEL[row.event_type] ?? row.event_type ?? 'Akcia'}`,
         hall:  row.hall,
         date:  row.date,
       })

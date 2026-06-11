@@ -98,7 +98,10 @@ export default function MyBooking() {
 
             <div className="flex items-start justify-between gap-3">
               <p className="text-[18px] font-semibold text-[#1a2830]">
-                {(EVENT_LABEL[booking.event_type] ?? booking.event_type ?? 'Akcia')} – {booking.customer_name}
+                {booking.customer_name}
+                <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
+                  {EVENT_LABEL[booking.event_type] ?? booking.event_type ?? 'Akcia'}
+                </span>
               </p>
               <span className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"
                     style={STATUS_STYLE[booking.status ?? 'dopyt']}>

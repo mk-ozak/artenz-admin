@@ -21,8 +21,8 @@ const HALL_LABEL = {
 }
 
 // Predvyplnený text SMS (?body= funguje na Androide aj novšom iOS)
-function smsHref(phone, title, date) {
-  const text = `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${title}, ${formatDateSk(date)}). `
+function smsHref(phone, typeLabel, date) {
+  const text = `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${typeLabel}, ${formatDateSk(date)}). `
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
@@ -58,9 +58,9 @@ export default function UpcomingEvents() {
       ) : (
         <ul className="divide-y divide-[#eef3f6]">
           {events.map(e => {
-            const color = STRIPE[e.hall] ?? '#4cbfb3'
-            const title = `${EVENT_LABEL[e.event_type] ?? e.event_type ?? ''} – ${e.customer_name ?? ''}`
-            const phone = e.customer_phone?.replace(/\s+/g, '')
+            const color     = STRIPE[e.hall] ?? '#4cbfb3'
+            const typeLabel = EVENT_LABEL[e.event_type] ?? e.event_type ?? ''
+            const phone     = e.customer_phone?.replace(/\s+/g, '')
             return (
               <li key={e.id}
                   onClick={() => navigate(`/booking/${e.id}`)}
@@ -68,7 +68,12 @@ export default function UpcomingEvents() {
                              flex items-center gap-3">
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-semibold text-[#1a2830] truncate">{title}</p>
+                  <p className="text-[14px] font-semibold text-[#1a2830] truncate">
+                    {e.customer_name}
+                    <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-[#9ab0ba]">
+                      {typeLabel}
+                    </span>
+                  </p>
                   <div className="flex gap-3 mt-1 items-center">
                     <span className="flex items-center gap-1 text-xs text-[#6a8898]">
                       <IconCalendar size={13} />
@@ -93,7 +98,7 @@ export default function UpcomingEvents() {
                       <IconPhone size={16} />
                     </a>
                     <a
-                      href={smsHref(phone, title, e.date)}
+                      href={smsHref(phone, typeLabel, e.date)}
                       onClick={ev => ev.stopPropagation()}
                       title={`SMS na ${e.customer_phone}`}
                       aria-label="Poslať SMS"

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
+import { toISO } from '../utils/diaryWeeks'
 
 // Čas rezervácie: 09–19 h, minúty po 15
 const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
@@ -40,7 +41,7 @@ const EMPTY = {
 export default function BookingModal() {
   const navigate = useNavigate()
   const { modalState, closeModal, addBooking, updateBooking, deleteBooking, showToast } = useBookingsStore()
-  const canEdit = useAuthStore(s => s.role) === 'admin'
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -85,10 +86,13 @@ export default function BookingModal() {
 
   if (!modalState) return null
 
-  const isEdit     = modalState.mode === 'edit'
+  const isEdit = modalState.mode === 'edit'
+  // Rezervácia v minulosti sa už nedá upravovať ani mazať (ani adminom).
+  // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
+  const isPastBooking = isEdit && form.date < toISO(new Date())
+  const canEdit       = isAdmin && !isPastBooking
   const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
-  const eventTitle = `${typeLabel} – ${form.customerName}`
   const canDelete  =
     confirmText.trim() !== '' &&
     confirmText.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
@@ -136,7 +140,7 @@ export default function BookingModal() {
     if (!form.customerName?.trim()) { setError('Meno zákazníka je povinné.'); return }
     if (!form.date)  { setError('Dátum je povinný.'); return }
     if (!form.venue) { setError('Sála je povinná.'); return }
-    if (!isEdit && form.date < new Date().toISOString().split('T')[0]) {
+    if (!isEdit && form.date < toISO(new Date())) {
       setError('Dátum nemôže byť v minulosti.'); return
     }
     setSaving(true)
@@ -206,7 +210,7 @@ export default function BookingModal() {
                 <input
                   type="date"
                   value={form.date ?? ''}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={toISO(new Date())}
                   onChange={e => set('date', e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded px-1 py-0.5 mt-0.5
                     text-sm font-semibold text-gray-800
@@ -334,6 +338,12 @@ export default function BookingModal() {
           </div>
           </fieldset>
 
+          {isPastBooking && (
+            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
+              Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
+            </p>
+          )}
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
               {error}
@@ -401,7 +411,12 @@ export default function BookingModal() {
             <div className="p-5 space-y-4">
               {/* Zhrnutie rezervácie */}
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 space-y-1.5">
-                <p className="font-semibold text-gray-900 text-sm">{eventTitle}</p>
+                <p className="font-semibold text-gray-900 text-sm">
+                  {form.customerName}
+                  <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-gray-400">
+                    {typeLabel}
+                  </span>
+                </p>
                 <dl className="text-xs text-gray-600 space-y-0.5">
                   <div className="flex gap-2">
                     <dt className="text-gray-400 w-14 shrink-0">Dátum</dt>

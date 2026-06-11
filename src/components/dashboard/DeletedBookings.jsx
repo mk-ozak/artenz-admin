@@ -69,7 +69,10 @@ export default function DeletedBookings() {
           <li key={r.id} className="flex items-center gap-2 px-4 py-2.5">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-red-800 truncate">
-                {(EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – {r.customer_name}
+                {r.customer_name}
+                <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-gray-400">
+                  {EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia'}
+                </span>
               </p>
               <p className="text-xs text-red-500">
                 {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}
