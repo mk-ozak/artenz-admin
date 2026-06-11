@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useBookingsStore } from '../store/bookings'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
+
+// Čas rezervácie: 09–19 h, minúty po 15
+const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
+const MINUTES = ['00', '15', '30', '45']
 
 const VENUES = [
   { key: 'artenzPlus', label: 'ARTENZ PLUS' },
@@ -18,8 +23,11 @@ const STATUSES = [
 const EMPTY = {
   customerName: '',
   phone: '',
+  time: '',
   type: DEFAULT_EVENT_TYPE,
   status: 'dopyt',
+  // Polia editovateľné v Detaile rezervácie — vo formulári sa nezobrazujú,
+  // ale držíme ich v stave, aby sa pri uložení neprepísali.
   guestCount: '',
   deposit: '',
   depositPaid: false,
@@ -27,6 +35,7 @@ const EMPTY = {
 }
 
 export default function BookingModal() {
+  const navigate = useNavigate()
   const { modalState, closeModal, addBooking, updateBooking, deleteBooking, showToast } = useBookingsStore()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -56,6 +65,7 @@ export default function BookingModal() {
         customerName: b.customerName,
         date:         b.date,
         venue:        b.venue,
+        time:         b.time ?? '',
         type:         b.type ?? DEFAULT_EVENT_TYPE,
         status:       b.status ?? 'dopyt',
         guestCount:   b.guestCount || '',
@@ -91,9 +101,38 @@ export default function BookingModal() {
     setForm(f => ({ ...f, [field]: value }))
   }
 
+  // Čas: "HH:MM" alebo '' (nepovinný); minúty po 15
+  const timeHH = form.time ? form.time.slice(0, 2) : ''
+  const timeMM = form.time ? form.time.slice(3, 5) : '00'
+
+  function setHour(h) {
+    set('time', h === '' ? '' : `${h}:${timeMM}`)
+  }
+  function setMinute(m) {
+    if (timeHH) set('time', `${timeHH}:${m}`)
+  }
+
+  // Zmena sály pri pridávaní: drží pravidlo „CATERING → predvolený typ Catering"
+  function setVenue(venue) {
+    setForm(f => ({
+      ...f,
+      venue,
+      type: venue === 'catering' && f.type === DEFAULT_EVENT_TYPE
+        ? 'catering'
+        : venue !== 'catering' && f.type === 'catering'
+          ? DEFAULT_EVENT_TYPE
+          : f.type,
+    }))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.customerName?.trim()) { setError('Meno zákazníka je povinné.'); return }
+    if (!form.date)  { setError('Dátum je povinný.'); return }
+    if (!form.venue) { setError('Sála je povinná.'); return }
+    if (!isEdit && form.date < new Date().toISOString().split('T')[0]) {
+      setError('Dátum nemôže byť v minulosti.'); return
+    }
     setSaving(true)
     setError('')
     console.log('[BookingModal] submitting form:', form)
@@ -116,146 +155,145 @@ export default function BookingModal() {
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 
         {/* Header */}
-        <div className="bg-gray-900 px-5 py-4 flex items-center justify-between">
-          <h2 className="text-white font-semibold text-sm">
+        <div className="px-5 py-4 flex items-center justify-between" style={{ background: '#354d5d' }}>
+          <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>
             {isEdit ? 'Editovať rezerváciu' : 'Nová rezervácia'}
           </h2>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
 
-          {/* Context chips */}
+          {/* Context chips: Čas | Dátum | Sála */}
           <div className="flex gap-3">
             <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Čas</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <select
+                  value={timeHH}
+                  onChange={e => setHour(e.target.value)}
+                  className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
+                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">–</option>
+                  {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <span className="text-sm font-semibold text-gray-500">:</span>
+                <select
+                  value={timeMM}
+                  onChange={e => setMinute(e.target.value)}
+                  disabled={!timeHH}
+                  className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
+                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                    disabled:opacity-40"
+                >
+                  {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Dátum</p>
-              <p className="font-semibold text-gray-800 text-sm mt-0.5">{form.date}</p>
+              {isEdit ? (
+                <p className="font-semibold text-gray-800 text-sm mt-0.5">{form.date}</p>
+              ) : (
+                <input
+                  type="date"
+                  value={form.date ?? ''}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={e => set('date', e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded px-1 py-0.5 mt-0.5
+                    text-sm font-semibold text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              )}
             </div>
             <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Sála</p>
-              <p className="font-semibold text-gray-800 text-sm mt-0.5">{venueName}</p>
-            </div>
-          </div>
-
-          {/* Customer */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Zákazník <span className="text-red-500">*</span>
-            </label>
-            <input
-              autoFocus
-              type="text"
-              value={form.customerName}
-              onChange={e => set('customerName', e.target.value)}
-              placeholder="Meno zákazníka / firmy"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-gray-700">Telefón</label>
-              {form.phone?.trim() && (
-                <a
-                  href={`tel:${form.phone.replace(/\s+/g, '')}`}
-                  className="md:hidden text-xs font-medium text-indigo-600 hover:text-indigo-700"
+              {isEdit ? (
+                <p className="font-semibold text-gray-800 text-sm mt-0.5">{venueName}</p>
+              ) : (
+                <select
+                  value={form.venue ?? ''}
+                  onChange={e => setVenue(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded px-1 py-0.5 mt-0.5
+                    text-sm font-semibold text-gray-800
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  Zavolať
-                </a>
+                  <option value="" disabled>–</option>
+                  {VENUES.map(v => (
+                    <option key={v.key} value={v.key}>{v.label}</option>
+                  ))}
+                </select>
               )}
             </div>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={e => set('phone', e.target.value)}
-              placeholder="+421 905 123 456"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
           </div>
 
-          {/* Event type */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
-            <select
-              value={form.type}
-              onChange={e => set('type', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            >
-              {EVENT_TYPES.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
-            <select
-              value={form.status}
-              onChange={e => set('status', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            >
-              {STATUSES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Guest count + deposit */}
+          {/* Customer + phone */}
           <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet hostí</label>
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Zákazník <span className="text-red-500">*</span>
+              </label>
               <input
-                type="number"
-                value={form.guestCount}
-                onChange={e => set('guestCount', e.target.value)}
-                placeholder="0"
-                min="0"
+                autoFocus
+                type="text"
+                value={form.customerName}
+                onChange={e => set('customerName', e.target.value)}
+                placeholder="Meno zákazníka / firmy"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Záloha (€)</label>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-700">Telefón</label>
+                {form.phone?.trim() && (
+                  <a
+                    href={`tel:${form.phone.replace(/\s+/g, '')}`}
+                    className="md:hidden text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    Zavolať
+                  </a>
+                )}
+              </div>
               <input
-                type="number"
-                value={form.deposit}
-                onChange={e => set('deposit', e.target.value)}
-                placeholder="0"
-                min="0"
-                step="0.01"
+                type="tel"
+                value={form.phone}
+                onChange={e => set('phone', e.target.value)}
+                placeholder="+421 905 123 456"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
           </div>
 
-          {/* Deposit paid toggle */}
-          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.depositPaid}
-              onChange={e => set('depositPaid', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-            />
-            <span className="text-sm text-gray-700">Záloha zaplatená</span>
-          </label>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Poznámky</label>
-            <textarea
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-              placeholder="Špeciálne požiadavky, alergény, výzdoba..."
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
+          {/* Event type + status */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
+              <select
+                value={form.type}
+                onChange={e => set('type', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                {EVENT_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
+              <select
+                value={form.status}
+                onChange={e => set('status', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                {STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {error && (
@@ -265,6 +303,16 @@ export default function BookingModal() {
           )}
 
           <div className="flex flex-col gap-2 pt-1">
+            {isEdit && (
+              <button
+                type="button"
+                onClick={() => { closeModal(); navigate(`/booking/${modalState.booking.id}`) }}
+                className="w-full px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                  font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Detaily rezervácie
+              </button>
+            )}
             {isEdit && (
               <button
                 type="button"
@@ -288,8 +336,9 @@ export default function BookingModal() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
-                  rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 text-sm font-bold rounded-lg
+                  transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
               >
                 {saving ? 'Ukladám…' : isEdit ? 'Uložiť zmeny' : 'Pridať rezerváciu'}
               </button>

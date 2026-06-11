@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconCalendar } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateSk } from '../../utils/format'
@@ -21,6 +22,7 @@ const HALL_LABEL = {
 
 // Všetky akcie na najbližších 7 dní (vrátane dneška)
 export default function UpcomingEvents() {
+  const navigate = useNavigate()
   const [events, setEvents] = useState([])
 
   useEffect(() => {
@@ -53,7 +55,9 @@ export default function UpcomingEvents() {
             const color = STRIPE[e.hall] ?? '#4cbfb3'
             const title = `${EVENT_LABEL[e.event_type] ?? e.event_type ?? ''} – ${e.customer_name ?? ''}`
             return (
-              <li key={e.id} className="relative px-4 py-2.5 pl-5">
+              <li key={e.id}
+                  onClick={() => navigate(`/booking/${e.id}`)}
+                  className="relative px-4 py-2.5 pl-5 cursor-pointer hover:bg-[#f6f9fb] transition-colors">
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
                 <p className="text-[14px] font-semibold text-[#1a2830]">{title}</p>
                 <div className="flex gap-3 mt-1 items-center">

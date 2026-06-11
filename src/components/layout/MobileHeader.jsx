@@ -1,20 +1,16 @@
 import { useEffect, useState } from 'react'
-import { IconUser } from '@tabler/icons-react'
+import { IconLogout } from '@tabler/icons-react'
 import { useAuthStore } from '../../store/auth'
 import { formatTime } from '../../utils/format'
 
 export default function MobileHeader() {
-  const { fullName, signOut } = useAuthStore()
+  const { signOut } = useAuthStore()
   const [time, setTime] = useState(formatTime())
 
   useEffect(() => {
     const t = setInterval(() => setTime(formatTime()), 30_000)
     return () => clearInterval(t)
   }, [])
-
-  const initials = fullName
-    ? fullName.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join('')
-    : '?'
 
   return (
     <header className="px-5 pt-3 pb-4" style={{ background: '#354d5d' }}>
@@ -30,14 +26,12 @@ export default function MobileHeader() {
         <button
           onClick={signOut}
           title="Odhlásiť sa"
-          className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold"
+          aria-label="Odhlásiť sa"
+          className="w-10 h-10 rounded-full flex items-center justify-center
+                     transition-opacity hover:opacity-80"
           style={{ background: 'rgba(255,255,255,.1)' }}
         >
-          {fullName ? (
-            <span style={{ color: '#7a9aac' }}>{initials}</span>
-          ) : (
-            <IconUser size={18} style={{ color: '#7a9aac' }} />
-          )}
+          <IconLogout size={19} style={{ color: '#7a9aac' }} />
         </button>
       </div>
     </header>

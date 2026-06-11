@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
+import BookingDetail from './pages/BookingDetail'
 import Diary from './components/Diary'
 import LoginPage from './pages/LoginPage'
 import Settings from './pages/Settings'
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/diary" element={<Diary />} />
+          <Route path="/booking/:id" element={<BookingDetail />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

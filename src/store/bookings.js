@@ -25,6 +25,7 @@ function toFrontend(row) {
     googleEventId:  row.google_calendar_event_id ?? null,
     status:         row.status ?? 'dopyt',
     phone:          row.customer_phone ?? null,
+    time:           row.start_time ? row.start_time.slice(0, 5) : '',
   }
 }
 
@@ -69,6 +70,7 @@ function toBackend(b) {
     notes:  b.notes || null,
     status: b.status ?? 'dopyt',
     customer_phone: b.phone?.trim() || null,
+    start_time: b.time || null,
   }
 }
 

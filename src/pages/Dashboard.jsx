@@ -52,7 +52,10 @@ export default function Dashboard() {
         <div className="flex-1" />
       </div>
 
-      <BottomNav />
+      {/* Spodná navigácia len na mobile/tablete */}
+      <div className="xl:hidden">
+        <BottomNav />
+      </div>
     </div>
   )
 }

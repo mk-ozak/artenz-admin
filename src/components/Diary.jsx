@@ -155,6 +155,7 @@ export default function Diary() {
       googleEventId: b.google_calendar_event_id ?? null,
       status:        b.status ?? 'dopyt',
       phone:         b.customer_phone ?? null,
+      time:          b.start_time ? b.start_time.slice(0, 5) : '',
     }
   }
 

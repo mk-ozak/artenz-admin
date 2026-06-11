@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import DiaryEventBlock from './DiaryEventBlock'
 import { toISO } from '../../utils/diaryWeeks'
+import { pressToAdd } from '../../utils/longPress'
 
 const HALLS = ['ARTENZ_PLUS', 'ARTENZ', 'LUNA', 'CATERING']
 
@@ -35,7 +36,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
     return past
       ? <div className={`w-full h-full min-h-[28px] ${className}`} />
       : (
-        <button onClick={onAddClick}
+        <button type="button" {...pressToAdd(onAddClick)}
                 className={`w-full h-full min-h-[28px] hover:bg-indigo-50/60 transition-colors rounded ${className}`} />
       )
   }
@@ -65,7 +66,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
         ? <div className="flex-1 min-h-[6px]" />
         : (
           <div className="flex-1 min-h-[6px] cursor-pointer hover:bg-indigo-50/60 transition-colors rounded"
-               onClick={e => { e.stopPropagation(); onAddClick() }} />
+               {...pressToAdd(onAddClick)} />
         )}
     </div>
   )
@@ -153,7 +154,7 @@ function WeekdayHallCell({ mon, tue, wed, thu, year, month, todayISO, hall, book
                    idx % 2 === 0 ? 'border-r border-dashed border-[#e8eef2]' : '',
                    canAdd ? 'cursor-pointer hover:bg-indigo-50/60 transition-colors' : '',
                  ].join(' ')}
-                 onClick={canAdd ? () => onEmptyClick(date, hall) : undefined}
+                 {...(canAdd ? pressToAdd(() => onEmptyClick(date, hall)) : {})}
             >
               {evt && (
                 <DiaryEventBlock title={evt.customer_name} hall={hall}
@@ -235,7 +236,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
           ) : past ? (
             <div className={`w-full h-full ${minH}`} />
           ) : (
-            <button onClick={() => handleEmpty(date, hall)}
+            <button type="button" {...pressToAdd(() => handleEmpty(date, hall))}
                     className={`w-full h-full hover:bg-indigo-50/60 transition-colors rounded ${minH}`} />
           )}
         </td>
@@ -275,7 +276,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
           {past
             ? <div className="w-full h-full min-h-[76px]" />
             : (
-              <button onClick={() => handleEmpty(sat, hall)}
+              <button type="button" {...pressToAdd(() => handleEmpty(sat, hall))}
                       className="w-full h-full min-h-[76px] hover:bg-indigo-50/60 transition-colors rounded" />
             )}
         </td>
