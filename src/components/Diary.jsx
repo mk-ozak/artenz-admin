@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase'
 import DiaryMonth from './diary/DiaryMonth'
 import BookingModal from './BookingModal'
 import { useBookingsStore } from '../store/bookings'
+import { toISO } from '../utils/diaryWeeks'
+
+const MIN_YEAR = 2024
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -17,7 +20,38 @@ function pad(n) { return String(n).padStart(2, '0') }
 export default function Diary() {
   const navigate = useNavigate()
   const today    = new Date()
-  const [year, setYear] = useState(today.getFullYear())
+  const todayISO = toISO(today)
+
+  const currentYear  = today.getFullYear()
+  const currentMonth = today.getMonth()
+  // V januári niet predošlých mesiacov tohto roku → samostatná strana „rok*" neexistuje.
+  const hasPastPart  = currentMonth > 0
+
+  // Stránka diára:
+  //  - { year, part:'full' }   → celý (minulý/budúci) rok
+  //  - { year:currentYear, part:'past' }   → predošlé mesiace tohto roku (label „2026*")
+  //  - { year:currentYear, part:'future' } → aktuálny mesiac a ďalej (label „2026")
+  const [page, setPage] = useState({ year: currentYear, part: 'future' })
+
+  function prevPage(p) {
+    if (p.year === currentYear && p.part === 'future')
+      return hasPastPart ? { year: currentYear, part: 'past' } : { year: currentYear - 1, part: 'full' }
+    if (p.year === currentYear && p.part === 'past')
+      return { year: currentYear - 1, part: 'full' }
+    if (p.year - 1 === currentYear) return { year: currentYear, part: 'future' }
+    return { year: p.year - 1, part: 'full' }
+  }
+  function nextPage(p) {
+    if (p.year === currentYear && p.part === 'past')   return { year: currentYear, part: 'future' }
+    if (p.year === currentYear && p.part === 'future') return { year: currentYear + 1, part: 'full' }
+    if (p.year + 1 === currentYear)
+      return hasPastPart ? { year: currentYear, part: 'past' } : { year: currentYear, part: 'future' }
+    return { year: p.year + 1, part: 'full' }
+  }
+
+  const canGoPrev  = !(page.year <= MIN_YEAR && page.part === 'full')
+  const isPastPage = page.part === 'past' || page.year < currentYear
+  const yearLabel  = page.part === 'past' ? `${currentYear}*` : `${page.year}`
 
   const { openAddModal, openEditModal, modalState } = useBookingsStore()
   const prevModal = useRef(modalState)
@@ -25,11 +59,13 @@ export default function Diary() {
   const [bookings, setBookings] = useState([])
   const [loading,  setLoading]  = useState(true)
 
-  // Visible months: current year → only from current month; other years → all 12
-  const currentYear  = today.getFullYear()
-  const currentMonth = today.getMonth()
-  const visibleMonths = Array.from({ length: 12 }, (_, i) => i)
-    .filter(m => year !== currentYear || m >= currentMonth)
+  // Viditeľné mesiace podľa časti stránky
+  const visibleMonths =
+    page.part === 'past'
+      ? Array.from({ length: currentMonth }, (_, i) => i)
+      : page.part === 'future'
+        ? Array.from({ length: 12 - currentMonth }, (_, i) => currentMonth + i)
+        : Array.from({ length: 12 }, (_, i) => i)
 
   function fetchYear(yr) {
     const start = `${yr}-01-01`
@@ -49,13 +85,13 @@ export default function Diary() {
 
   useEffect(() => {
     setLoading(true)
-    fetchYear(year).then(() => setLoading(false))
-  }, [year]) // eslint-disable-line react-hooks/exhaustive-deps
+    fetchYear(page.year).then(() => setLoading(false))
+  }, [page.year]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refetch when modal closes — catches add / edit / delete from BookingModal
   useEffect(() => {
     if (prevModal.current !== null && modalState === null) {
-      fetchYear(year)
+      fetchYear(page.year)
     }
     prevModal.current = modalState
   }, [modalState]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -63,10 +99,10 @@ export default function Diary() {
   // Subscribe to realtime changes
   useEffect(() => {
     const channel = supabase
-      .channel(`diary-year-${year}`)
+      .channel(`diary-year-${page.year}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        const start = `${year}-01-01`
-        const end   = `${year}-12-31`
+        const start = `${page.year}-01-01`
+        const end   = `${page.year}-12-31`
         supabase
           .from('bookings')
           .select('*')
@@ -80,7 +116,7 @@ export default function Diary() {
       })
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [year])
+  }, [page.year])
 
   const HALL_VENUE = {
     ARTENZ_PLUS: 'artenzPlus',
@@ -121,7 +157,7 @@ export default function Diary() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
 
       {/* Year header */}
       <div className="shrink-0" style={{ background: '#354d5d' }}>
@@ -135,18 +171,19 @@ export default function Diary() {
               ← Domov
             </button>
             <button
-              onClick={() => setYear(y => y - 1)}
-              className="w-7 h-7 rounded flex items-center justify-center text-[17px] transition-opacity hover:opacity-100 opacity-60"
+              onClick={() => { if (canGoPrev) setPage(prevPage) }}
+              disabled={!canGoPrev}
+              className="w-7 h-7 rounded flex items-center justify-center text-[17px] transition-opacity hover:opacity-100 opacity-60 disabled:opacity-20 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,.12)', color: '#b0ccd8' }}
             >
               ‹
             </button>
             <span className="text-[18px] font-bold min-w-[60px] text-center select-none"
                   style={{ color: '#ddeef6' }}>
-              {year}
+              {yearLabel}
             </span>
             <button
-              onClick={() => setYear(y => y + 1)}
+              onClick={() => setPage(nextPage)}
               className="w-7 h-7 rounded flex items-center justify-center text-[17px] transition-opacity hover:opacity-100 opacity-60"
               style={{ background: 'rgba(255,255,255,.12)', color: '#b0ccd8' }}
             >
@@ -168,7 +205,7 @@ export default function Diary() {
       </div>
 
       {/* Scrollable diary table */}
-      <div className="flex-1 overflow-x-auto">
+      <div className="flex-1 overflow-auto">
         <div style={{ minWidth: 860 }}>
           <table className="diary-table w-full border-collapse" style={{ tableLayout: 'fixed' }}>
 
@@ -186,7 +223,7 @@ export default function Diary() {
                   <th key={key}
                       className="py-2.5 px-3 text-left text-[12px] font-bold tracking-[.08em]
                                  bg-[#2b3f4e] text-[#c0d8e8] border-r border-[#354d5d] last:border-r-0"
-                      style={{ borderTop: `3px solid ${HALL_COLOR[key]}` }}>
+                      style={{ boxShadow: `inset 0 3px 0 ${HALL_COLOR[key]}` }}>
                     {label}
                   </th>
                 ))}
@@ -196,10 +233,12 @@ export default function Diary() {
             {/* Month bodies */}
             {visibleMonths.map((month, idx) => (
               <DiaryMonth
-                key={`${year}-${month}`}
-                year={year}
+                key={`${page.year}-${month}`}
+                year={page.year}
                 month={month}
                 isOdd={idx % 2 !== 0}
+                dimmed={isPastPage}
+                todayISO={todayISO}
                 bookings={bookings}
                 onCellClick={handleCellClick}
                 onBookingClick={handleBookingClick}

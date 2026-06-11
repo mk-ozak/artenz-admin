@@ -24,7 +24,8 @@
 .diary-table tr.sun-row  td { height: 36px; }
 .diary-table tr.wday-row td { height: 64px; }
 .diary-table tr.fri-row  td { height: 46px; }
-.diary-table tr.sat-row  td { height: 76px; padding: 0; }
+.diary-table tr.sat-row  td      { height: 76px; }
+.diary-table tr.sat-row  td.hc   { padding: 0; }
 
 /* Sat: inner flex wrapper (TD stays table-cell) */
 .diary-table tr.sat-row td.hc > .sat-inner {
