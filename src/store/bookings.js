@@ -193,12 +193,15 @@ export const useBookingsStore = create((set, get) => ({
   },
 
   // Soft delete – riadok sa fyzicky nemaže, len sa nastaví deleted_at.
-  // Google Calendar event zámerne ostáva, aby sa rezervácia dala čisto obnoviť.
-  deleteBooking: async (id) => {
+  // Google Calendar event sa zmaže (pri obnove sa vytvorí nanovo).
+  deleteBooking: async (id, googleEventId) => {
     console.log('[bookings] deleteBooking (soft)', id)
+    if (googleEventId) {
+      await syncCalendar('DELETE', { eventId: googleEventId })
+    }
     const { error } = await supabase
       .from('bookings')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), google_calendar_event_id: null })
       .eq('id', id)
     if (error) {
       console.error('[bookings] deleteBooking error:', error)
@@ -208,9 +211,20 @@ export const useBookingsStore = create((set, get) => ({
     return null
   },
 
-  // Obnova soft-deleted rezervácie – deleted_at späť na null.
+  // Obnova soft-deleted rezervácie – deleted_at späť na null
+  // + opätovné vytvorenie Google Calendar eventu.
   restoreBooking: async (id) => {
     console.log('[bookings] restoreBooking', id)
+    const { data: row, error: fetchErr } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (fetchErr) {
+      console.error('[bookings] restoreBooking fetch error:', fetchErr)
+      return fetchErr.message
+    }
+
     const { error } = await supabase
       .from('bookings')
       .update({ deleted_at: null })
@@ -218,6 +232,21 @@ export const useBookingsStore = create((set, get) => ({
     if (error) {
       console.error('[bookings] restoreBooking error:', error)
       return error.message
+    }
+
+    // Event sa pri mazaní zmazal → vytvor ho nanovo a ulož nové ID.
+    if (row && !row.google_calendar_event_id) {
+      const result = await syncCalendar('POST', {
+        title: `${row.event_type ?? 'Akcia'} – ${row.customer_name}`,
+        hall:  row.hall,
+        date:  row.date,
+      })
+      if (result?.eventId) {
+        await supabase
+          .from('bookings')
+          .update({ google_calendar_event_id: result.eventId })
+          .eq('id', id)
+      }
     }
     return null
   },

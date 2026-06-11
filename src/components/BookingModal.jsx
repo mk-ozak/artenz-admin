@@ -79,7 +79,7 @@ export default function BookingModal() {
   async function handleDelete() {
     setDeleting(true)
     setError('')
-    const err = await deleteBooking(modalState.booking.id)
+    const err = await deleteBooking(modalState.booking.id, modalState.booking.googleEventId)
     setDeleting(false)
     if (err) { setError(err); setConfirmDelete(false); return }
     showToast({ message: 'Rezervácia vymazaná', bookingId: modalState.booking.id })
