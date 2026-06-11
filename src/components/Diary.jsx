@@ -60,12 +60,14 @@ export default function Diary() {
 
   const [bookings,  setBookings]  = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [exporting, setExporting] = useState(false)
+  const [exporting,     setExporting]     = useState(false)
+  const [confirmExport, setConfirmExport] = useState(false)
 
   async function handleExport() {
     setExporting(true)
     try {
       await exportDiaryYear(page.year, bookings)
+      setConfirmExport(false)
     } catch (e) {
       console.error('[Diary] export error:', e)
     } finally {
@@ -210,7 +212,7 @@ export default function Diary() {
           </div>
           <div className="flex items-center gap-2">
           <button
-            onClick={handleExport}
+            onClick={() => setConfirmExport(true)}
             disabled={exporting}
             aria-label="Export roka do Excelu"
             title="Export roka do Excelu"
@@ -297,6 +299,43 @@ export default function Diary() {
           </div>
         </div>
       </div>
+
+      {/* Potvrdenie exportu */}
+      {confirmExport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-gray-900 px-5 py-4">
+              <h2 className="text-white font-semibold text-sm">Export do Excelu</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-700">
+                Chcete exportovať tento rok?{' '}
+                <span className="font-bold">{yearLabel}</span>
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={exporting}
+                  onClick={() => setConfirmExport(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                    font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Zrušiť
+                </button>
+                <button
+                  type="button"
+                  disabled={exporting}
+                  onClick={handleExport}
+                  className="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
+                    rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  {exporting ? 'Exportujem…' : 'Exportovať'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow px-3 py-2

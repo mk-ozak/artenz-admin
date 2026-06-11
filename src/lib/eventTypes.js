@@ -6,6 +6,7 @@ export const EVENT_TYPES = [
   { value: 'kar',       label: 'Kar' },
   { value: 'stuzkova',  label: 'Stužková' },
   { value: 'firemka',   label: 'Firemka' },
+  { value: 'catering',  label: 'Catering' },
 ]
 
 // value → label (napr. pre zobrazenie názvu akcie)

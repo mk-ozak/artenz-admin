@@ -6,7 +6,7 @@ export default function NavButton({ icon, label, sub, bgColor, textDark = true, 
     <button
       onClick={onClick}
       disabled={disabled}
-      className="rounded-tile p-[18px] flex flex-col gap-1 min-h-[104px]
+      className="rounded-tile p-[18px] flex flex-col gap-1 min-h-[104px] xl:aspect-square xl:min-h-0
                  active:scale-[.97] transition-transform text-left w-full
                  disabled:opacity-75 disabled:cursor-default relative"
       style={{ background: bgColor }}

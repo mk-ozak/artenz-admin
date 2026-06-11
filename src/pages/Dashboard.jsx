@@ -1,74 +1,58 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { useNextEvent } from '../hooks/useNextEvent'
 import { useStatsThisMonth } from '../hooks/useStatsThisMonth'
 import { formatTodaySk } from '../utils/format'
+import { getNameDay } from '../utils/meniny'
 import MobileHeader from '../components/layout/MobileHeader'
 import BottomNav from '../components/layout/BottomNav'
-import TopBar from '../components/layout/TopBar'
-import Sidebar from '../components/layout/Sidebar'
-import NextEventCard from '../components/dashboard/NextEventCard'
 import NavGrid from '../components/dashboard/NavGrid'
-import StatCards from '../components/dashboard/StatCards'
-import HallStatusToday from '../components/dashboard/HallStatusToday'
+import UpcomingEvents from '../components/dashboard/UpcomingEvents'
+import ExpectedDeposits from '../components/dashboard/ExpectedDeposits'
 import DeletedBookings from '../components/dashboard/DeletedBookings'
 
-function useTodayBookings() {
-  const [bookings, setBookings] = useState([])
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0]
-    supabase
-      .from('bookings')
-      .select('id, hall, customer_name, event_type')
-      .is('deleted_at', null)
-      .eq('date', today)
-      .then(({ data }) => setBookings(data ?? []))
-  }, [])
-  return bookings
-}
-
+// Jednotný dashboard pre mobil, tablet aj desktop – bez bočného menu,
+// obsah v jednom stĺpci so 4 veľkými farebnými tlačidlami.
 export default function Dashboard() {
-  const { data: nextEvent }    = useNextEvent()
-  const { data: stats }        = useStatsThisMonth()
-  const todayBookings          = useTodayBookings()
+  const { data: stats } = useStatsThisMonth()
+  const meniny = getNameDay()
 
   return (
-    <>
-      {/* ── MOBILE (< md) ── */}
-      <div className="flex flex-col min-h-screen bg-white md:hidden">
-        <MobileHeader />
-        <p className="px-[18px] pt-3 pb-1 text-[13px] capitalize" style={{ color: '#8aaabb' }}>
+    <div className="flex flex-col min-h-screen bg-white">
+      <MobileHeader />
+
+      <div className="w-full max-w-2xl xl:max-w-5xl mx-auto flex-1 flex flex-col">
+        {/* 1. Dátum */}
+        <p className="px-[18px] pt-3 text-[13px] capitalize" style={{ color: '#8aaabb' }}>
           {formatTodaySk()}
         </p>
-        <div className="px-4 mb-1">
-          <NextEventCard event={nextEvent ?? null} />
-        </div>
+
+        {/* 2. Meniny */}
+        {meniny && (
+          <p className="px-[18px] pt-0.5 pb-1 text-[12px]" style={{ color: '#b0c4cc' }}>
+            Dnes má meniny{' '}
+            <span className="font-semibold" style={{ color: '#6a8898' }}>{meniny}</span>
+          </p>
+        )}
+
+        {/* 3. Veľké tlačidlá */}
         <NavGrid stats={stats} />
-        <div className="px-4 pb-2">
-          <HallStatusToday bookings={todayBookings} />
+
+        {/* 4.–6. Mobil/tablet: jeden stĺpec; desktop: dva stĺpce
+            (vľavo akcie, vpravo očakávané zálohy + posledné vymazané) */}
+        <div className="px-4 pb-2 grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
+          <div className="min-w-0 xl:col-start-1 xl:row-start-1 xl:row-span-2">
+            <UpcomingEvents />
+          </div>
+          <div className="min-w-0 xl:col-start-2 xl:row-start-1">
+            <ExpectedDeposits />
+          </div>
+          <div className="min-w-0 xl:col-start-2 xl:row-start-2">
+            <DeletedBookings />
+          </div>
         </div>
-        <div className="px-4 pb-2">
-          <DeletedBookings />
-        </div>
+
         <div className="flex-1" />
-        <BottomNav />
       </div>
 
-      {/* ── DESKTOP (≥ md) ── */}
-      <div className="hidden md:flex flex-col min-h-screen bg-white">
-        <TopBar />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 p-6 overflow-y-auto" style={{ background: '#f0f4f6' }}>
-            <StatCards stats={stats} />
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <NextEventCard event={nextEvent ?? null} />
-              <HallStatusToday bookings={todayBookings} />
-            </div>
-            <DeletedBookings />
-          </main>
-        </div>
-      </div>
-    </>
+      <BottomNav />
+    </div>
   )
 }

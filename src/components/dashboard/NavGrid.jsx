@@ -7,7 +7,7 @@ export default function NavGrid({ stats }) {
   const total    = stats ? stats.ap + stats.a + stats.luna : 0
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 px-4 py-3.5">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 px-4 py-3.5">
       <NavButton
         icon={<IconCalendar size={28} />}
         label="Diár"

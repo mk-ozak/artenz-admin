@@ -43,7 +43,13 @@ export default function BookingModal() {
     setConfirmDelete(false)
     setConfirmText('')
     if (modalState.mode === 'add') {
-      setForm({ ...EMPTY, date: modalState.date, venue: modalState.venue })
+      setForm({
+        ...EMPTY,
+        date:  modalState.date,
+        venue: modalState.venue,
+        // V sále CATERING je predvolený typ akcie Catering
+        type:  modalState.venue === 'catering' ? 'catering' : EMPTY.type,
+      })
     } else {
       const b = modalState.booking
       setForm({
