@@ -206,7 +206,9 @@ export default function Diary() {
 
       {/* Scrollable diary table */}
       <div className="flex-1 overflow-auto">
-        <div style={{ minWidth: 860 }}>
+        {/* Mobil (< sm): o polovicu užšie stĺpce + horizontálny posun.
+            Tablet/desktop (≥ sm): plná šírka bez posunu. */}
+        <div className="min-w-[430px] sm:min-w-full">
           <table className="diary-table w-full border-collapse" style={{ tableLayout: 'fixed' }}>
 
             {/* Sticky column headers */}
@@ -259,15 +261,6 @@ export default function Diary() {
                 <div className="w-3.5 h-3 rounded-sm border-l-[3px]"
                      style={{ background: s.bg, borderLeftColor: s.strip }} />
                 {s.label}
-              </div>
-            ))}
-            <span className="w-px h-4 bg-[#dde8ec] mx-1" />
-            <span className="font-bold text-[#8aaabb]">SÁLA:</span>
-            {Object.entries(HALL_COLOR).map(([key, color]) => (
-              <div key={key} className="flex items-center gap-1.5">
-                <div className="w-3.5 h-3 rounded-sm border-l-[3px]"
-                     style={{ background: color + '22', borderLeftColor: color }} />
-                {key.replace('_', ' ')}
               </div>
             ))}
           </div>

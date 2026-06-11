@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useBookingsStore } from '../store/bookings'
+import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
 
 const VENUES = [
   { key: 'artenzPlus', label: 'ARTENZ PLUS' },
   { key: 'artenz',     label: 'ARTENZ' },
   { key: 'luna',       label: 'LUNA' },
   { key: 'catering',   label: 'CATERING' },
-]
-
-const EVENT_TYPES = [
-  { value: 'svadba',   label: 'Svadba' },
-  { value: 'oslava',   label: 'Oslava' },
-  { value: 'firmovna', label: 'Firemná akcia' },
 ]
 
 const STATUSES = [
@@ -23,7 +18,7 @@ const STATUSES = [
 const EMPTY = {
   customerName: '',
   phone: '',
-  type: 'svadba',
+  type: DEFAULT_EVENT_TYPE,
   status: 'dopyt',
   guestCount: '',
   deposit: '',
@@ -55,7 +50,7 @@ export default function BookingModal() {
         customerName: b.customerName,
         date:         b.date,
         venue:        b.venue,
-        type:         b.type ?? 'svadba',
+        type:         b.type ?? DEFAULT_EVENT_TYPE,
         status:       b.status ?? 'dopyt',
         guestCount:   b.guestCount || '',
         deposit:      b.deposit || '',

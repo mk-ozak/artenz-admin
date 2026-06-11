@@ -1,5 +1,6 @@
 import { IconCalendar } from '@tabler/icons-react'
 import { formatDateSk } from '../../utils/format'
+import { EVENT_LABEL } from '../../lib/eventTypes'
 
 const STRIPE = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -13,12 +14,6 @@ const HALL_LABEL = {
   ARTENZ:      'ARTENZ',
   LUNA:        'LUNA',
   CATERING:    'CATERING',
-}
-
-const EVENT_LABEL = {
-  svadba:   'Svadba',
-  oslava:   'Oslava',
-  firmovna: 'Firemná akcia',
 }
 
 export default function NextEventCard({ event }) {

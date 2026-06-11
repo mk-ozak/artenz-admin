@@ -1,3 +1,5 @@
+import { EVENT_LABEL } from '../../lib/eventTypes'
+
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
   ARTENZ:      '#d4a036',
@@ -10,12 +12,6 @@ const HALL_LABEL = {
   ARTENZ:      'ARTENZ',
   LUNA:        'LUNA',
   CATERING:    'CATERING',
-}
-
-const EVENT_LABEL = {
-  svadba:   'Svadba',
-  oslava:   'Oslava',
-  firmovna: 'Firemná akcia',
 }
 
 export default function HallStatusToday({ bookings }) {

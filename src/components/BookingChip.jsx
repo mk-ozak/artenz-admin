@@ -1,20 +1,19 @@
-const TYPE_STYLES = {
-  svadba: 'bg-purple-500 hover:bg-purple-600 text-white',
-  oslava: 'bg-teal-500 hover:bg-teal-600 text-white',
-  firmovna: 'bg-blue-500 hover:bg-blue-600 text-white',
-}
+import { EVENT_LABEL } from '../lib/eventTypes'
 
-const TYPE_LABELS = {
-  svadba: 'Svadba',
-  oslava: 'Oslava',
-  firmovna: 'Firemná',
+const TYPE_STYLES = {
+  oslava:    'bg-teal-500 hover:bg-teal-600 text-white',
+  svadba:    'bg-purple-500 hover:bg-purple-600 text-white',
+  posedenie: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+  kar:       'bg-slate-500 hover:bg-slate-600 text-white',
+  stuzkova:  'bg-amber-500 hover:bg-amber-600 text-white',
+  firemka:   'bg-blue-500 hover:bg-blue-600 text-white',
 }
 
 export default function BookingChip({ booking, onClick }) {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(booking) }}
-      title={`${booking.customerName} – ${TYPE_LABELS[booking.type]}`}
+      title={`${booking.customerName} – ${EVENT_LABEL[booking.type] ?? booking.type}`}
       className={`
         w-full text-left px-2 py-1 rounded text-xs font-medium truncate
         transition-colors cursor-pointer

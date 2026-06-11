@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useBookingsStore } from '../../store/bookings'
 import { formatDateSk } from '../../utils/format'
-
-const TYPE_LABEL = {
-  svadba:   'Svadba',
-  oslava:   'Oslava',
-  firmovna: 'Firemná akcia',
-}
+import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Posledné vymazané" – posledných 10 soft-deleted rezervácií.
 // Tlačidlo Obnoviť nastaví deleted_at = null → rezervácia sa vráti do diára.
@@ -53,7 +48,7 @@ export default function DeletedBookings() {
           <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-red-800 truncate">
-                {(TYPE_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – {r.customer_name}
+                {(EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – {r.customer_name}
               </p>
               <p className="text-xs text-red-500">
                 {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}

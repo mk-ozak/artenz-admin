@@ -43,8 +43,18 @@ async function syncCalendar(method, body) {
   }
 }
 
+const HALL_LABEL = {
+  ARTENZ_PLUS: 'ARTENZ PLUS',
+  ARTENZ:      'ARTENZ',
+  LUNA:        'LUNA',
+  CATERING:    'CATERING',
+}
+
+// Názov udalosti v kalendári: „SÁLA – typ – meno"
 function calendarTitle(formData) {
-  return `${formData.type ?? 'Akcia'} – ${formData.customerName}`
+  const hall  = HALL_MAP[formData.venue] ?? formData.venue?.toUpperCase()
+  const label = HALL_LABEL[hall] ?? hall
+  return `${label} – ${formData.type ?? 'Akcia'} – ${formData.customerName}`
 }
 
 function toBackend(b) {
@@ -237,7 +247,7 @@ export const useBookingsStore = create((set, get) => ({
     // Event sa pri mazaní zmazal → vytvor ho nanovo a ulož nové ID.
     if (row && !row.google_calendar_event_id) {
       const result = await syncCalendar('POST', {
-        title: `${row.event_type ?? 'Akcia'} – ${row.customer_name}`,
+        title: `${HALL_LABEL[row.hall] ?? row.hall} – ${row.event_type ?? 'Akcia'} – ${row.customer_name}`,
         hall:  row.hall,
         date:  row.date,
       })

@@ -18,6 +18,9 @@ const SIZE_CLS = {
 }
 
 export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt', size = 'md', onClick }) {
+  // Na mobile (úzke stĺpce) zobrazíme len prvé slovo názvu + „…"; od sm nahor celý názov.
+  const firstWord = (title ?? '').trim().split(/\s+/)[0] ?? ''
+
   return (
     <div
       className={`border-l-[3px] font-semibold text-[#1a2830] overflow-hidden
@@ -29,7 +32,10 @@ export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt
       }}
       onClick={onClick}
     >
-      <span className="block overflow-hidden text-ellipsis">{title}</span>
+      <span className="block overflow-hidden text-ellipsis">
+        <span className="sm:hidden">{firstWord}…</span>
+        <span className="hidden sm:inline">{title}</span>
+      </span>
       {subtitle && (
         <span className="block text-[10px] font-normal text-[#7a8a98] mt-0.5">{subtitle}</span>
       )}
