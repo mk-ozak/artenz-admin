@@ -4,6 +4,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { useAuthStore } from '../store/auth'
+import ActivityLogs from '../components/settings/ActivityLogs'
 
 const ROLES = [
   { value: 'admin',     label: 'Admin' },
@@ -41,6 +42,8 @@ export default function Settings() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const confirmTimer = useRef(null)
+
+  const [tab, setTab] = useState('users')   // 'users' | 'logs'
 
   const isAdmin = currentUserRole === 'admin'
 
@@ -154,9 +157,18 @@ export default function Settings() {
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
           <div className="flex gap-1">
-            <button className="px-4 py-2.5 text-sm font-medium text-indigo-700 border-b-2 border-indigo-600 -mb-px">
-              Používatelia
-            </button>
+            {[['users', 'Používatelia'], ['logs', 'Logy']].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`px-4 py-2.5 text-sm font-medium -mb-px transition-colors
+                            ${tab === key
+                              ? 'text-indigo-700 border-b-2 border-indigo-600'
+                              : 'text-gray-500 hover:text-gray-800'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -172,6 +184,8 @@ export default function Settings() {
             <p className="text-sm font-medium text-gray-900">Prístup zamietnutý</p>
             <p className="text-xs text-gray-500 mt-1">Túto sekciu môže zobraziť len administrátor.</p>
           </div>
+        ) : tab === 'logs' ? (
+          <ActivityLogs />
         ) : loading ? (
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />

@@ -42,6 +42,18 @@ export default async function handler(req, res) {
 
   const { action } = req.body ?? {}
 
+  // Zápis do logov (service role obchádza RLS)
+  async function logActivity(act, entityId, details) {
+    await sb.from('activity_logs').insert({
+      user_id:    caller.id,
+      user_email: caller.email,
+      action:     act,
+      entity:     'user',
+      entity_id:  entityId,
+      details,
+    })
+  }
+
   try {
     // ── Nový používateľ (admin / read_only) ──────────────────
     if (action === 'create') {
@@ -63,6 +75,7 @@ export default async function handler(req, res) {
         full_name: fullName ?? '',
         email,
       })
+      await logActivity('user_create', data.user.id, { email, role, full_name: fullName ?? '' })
       return res.json({ userId: data.user.id })
     }
 
@@ -98,6 +111,11 @@ export default async function handler(req, res) {
       })
       await sb.from('bookings').update({ user_id: data.user.id }).eq('id', bookingId)
 
+      await logActivity('customer_access_create', data.user.id, {
+        email,
+        customer_name: booking.customer_name,
+        booking_id: bookingId,
+      })
       return res.json({ userId: data.user.id, email, password })
     }
 
@@ -107,10 +125,14 @@ export default async function handler(req, res) {
       if (!userId) return res.status(400).json({ error: 'Chýba userId' })
       if (userId === caller.id) return res.status(400).json({ error: 'Nemôžeš zmazať sám seba' })
 
+      const { data: target } = await sb
+        .from('profiles').select('email, role, full_name').eq('id', userId).single()
+
       const { error } = await sb.auth.admin.deleteUser(userId)
       if (error) throw error
       // bookings.user_id sa vynuluje cez FK on delete set null,
       // profiles riadok zmizne cez on delete cascade
+      await logActivity('user_delete', userId, target ?? {})
       return res.json({ ok: true })
     }
 
