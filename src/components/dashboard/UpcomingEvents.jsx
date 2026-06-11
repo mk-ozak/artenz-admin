@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar } from '@tabler/icons-react'
+import { IconCalendar, IconMessage, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { formatDateSk } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
@@ -20,6 +20,12 @@ const HALL_LABEL = {
   CATERING:    'CATERING',
 }
 
+// Predvyplnený text SMS (?body= funguje na Androide aj novšom iOS)
+function smsHref(phone, title, date) {
+  const text = `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${title}, ${formatDateSk(date)}). `
+  return `sms:${phone}?body=${encodeURIComponent(text)}`
+}
+
 // Všetky akcie na najbližších 7 dní (vrátane dneška)
 export default function UpcomingEvents() {
   const navigate = useNavigate()
@@ -31,7 +37,7 @@ export default function UpcomingEvents() {
     end.setDate(today.getDate() + 6)
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type')
+      .select('id, date, hall, customer_name, event_type, customer_phone')
       .is('deleted_at', null)
       .gte('date', toISO(today))
       .lte('date', toISO(end))
@@ -54,21 +60,51 @@ export default function UpcomingEvents() {
           {events.map(e => {
             const color = STRIPE[e.hall] ?? '#4cbfb3'
             const title = `${EVENT_LABEL[e.event_type] ?? e.event_type ?? ''} – ${e.customer_name ?? ''}`
+            const phone = e.customer_phone?.replace(/\s+/g, '')
             return (
               <li key={e.id}
                   onClick={() => navigate(`/booking/${e.id}`)}
-                  className="relative px-4 py-2.5 pl-5 cursor-pointer hover:bg-[#f6f9fb] transition-colors">
+                  className="relative px-4 py-2.5 pl-5 cursor-pointer hover:bg-[#f6f9fb] transition-colors
+                             flex items-center gap-3">
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
-                <p className="text-[14px] font-semibold text-[#1a2830]">{title}</p>
-                <div className="flex gap-3 mt-1 items-center">
-                  <span className="flex items-center gap-1 text-xs text-[#6a8898]">
-                    <IconCalendar size={13} />
-                    {formatDateSk(e.date)}
-                  </span>
-                  <span className="text-xs font-bold" style={{ color }}>
-                    {HALL_LABEL[e.hall] ?? e.hall}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold text-[#1a2830] truncate">{title}</p>
+                  <div className="flex gap-3 mt-1 items-center">
+                    <span className="flex items-center gap-1 text-xs text-[#6a8898]">
+                      <IconCalendar size={13} />
+                      {formatDateSk(e.date)}
+                    </span>
+                    <span className="text-xs font-bold" style={{ color }}>
+                      {HALL_LABEL[e.hall] ?? e.hall}
+                    </span>
+                  </div>
                 </div>
+                {phone && (
+                  <div className="flex gap-2 shrink-0">
+                    <a
+                      href={`tel:${phone}`}
+                      onClick={ev => ev.stopPropagation()}
+                      title={`Zavolať ${e.customer_phone}`}
+                      aria-label="Zavolať"
+                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                                 justify-center text-[#3a5160] hover:bg-[#eaf4f2] hover:text-[#2a8d83]
+                                 transition-colors"
+                    >
+                      <IconPhone size={16} />
+                    </a>
+                    <a
+                      href={smsHref(phone, title, e.date)}
+                      onClick={ev => ev.stopPropagation()}
+                      title={`SMS na ${e.customer_phone}`}
+                      aria-label="Poslať SMS"
+                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                                 justify-center text-[#3a5160] hover:bg-[#eef2fa] hover:text-[#4a6bb8]
+                                 transition-colors"
+                    >
+                      <IconMessage size={16} />
+                    </a>
+                  </div>
+                )}
               </li>
             )
           })}

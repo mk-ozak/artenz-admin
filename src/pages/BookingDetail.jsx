@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconPhone } from '@tabler/icons-react'
+import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconMessage, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { formatDateSk } from '../utils/format'
@@ -215,11 +215,31 @@ export default function BookingDetail() {
                   {HALL_LABEL[booking.hall] ?? booking.hall}
                 </span>
                 {form.phone?.trim() && (
-                  <a href={`tel:${form.phone.replace(/\s+/g, '')}`}
-                     className="flex items-center gap-1 text-xs font-medium text-indigo-600">
-                    <IconPhone size={14} />
-                    {form.phone}
-                  </a>
+                  <span className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs font-medium text-[#3a5160]">{form.phone}</span>
+                    <a
+                      href={`tel:${form.phone.replace(/\s+/g, '')}`}
+                      title={`Zavolať ${form.phone}`}
+                      aria-label="Zavolať"
+                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                                 justify-center text-[#3a5160] hover:bg-[#eaf4f2] hover:text-[#2a8d83]
+                                 transition-colors"
+                    >
+                      <IconPhone size={16} />
+                    </a>
+                    <a
+                      href={`sms:${form.phone.replace(/\s+/g, '')}?body=${encodeURIComponent(
+                        `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${title}, ${formatDateSk(booking.date)}). `
+                      )}`}
+                      title={`SMS na ${form.phone}`}
+                      aria-label="Poslať SMS"
+                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                                 justify-center text-[#3a5160] hover:bg-[#eef2fa] hover:text-[#4a6bb8]
+                                 transition-colors"
+                    >
+                      <IconMessage size={16} />
+                    </a>
+                  </span>
                 )}
               </div>
             </div>
