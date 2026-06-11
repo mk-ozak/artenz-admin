@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconTable } from '@tabler/icons-react'
-import { exportDiaryYear } from '../utils/exportDiary'
+import { exportDiaryYear, exportAllBookings } from '../utils/exportDiary'
 import { supabase } from '../lib/supabase'
 import DiaryMonth from './diary/DiaryMonth'
 import BookingModal from './BookingModal'
@@ -62,18 +62,19 @@ export default function Diary() {
 
   const [bookings,  setBookings]  = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [exporting,     setExporting]     = useState(false)
+  const [exporting,     setExporting]     = useState(null)  // 'year' | 'all' | null
   const [confirmExport, setConfirmExport] = useState(false)
 
-  async function handleExport() {
-    setExporting(true)
+  async function handleExport(kind) {
+    setExporting(kind)
     try {
-      await exportDiaryYear(page.year, bookings)
+      if (kind === 'year') await exportDiaryYear(page.year, bookings)
+      else                 await exportAllBookings()
       setConfirmExport(false)
     } catch (e) {
       console.error('[Diary] export error:', e)
     } finally {
-      setExporting(false)
+      setExporting(null)
     }
   }
 
@@ -309,38 +310,48 @@ export default function Diary() {
         </div>
       </div>
 
-      {/* Potvrdenie exportu */}
+      {/* Výber exportu */}
       {confirmExport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
-            <div className="bg-gray-900 px-5 py-4">
-              <h2 className="text-white font-semibold text-sm">Export do Excelu</h2>
+            <div className="px-5 py-4" style={{ background: '#354d5d' }}>
+              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>Export do Excelu</h2>
             </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-700">
-                Chcete exportovať tento rok?{' '}
-                <span className="font-bold">{yearLabel}</span>
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  disabled={exporting}
-                  onClick={() => setConfirmExport(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
-                    font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Zrušiť
-                </button>
-                <button
-                  type="button"
-                  disabled={exporting}
-                  onClick={handleExport}
-                  className="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium
-                    rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                >
-                  {exporting ? 'Exportujem…' : 'Exportovať'}
-                </button>
-              </div>
+            <div className="p-5 space-y-3">
+              <button
+                type="button"
+                disabled={exporting !== null}
+                onClick={() => handleExport('year')}
+                className="w-full px-4 py-3 rounded-lg text-sm font-bold text-left
+                  transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+              >
+                {exporting === 'year' ? 'Exportujem…' : `Exportovať rok ${yearLabel}`}
+                <span className="block text-[11px] font-normal opacity-70 mt-0.5">
+                  Mriežka diára po mesiacoch
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={exporting !== null}
+                onClick={() => handleExport('all')}
+                className="w-full px-4 py-3 rounded-lg text-sm font-bold text-left border border-gray-300
+                  text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {exporting === 'all' ? 'Exportujem…' : 'Exportovať všetky rezervácie'}
+                <span className="block text-[11px] font-normal text-gray-500 mt-0.5">
+                  Zoznam akcií za všetky roky so všetkými údajmi
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={exporting !== null}
+                onClick={() => setConfirmExport(false)}
+                className="w-full px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                  font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Zrušiť
+              </button>
             </div>
           </div>
         </div>

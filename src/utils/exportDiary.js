@@ -1,4 +1,6 @@
 import ExcelJS from 'exceljs'
+import { supabase } from '../lib/supabase'
+import { EVENT_LABEL } from '../lib/eventTypes'
 
 const SK_MONTHS = [
   'Január','Február','Marec','Apríl','Máj','Jún',
@@ -14,10 +16,18 @@ const HALL_COLS = [
   { key: 'CATERING',    label: 'CATERING',    color: 'FF7AAACA' },
 ]
 
+const HALL_LABEL = Object.fromEntries(HALL_COLS.map(h => [h.key, h.label]))
+
 const STATUS_FILL = {
   dopyt:     'FFF0F2F4',
   zaloha:    'FFFFF5E6',
   potvrdene: 'FFEAF7F0',
+}
+
+const STATUS_LABEL = {
+  dopyt:     'Nezáväzný dopyt',
+  zaloha:    'Čakajúca záloha',
+  potvrdene: 'Potvrdené',
 }
 
 const GRID = { style: 'thin', color: { argb: 'FFE0E8EC' } }
@@ -28,15 +38,35 @@ function solid(argb) {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb } }
 }
 
-// Vyexportuje celý rok diára do .xlsx — bunka = názov rezervácie (meno zákazníka),
-// výplň podľa statusu, hrubý ľavý okraj vo farbe sály (ako event bloky v diári).
+// Dnešok ako RRRRMMDD (prefix názvu súboru)
+function todayStamp() {
+  const d = new Date()
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+}
+
+async function downloadWorkbook(wb, filename) {
+  const buf  = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const a   = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ── Export roka: mriežka ako diár ───────────────────────────
+// Bunka = meno + telefón + sála, výplň podľa statusu,
+// hrubý ľavý okraj vo farbe sály (ako event bloky v diári).
 export async function exportDiaryYear(year, bookings) {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet(`Diár ${year}`, {
     views: [{ state: 'frozen', ySplit: 1 }],
   })
 
-  ws.columns = [{ width: 10 }, ...HALL_COLS.map(() => ({ width: 26 }))]
+  ws.columns = [{ width: 10 }, ...HALL_COLS.map(() => ({ width: 28 }))]
 
   // mapa: date → hall → [bookings]
   const byDate = {}
@@ -75,7 +105,10 @@ export async function exportDiaryYear(year, bookings) {
       const row = ws.addRow([
         `${d}. ${DAYS[date.getDay()]}`,
         ...HALL_COLS.map(h =>
-          (byDate[iso]?.[h.key] ?? []).map(b => b.customer_name).join(', ')
+          (byDate[iso]?.[h.key] ?? [])
+            .map(b => [b.customer_name, b.customer_phone, HALL_LABEL[b.hall] ?? b.hall]
+              .filter(Boolean).join('\n'))
+            .join('\n\n')
         ),
       ])
 
@@ -90,7 +123,7 @@ export async function exportDiaryYear(year, bookings) {
       HALL_COLS.forEach((h, i) => {
         const cell = row.getCell(i + 2)
         cell.border = { top: GRID, bottom: GRID, left: GRID, right: GRID }
-        cell.alignment = { vertical: 'middle' }
+        cell.alignment = { vertical: 'middle', wrapText: true }
         const evts = byDate[iso]?.[h.key] ?? []
         if (evts.length) {
           const status = evts[0].status ?? 'dopyt'
@@ -102,14 +135,71 @@ export async function exportDiaryYear(year, bookings) {
     }
   }
 
-  const buf  = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buf], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  await downloadWorkbook(wb, `${todayStamp()}_diar_${year}.xlsx`)
+}
+
+// ── Export všetkých rezervácií: riadok = rezervácia ─────────
+export async function exportAllBookings() {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .is('deleted_at', null)
+    .order('date')
+  if (error) throw new Error(error.message)
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Všetky rezervácie', {
+    views: [{ state: 'frozen', ySplit: 1 }],
   })
-  const url = URL.createObjectURL(blob)
-  const a   = document.createElement('a')
-  a.href = url
-  a.download = `diar-${year}.xlsx`
-  a.click()
-  URL.revokeObjectURL(url)
+
+  ws.columns = [
+    { header: 'Dátum',                 key: 'date',           width: 12 },
+    { header: 'Čas',                   key: 'time',           width: 8  },
+    { header: 'Sála',                  key: 'hall',           width: 14 },
+    { header: 'Typ akcie',             key: 'type',           width: 14 },
+    { header: 'Zákazník',              key: 'name',           width: 26 },
+    { header: 'Telefón',               key: 'phone',          width: 16 },
+    { header: 'Stav',                  key: 'status',         width: 16 },
+    { header: 'Očakávaný počet osôb',  key: 'expectedGuests', width: 12 },
+    { header: 'Predbežná cena (€)',    key: 'estimatedPrice', width: 12 },
+    { header: 'Počet hostí',           key: 'guestCount',     width: 12 },
+    { header: 'Záloha (€)',            key: 'deposit',        width: 10 },
+    { header: 'Záloha zaplatená',      key: 'depositPaid',    width: 10 },
+    { header: 'Poznámky',              key: 'notes',          width: 40 },
+    { header: 'Vytvorené',             key: 'createdAt',      width: 18 },
+  ]
+
+  // Hlavička
+  const head = ws.getRow(1)
+  head.height = 20
+  head.eachCell(cell => {
+    cell.fill = solid('FF2B3F4E')
+    cell.font = { bold: true, size: 10, color: { argb: 'FFC0D8E8' } }
+    cell.alignment = { vertical: 'middle' }
+  })
+
+  for (const b of data ?? []) {
+    const row = ws.addRow({
+      date:           b.date,
+      time:           b.start_time ? b.start_time.slice(0, 5) : '',
+      hall:           HALL_LABEL[b.hall] ?? b.hall,
+      type:           EVENT_LABEL[b.event_type] ?? b.event_type ?? '',
+      name:           b.customer_name,
+      phone:          b.customer_phone ?? '',
+      status:         STATUS_LABEL[b.status] ?? b.status ?? '',
+      expectedGuests: b.expected_guests ?? 0,
+      estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : 0,
+      guestCount:     b.guest_count ?? '',
+      deposit:        b.deposit_amount != null ? Number(b.deposit_amount) : '',
+      depositPaid:    b.deposit_paid ? 'Áno' : 'Nie',
+      notes:          b.notes ?? '',
+      createdAt:      b.created_at ? b.created_at.slice(0, 16).replace('T', ' ') : '',
+    })
+    row.font = { size: 10 }
+    // jemné podfarbenie podľa stavu
+    const fill = STATUS_FILL[b.status]
+    if (fill) row.getCell('status').fill = solid(fill)
+  }
+
+  await downloadWorkbook(wb, `${todayStamp()}_diar_vsetko.xlsx`)
 }
