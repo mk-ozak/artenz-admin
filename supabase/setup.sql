@@ -11,6 +11,8 @@ create table if not exists bookings (
   start_time     time,
   event_type     text        check (event_type in ('oslava','svadba','posedenie','kar','stuzkova','firemka','catering')),
   guest_count    integer     check (guest_count >= 0),
+  expected_guests integer    not null default 0 check (expected_guests >= 0),
+  estimated_price numeric    not null default 0 check (estimated_price >= 0),
   deposit_paid   boolean     not null default false,
   deposit_amount numeric     check (deposit_amount >= 0),
   notes          text,

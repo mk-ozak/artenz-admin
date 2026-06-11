@@ -76,6 +76,8 @@ export default function BookingDetail() {
           time:         data.start_time ? data.start_time.slice(0, 5) : '',
           type:         data.event_type ?? 'oslava',
           status:       data.status ?? 'dopyt',
+          expectedGuests: data.expected_guests ?? 0,
+          estimatedPrice: data.estimated_price != null ? Number(data.estimated_price) : 0,
           guestCount:   data.guest_count ?? '',
           deposit:      data.deposit_amount != null ? Number(data.deposit_amount) : '',
           depositPaid:  data.deposit_paid ?? false,
@@ -191,29 +193,54 @@ export default function BookingDetail() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Čas</label>
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={timeHH}
-                      onChange={e => set('time', e.target.value === '' ? '' : `${e.target.value}:${timeMM}`)}
-                      className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
-                        font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">–</option>
-                      {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                    <span className="text-sm font-semibold text-gray-500">:</span>
-                    <select
-                      value={timeMM}
-                      onChange={e => { if (timeHH) set('time', `${timeHH}:${e.target.value}`) }}
-                      disabled={!timeHH}
-                      className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
-                        font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                        disabled:opacity-40"
-                    >
-                      {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
+                <div className="flex gap-6">
+                  <div className="shrink-0">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Čas</label>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={timeHH}
+                        onChange={e => set('time', e.target.value === '' ? '' : `${e.target.value}:${timeMM}`)}
+                        className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
+                          font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">–</option>
+                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                      <span className="text-sm font-semibold text-gray-500">:</span>
+                      <select
+                        value={timeMM}
+                        onChange={e => { if (timeHH) set('time', `${timeHH}:${e.target.value}`) }}
+                        disabled={!timeHH}
+                        className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
+                          font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                          disabled:opacity-40"
+                      >
+                        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="w-36 ml-auto">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaný počet osôb</label>
+                    <input
+                      type="number"
+                      value={form.expectedGuests}
+                      onChange={e => set('expectedGuests', e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena (€)</label>
+                    <input
+                      type="number"
+                      value={form.estimatedPrice}
+                      onChange={e => set('estimatedPrice', e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      step="0.01"
+                      className={inputCls}
+                    />
                   </div>
                 </div>
 

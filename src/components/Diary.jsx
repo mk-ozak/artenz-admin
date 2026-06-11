@@ -156,6 +156,8 @@ export default function Diary() {
       status:        b.status ?? 'dopyt',
       phone:         b.customer_phone ?? null,
       time:          b.start_time ? b.start_time.slice(0, 5) : '',
+      expectedGuests: b.expected_guests ?? 0,
+      estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : 0,
     }
   }
 

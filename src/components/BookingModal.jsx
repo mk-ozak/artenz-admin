@@ -26,6 +26,8 @@ const EMPTY = {
   time: '',
   type: DEFAULT_EVENT_TYPE,
   status: 'dopyt',
+  expectedGuests: 0,
+  estimatedPrice: 0,
   // Polia editovateľné v Detaile rezervácie — vo formulári sa nezobrazujú,
   // ale držíme ich v stave, aby sa pri uložení neprepísali.
   guestCount: '',
@@ -68,6 +70,8 @@ export default function BookingModal() {
         time:         b.time ?? '',
         type:         b.type ?? DEFAULT_EVENT_TYPE,
         status:       b.status ?? 'dopyt',
+        expectedGuests: b.expectedGuests ?? 0,
+        estimatedPrice: b.estimatedPrice ?? 0,
         guestCount:   b.guestCount || '',
         deposit:      b.deposit || '',
         depositPaid:  b.depositPaid ?? false,
@@ -293,6 +297,35 @@ export default function BookingModal() {
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Expected guests + estimated price */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaný počet osôb</label>
+              <input
+                type="number"
+                value={form.expectedGuests}
+                onChange={e => set('expectedGuests', e.target.value)}
+                placeholder="0"
+                min="0"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena (€)</label>
+              <input
+                type="number"
+                value={form.estimatedPrice}
+                onChange={e => set('estimatedPrice', e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </div>
 

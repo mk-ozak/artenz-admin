@@ -26,6 +26,8 @@ function toFrontend(row) {
     status:         row.status ?? 'dopyt',
     phone:          row.customer_phone ?? null,
     time:           row.start_time ? row.start_time.slice(0, 5) : '',
+    expectedGuests: row.expected_guests ?? 0,
+    estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : 0,
   }
 }
 
@@ -71,6 +73,8 @@ function toBackend(b) {
     status: b.status ?? 'dopyt',
     customer_phone: b.phone?.trim() || null,
     start_time: b.time || null,
+    expected_guests: Number(b.expectedGuests) || 0,
+    estimated_price: Number(b.estimatedPrice) || 0,
   }
 }
 
