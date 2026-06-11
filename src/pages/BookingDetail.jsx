@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconArrowLeft, IconCalendar, IconPhone } from '@tabler/icons-react'
+import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
+import { usersApi } from '../lib/usersApi'
 import { formatDateSk } from '../utils/format'
 import { EVENT_TYPES, EVENT_LABEL } from '../lib/eventTypes'
 import { useBookingsStore } from '../store/bookings'
+import { useAuthStore } from '../store/auth'
 import BottomNav from '../components/layout/BottomNav'
 
 const HALL_COLOR = {
@@ -53,11 +55,20 @@ export default function BookingDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { updateBooking, showToast } = useBookingsStore()
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
 
   const [booking, setBooking] = useState(undefined) // undefined = načítava, null = nenašlo sa
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
+
+  // Prístup zákazníka
+  const [access, setAccess]             = useState(null)  // { email, password? } po vytvorení
+  const [accessBusy, setAccessBusy]     = useState(false)
+  const [accessError, setAccessError]   = useState('')
+  const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const [copied, setCopied]             = useState('')    // 'link' | 'password'
+  const revokeTimer = useRef(null)
 
   useEffect(() => {
     supabase
@@ -68,6 +79,17 @@ export default function BookingDetail() {
       .then(({ data, error }) => {
         if (error) { console.error('[BookingDetail] fetch error:', error.message); setBooking(null); return }
         setBooking(data)
+        // Existujúci zákaznícky prístup → načítaj email pre opätovné zobrazenie linku
+        if (data.user_id) {
+          supabase
+            .from('profiles')
+            .select('email')
+            .eq('id', data.user_id)
+            .single()
+            .then(({ data: prof }) => {
+              if (prof?.email) setAccess({ email: prof.email })
+            })
+        }
         setForm({
           customerName: data.customer_name,
           phone:        data.customer_phone ?? '',
@@ -101,6 +123,46 @@ export default function BookingDetail() {
     setSaving(false)
     if (err) { setError(err); return }
     showToast({ message: 'Rezervácia uložená' })
+  }
+
+  const customerLink = access?.email
+    ? `${window.location.origin}/login?u=${encodeURIComponent(access.email)}`
+    : ''
+
+  async function handleCreateAccess() {
+    setAccessBusy(true)
+    setAccessError('')
+    const { data, error } = await usersApi({ action: 'create_customer', bookingId: id })
+    setAccessBusy(false)
+    if (error) { setAccessError(error); return }
+    setAccess({ email: data.email, password: data.password })
+    setBooking(b => ({ ...b, user_id: data.userId }))
+  }
+
+  // Prvý klik = potvrdenie (~4 s), druhý = odobratie prístupu (zmazanie účtu)
+  async function handleRevokeAccess() {
+    if (!confirmRevoke) {
+      setConfirmRevoke(true)
+      clearTimeout(revokeTimer.current)
+      revokeTimer.current = setTimeout(() => setConfirmRevoke(false), 4000)
+      return
+    }
+    clearTimeout(revokeTimer.current)
+    setConfirmRevoke(false)
+    setAccessBusy(true)
+    setAccessError('')
+    const { error } = await usersApi({ action: 'revoke', userId: booking.user_id })
+    setAccessBusy(false)
+    if (error) { setAccessError(error); return }
+    setAccess(null)
+    setBooking(b => ({ ...b, user_id: null }))
+  }
+
+  function copyText(text, key) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key)
+      setTimeout(() => setCopied(''), 2000)
+    })
   }
 
   const color = booking ? (HALL_COLOR[booking.hall] ?? '#4cbfb3') : '#4cbfb3'
@@ -161,6 +223,9 @@ export default function BookingDetail() {
                 )}
               </div>
             </div>
+
+            {/* read_only: všetky polia sú len na čítanie */}
+            <fieldset disabled={!isAdmin} className="flex flex-col gap-3 min-w-0">
 
             {/* Rezervácia – základné údaje (ako v modáli) */}
             <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
@@ -327,6 +392,108 @@ export default function BookingDetail() {
                 </div>
               </div>
             </div>
+            </fieldset>
+
+            {/* Prístup zákazníka – len admin */}
+            {isAdmin && (
+            <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
+              <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
+                Prístup zákazníka
+              </p>
+              <div className="px-4 pb-4 space-y-3">
+                {!booking.user_id ? (
+                  <>
+                    <p className="text-sm text-gray-500">
+                      Zákazník zatiaľ nemá prístup k detailu tejto rezervácie.
+                    </p>
+                    <button
+                      onClick={handleCreateAccess}
+                      disabled={accessBusy}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold
+                                 transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                    >
+                      <IconKey size={16} />
+                      {accessBusy ? 'Vytváram…' : 'Vytvoriť prístup pre zákazníka'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-700">
+                      Zákazník má prístup k detailu tejto rezervácie.
+                    </p>
+
+                    {/* Link */}
+                    {customerLink && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg
+                                        px-3 py-2 text-xs text-gray-700 truncate">
+                          {customerLink}
+                        </div>
+                        <button
+                          onClick={() => copyText(customerLink, 'link')}
+                          className="shrink-0 px-3 py-2 rounded-lg text-xs font-bold border border-gray-300
+                                     text-gray-700 bg-white hover:bg-gray-50 transition-colors
+                                     flex items-center gap-1"
+                        >
+                          <IconCopy size={14} />
+                          {copied === 'link' ? 'Skopírované ✓' : 'Kopírovať link'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Heslo – zobrazí sa len hneď po vytvorení */}
+                    {access?.password ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0 bg-amber-50 border border-amber-200 rounded-lg
+                                        px-3 py-2 text-sm font-mono font-bold tracking-widest text-amber-800">
+                          {access.password}
+                        </div>
+                        <button
+                          onClick={() => copyText(access.password, 'password')}
+                          className="shrink-0 px-3 py-2 rounded-lg text-xs font-bold border border-gray-300
+                                     text-gray-700 bg-white hover:bg-gray-50 transition-colors
+                                     flex items-center gap-1"
+                        >
+                          <IconCopy size={14} />
+                          {copied === 'password' ? 'Skopírované ✓' : 'Kopírovať heslo'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">
+                        Heslo bolo zobrazené pri vytvorení prístupu. Ak sa stratilo,
+                        odoberte prístup a vytvorte ho nanovo.
+                      </p>
+                    )}
+                    {access?.password && (
+                      <p className="text-xs text-amber-600">
+                        Heslo si ulož — po opustení stránky sa už nezobrazí.
+                        Link a heslo pošli zákazníkovi napr. cez SMS.
+                      </p>
+                    )}
+
+                    <button
+                      onClick={handleRevokeAccess}
+                      disabled={accessBusy}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors
+                                  disabled:opacity-50
+                                  ${confirmRevoke
+                                    ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
+                                    : 'border-red-300 text-red-600 bg-white hover:bg-red-50'}`}
+                    >
+                      {accessBusy ? 'Odoberám…' : confirmRevoke ? 'Naozaj odobrať prístup?' : 'Odobrať prístup'}
+                    </button>
+                  </>
+                )}
+
+                {accessError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                    {accessError}
+                  </p>
+                )}
+              </div>
+            </div>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
@@ -334,6 +501,7 @@ export default function BookingDetail() {
               </p>
             )}
 
+            {isAdmin && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -343,6 +511,7 @@ export default function BookingDetail() {
             >
               {saving ? 'Ukladám…' : 'Uložiť'}
             </button>
+            )}
           </>
         )}
 

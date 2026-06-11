@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IconTrash } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { useBookingsStore } from '../../store/bookings'
+import { useAuthStore } from '../../store/auth'
 import { formatDateSk } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
@@ -10,6 +11,7 @@ import { EVENT_LABEL } from '../../lib/eventTypes'
 // Kôš maže natrvalo (druhý klik potvrdí).
 export default function DeletedBookings() {
   const restoreBooking = useBookingsStore(s => s.restoreBooking)
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
   const [rows, setRows] = useState([])
   const [busyId, setBusyId] = useState(null)
   const [confirmId, setConfirmId] = useState(null)
@@ -73,6 +75,8 @@ export default function DeletedBookings() {
                 {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}
               </p>
             </div>
+            {isAdmin && (
+            <>
             <button
               onClick={() => handleRestore(r.id)}
               disabled={busyId === r.id}
@@ -95,6 +99,8 @@ export default function DeletedBookings() {
               <IconTrash size={14} />
               {confirmId === r.id && 'Naozaj?'}
             </button>
+            </>
+            )}
           </li>
         ))}
       </ul>

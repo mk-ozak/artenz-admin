@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBookingsStore } from '../store/bookings'
+import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
 
 // Čas rezervácie: 09–19 h, minúty po 15
@@ -39,6 +40,7 @@ const EMPTY = {
 export default function BookingModal() {
   const navigate = useNavigate()
   const { modalState, closeModal, addBooking, updateBooking, deleteBooking, showToast } = useBookingsStore()
+  const canEdit = useAuthStore(s => s.role) === 'admin'
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -166,6 +168,8 @@ export default function BookingModal() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* read_only: všetky polia sú len na čítanie */}
+          <fieldset disabled={!canEdit} className="space-y-4 min-w-0">
 
           {/* Context chips: Čas | Dátum | Sála */}
           <div className="flex gap-3">
@@ -328,6 +332,7 @@ export default function BookingModal() {
               />
             </div>
           </div>
+          </fieldset>
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
@@ -346,7 +351,7 @@ export default function BookingModal() {
                 Detaily rezervácie
               </button>
             )}
-            {isEdit && (
+            {isEdit && canEdit && (
               <button
                 type="button"
                 disabled={deleting || saving}
@@ -366,6 +371,7 @@ export default function BookingModal() {
               >
                 Zrušiť
               </button>
+              {canEdit && (
               <button
                 type="submit"
                 disabled={saving}
@@ -375,6 +381,7 @@ export default function BookingModal() {
               >
                 {saving ? 'Ukladám…' : isEdit ? 'Uložiť zmeny' : 'Pridať rezerváciu'}
               </button>
+              )}
             </div>
           </div>
         </form>

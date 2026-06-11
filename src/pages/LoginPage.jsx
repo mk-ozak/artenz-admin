@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 
 export default function LoginPage() {
   const { user, isLoading, signIn } = useAuthStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [email, setEmail]         = useState('')
+  // Zákaznícky link predvyplní prihlasovacie meno (?u=...)
+  const [email, setEmail]         = useState(searchParams.get('u') ?? '')
   const [password, setPassword]   = useState('')
   const [error, setError]         = useState(null)
   const [submitting, setSubmitting] = useState(false)

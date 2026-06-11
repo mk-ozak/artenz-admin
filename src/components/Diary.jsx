@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import DiaryMonth from './diary/DiaryMonth'
 import BookingModal from './BookingModal'
 import { useBookingsStore } from '../store/bookings'
+import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
 
 const MIN_YEAR = 2024
@@ -56,6 +57,7 @@ export default function Diary() {
   const yearLabel  = page.part === 'past' ? `${currentYear}*` : `${page.year}`
 
   const { openAddModal, openEditModal, modalState } = useBookingsStore()
+  const isAdmin = useAuthStore(s => s.role) === 'admin'
   const prevModal = useRef(modalState)
 
   const [bookings,  setBookings]  = useState([])
@@ -166,6 +168,7 @@ export default function Diary() {
   }
 
   function handleCellClick(dateISO, hall) {
+    if (!isAdmin) return  // read_only nepridáva rezervácie
     const venueMap = {
       ARTENZ_PLUS: 'artenzPlus',
       ARTENZ:      'artenz',
@@ -225,6 +228,7 @@ export default function Diary() {
           >
             <IconTable size={20} stroke={2} />
           </button>
+          {isAdmin && (
           <button
             onClick={() => openAddModal(null, null)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold
@@ -236,6 +240,7 @@ export default function Diary() {
             </svg>
             Nová rezervácia
           </button>
+          )}
           </div>
         </div>
       </div>
