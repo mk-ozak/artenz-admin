@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { IconHome, IconTable } from '@tabler/icons-react'
+import { exportDiaryYear } from '../utils/exportDiary'
 import { supabase } from '../lib/supabase'
 import DiaryMonth from './diary/DiaryMonth'
 import BookingModal from './BookingModal'
@@ -56,8 +58,20 @@ export default function Diary() {
   const { openAddModal, openEditModal, modalState } = useBookingsStore()
   const prevModal = useRef(modalState)
 
-  const [bookings, setBookings] = useState([])
-  const [loading,  setLoading]  = useState(true)
+  const [bookings,  setBookings]  = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await exportDiaryYear(page.year, bookings)
+    } catch (e) {
+      console.error('[Diary] export error:', e)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Viditeľné mesiace podľa časti stránky
   const visibleMonths =
@@ -160,20 +174,24 @@ export default function Diary() {
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
 
       {/* Year header */}
-      <div className="shrink-0" style={{ background: '#354d5d' }}>
-        <div className="px-5 py-3 flex items-center justify-between max-w-5xl mx-auto">
+      <div className="shrink-0 relative" style={{ background: '#354d5d' }}>
+        {/* Domov – ikona vždy pri ľavom okraji stránky */}
+        <button
+          onClick={() => navigate('/')}
+          aria-label="Domov"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 xl:w-8 xl:h-8 rounded
+                     flex items-center justify-center transition-opacity opacity-60 hover:opacity-100"
+          style={{ color: '#ddeef6' }}
+        >
+          <IconHome className="w-7 h-7 xl:w-5 xl:h-5" stroke={2} />
+        </button>
+        {/* Rok so šípkami vľavo (hneď za domčekom), Nová rezervácia úplne vpravo */}
+        <div className="pl-[68px] xl:pl-14 pr-3 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              className="text-sm transition-colors mr-2"
-              style={{ color: 'rgba(221,238,246,.5)' }}
-            >
-              ← Domov
-            </button>
             <button
               onClick={() => { if (canGoPrev) setPage(prevPage) }}
               disabled={!canGoPrev}
-              className="w-7 h-7 rounded flex items-center justify-center text-[17px] transition-opacity hover:opacity-100 opacity-60 disabled:opacity-20 disabled:cursor-not-allowed"
+              className="w-10 h-10 text-[24px] xl:w-7 xl:h-7 xl:text-[17px] rounded flex items-center justify-center transition-opacity hover:opacity-100 opacity-60 disabled:opacity-20 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,.12)', color: '#b0ccd8' }}
             >
               ‹
@@ -184,12 +202,24 @@ export default function Diary() {
             </span>
             <button
               onClick={() => setPage(nextPage)}
-              className="w-7 h-7 rounded flex items-center justify-center text-[17px] transition-opacity hover:opacity-100 opacity-60"
+              className="w-10 h-10 text-[24px] xl:w-7 xl:h-7 xl:text-[17px] rounded flex items-center justify-center transition-opacity hover:opacity-100 opacity-60"
               style={{ background: 'rgba(255,255,255,.12)', color: '#b0ccd8' }}
             >
               ›
             </button>
           </div>
+          <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            aria-label="Export roka do Excelu"
+            title="Export roka do Excelu"
+            className="w-10 h-10 xl:w-9 xl:h-9 rounded-lg flex items-center justify-center
+                       transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: '#8a9aa6', color: '#1d2f3c' }}
+          >
+            <IconTable size={20} stroke={2} />
+          </button>
           <button
             onClick={() => openAddModal(null, null)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold
@@ -201,6 +231,7 @@ export default function Diary() {
             </svg>
             Nová rezervácia
           </button>
+          </div>
         </div>
       </div>
 
