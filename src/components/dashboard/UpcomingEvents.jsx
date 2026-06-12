@@ -26,7 +26,8 @@ function smsHref(phone, typeLabel, date) {
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
-// Všetky akcie na najbližších 7 dní (vrátane dneška)
+// Všetky akcie na najbližších 14 dní (vrátane dneška),
+// zoradené podľa dátumu a v rámci dňa podľa času (bez času na konci dňa)
 export default function UpcomingEvents() {
   const navigate = useNavigate()
   const [events, setEvents] = useState([])
@@ -34,26 +35,27 @@ export default function UpcomingEvents() {
   useEffect(() => {
     const today = new Date()
     const end   = new Date(today)
-    end.setDate(today.getDate() + 6)
+    end.setDate(today.getDate() + 13)
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, customer_phone')
+      .select('id, date, hall, customer_name, event_type, customer_phone, start_time')
       .is('deleted_at', null)
       .gte('date', toISO(today))
       .lte('date', toISO(end))
       .order('date')
+      .order('start_time', { ascending: true, nullsFirst: false })
       .then(({ data }) => setEvents(data ?? []))
   }, [])
 
   return (
     <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
       <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
-        Najbližšie akcie — 7 dní
+        Najbližšie akcie — 14 dní
       </p>
 
       {events.length === 0 ? (
         <p className="px-4 pb-3 text-sm text-[#8aaabb] italic">
-          Žiadne akcie v najbližších 7 dňoch
+          Žiadne akcie v najbližších 14 dňoch
         </p>
       ) : (
         <ul className="divide-y divide-[#eef3f6]">
@@ -78,6 +80,7 @@ export default function UpcomingEvents() {
                     <span className="flex items-center gap-1 text-xs text-[#6a8898]">
                       <IconCalendar size={13} />
                       {formatDateSk(e.date)}
+                      {e.start_time && ` · ${e.start_time.slice(0, 5)}`}
                     </span>
                     <span className="text-xs font-bold" style={{ color }}>
                       {HALL_LABEL[e.hall] ?? e.hall}

@@ -7,6 +7,7 @@ import NavGrid from '../components/dashboard/NavGrid'
 import UpcomingEvents from '../components/dashboard/UpcomingEvents'
 import ExpectedDeposits from '../components/dashboard/ExpectedDeposits'
 import DeletedBookings from '../components/dashboard/DeletedBookings'
+import RecentlyAdded from '../components/dashboard/RecentlyAdded'
 
 // Jednotný dashboard pre mobil, tablet aj desktop – bez bočného menu,
 // obsah v jednom stĺpci so 4 veľkými farebnými tlačidlami.
@@ -35,14 +36,15 @@ export default function Dashboard() {
         {/* 3. Veľké tlačidlá */}
         <NavGrid stats={stats} />
 
-        {/* 4.–6. Mobil/tablet: jeden stĺpec; desktop: dva stĺpce
-            (vľavo akcie, vpravo očakávané zálohy + posledné vymazané) */}
+        {/* 4.–7. Desktop: vľavo akcie; vpravo zálohy, posledné pridané a úplne dole
+            posledné vymazané. Mobil/tablet: to isté pod sebou v jednom stĺpci. */}
         <div className="px-4 pb-2 grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
           <div className="min-w-0">
             <UpcomingEvents />
           </div>
           <div className="min-w-0 flex flex-col gap-2">
             <ExpectedDeposits />
+            <RecentlyAdded />
             <DeletedBookings />
           </div>
         </div>
