@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { EVENT_LABEL } from '../../lib/eventTypes'
 
 const ACTION_LABEL = {
   booking_create:         'Vytvoril rezerváciu',
@@ -28,6 +29,40 @@ const HALL_LABEL = {
   ARTENZ:      'ARTENZ',
   LUNA:        'LUNA',
   CATERING:    'CATERING',
+}
+
+const STATUS_LABEL = {
+  dopyt:     'Nezáväzný dopyt',
+  zaloha:    'Čakajúca záloha',
+  potvrdene: 'Potvrdené',
+}
+
+// Slovenské názvy stĺpcov pre riadky zmien
+const FIELD_LABEL = {
+  customer_name:   'Názov',
+  customer_phone:  'Telefón',
+  date:            'Dátum',
+  start_time:      'Čas',
+  hall:            'Sála',
+  event_type:      'Typ akcie',
+  status:          'Stav',
+  expected_guests: 'Očakávaný počet osôb',
+  estimated_price: 'Predbežná cena',
+  guest_count:     'Počet hostí',
+  deposit_amount:  'Záloha',
+  deposit_paid:    'Záloha zaplatená',
+  notes:           'Poznámky',
+}
+
+function formatValue(field, value) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (field === 'status')     return STATUS_LABEL[value] ?? value
+  if (field === 'hall')       return HALL_LABEL[value] ?? value
+  if (field === 'event_type') return EVENT_LABEL[value] ?? value
+  if (field === 'deposit_paid') return value ? 'Áno' : 'Nie'
+  if (field === 'start_time')   return String(value).slice(0, 5)
+  const s = String(value)
+  return s.length > 40 ? s.slice(0, 40) + '…' : s
 }
 
 function formatTime(ts) {
@@ -119,6 +154,19 @@ export default function ActivityLogs() {
                       {detailText(log)}
                     </span>
                   </div>
+                  {/* Zmenené polia pri úprave: Stav: Čakajúca záloha → Potvrdené */}
+                  {log.details?.changes && (
+                    <ul className="mt-1 space-y-0.5">
+                      {Object.entries(log.details.changes).map(([field, [oldVal, newVal]]) => (
+                        <li key={field} className="text-xs text-gray-500">
+                          <span className="text-gray-400">{FIELD_LABEL[field] ?? field}:</span>{' '}
+                          {formatValue(field, oldVal)}
+                          <span className="text-gray-400"> → </span>
+                          <span className="font-medium text-gray-600">{formatValue(field, newVal)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="text-xs text-gray-400 mt-1">
                     {log.user_email ?? 'systém'} · {formatTime(log.created_at)}
                   </p>
