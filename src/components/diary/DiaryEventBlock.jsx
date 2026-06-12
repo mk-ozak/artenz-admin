@@ -17,18 +17,20 @@ const SIZE_CLS = {
   lg: 'text-[13px] px-2.5 py-2 rounded-[7px] pl-3',
 }
 
-export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt', size = 'md', onClick }) {
+export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt', size = 'md', past = false, onClick }) {
   // Na mobile (úzke stĺpce) zobrazíme len prvé slovo názvu + „…"; od sm nahor celý názov.
   const firstWord = (title ?? '').trim().split(/\s+/)[0] ?? ''
 
   return (
     <div
-      className={`border-l-[3px] font-semibold text-[#1a2830] overflow-hidden
+      className={`border-l-[3px] font-semibold overflow-hidden
                   whitespace-nowrap text-ellipsis leading-snug ${SIZE_CLS[size]}
+                  ${past ? 'text-[#7a8893]' : 'text-[#1a2830]'}
                   ${onClick ? 'cursor-pointer hover:brightness-95 active:brightness-90' : ''}`}
       style={{
-        borderLeftColor: HALL_STRIP[hall] ?? '#9ab0ba',
-        background:      STATUS_BG[status] ?? '#f0f2f4',
+        // Minulá rezervácia: šedý pásik, šedší text, telo o niečo tmavšie než prekrytý kalendár
+        borderLeftColor: past ? '#9aa7b0' : (HALL_STRIP[hall] ?? '#9ab0ba'),
+        background:      past ? '#dde3e7' : (STATUS_BG[status] ?? '#f0f2f4'),
       }}
       onClick={onClick}
     >

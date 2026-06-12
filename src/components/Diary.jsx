@@ -247,7 +247,7 @@ export default function Diary() {
       </div>
 
       {/* Scrollable diary table */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" data-diary-scroll>
         {/* Mobil (< sm): o polovicu užšie stĺpce + horizontálny posun.
             Tablet/desktop (≥ sm): plná šírka bez posunu. */}
         <div className="min-w-[430px] sm:min-w-full">
@@ -276,12 +276,11 @@ export default function Diary() {
             </thead>
 
             {/* Month bodies */}
-            {visibleMonths.map((month, idx) => (
+            {visibleMonths.map((month) => (
               <DiaryMonth
                 key={`${page.year}-${month}`}
                 year={page.year}
                 month={month}
-                isOdd={idx % 2 !== 0}
                 dimmed={isPastPage}
                 todayISO={todayISO}
                 bookings={bookings}
