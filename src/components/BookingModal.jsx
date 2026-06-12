@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { IconMicrophone, IconPlayerStopFilled, IconLoader2 } from '@tabler/icons-react'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
+import { useVoiceBooking } from '../hooks/useVoiceBooking'
+import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 
 // Čas rezervácie: 09–19 h, minúty po 15
@@ -48,8 +51,21 @@ export default function BookingModal() {
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  // Hlasom sa nepodarilo rozpoznať meno → zvýrazni povinné pole
+  const [nameMissing, setNameMissing] = useState(false)
+
+  // Hlasové zadanie (len nová rezervácia): výsledok predvyplní formulár,
+  // používateľ skontroluje a uloží sám.
+  const voice = useVoiceBooking(function handleVoiceResult(parsed) {
+    const patch = voiceResultToForm(parsed)
+    setNameMissing(!patch.customerName)
+    setForm(f => ({ ...f, ...patch }))
+  })
 
   useEffect(() => {
+    // Reset hlasu aj pri zatvorení modálu — zahodí rozbehnuté nahrávanie
+    voice.reset()
+    setNameMissing(false)
     if (!modalState) return
     console.log('[BookingModal] opened, mode:', modalState.mode, modalState)
     setError('')
@@ -169,9 +185,41 @@ export default function BookingModal() {
           <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>
             {isEdit ? 'Editovať rezerváciu' : 'Nová rezervácia'}
           </h2>
+          {/* Hlasové zadanie — len pri novej rezervácii */}
+          {!isEdit && canEdit && (
+            <div className="flex items-center gap-2">
+              {voice.phase === 'recording' && (
+                <span className="text-xs animate-pulse" style={{ color: '#ddeef6' }}>Nahrávam…</span>
+              )}
+              {voice.phase === 'processing' && (
+                <span className="text-xs" style={{ color: '#ddeef6' }}>Spracúvam…</span>
+              )}
+              <button
+                type="button"
+                onClick={voice.toggle}
+                disabled={voice.phase === 'processing'}
+                title={voice.phase === 'recording'
+                  ? 'Zastaviť nahrávanie'
+                  : 'Nadiktovať rezerváciu hlasom'}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors
+                  ${voice.phase === 'recording'
+                    ? 'bg-red-500 animate-pulse'
+                    : 'bg-white/10 hover:bg-white/20'}`}
+              >
+                {voice.phase === 'recording'   && <IconPlayerStopFilled size={16} className="text-white" />}
+                {voice.phase === 'processing'  && <IconLoader2 size={18} className="animate-spin" style={{ color: '#ddeef6' }} />}
+                {voice.phase === 'idle'        && <IconMicrophone size={18} style={{ color: '#ddeef6' }} />}
+              </button>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {!isEdit && voice.error && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
+              {voice.error}
+            </p>
+          )}
           {/* read_only: všetky polia sú len na čítanie */}
           <fieldset disabled={!canEdit} className="space-y-4 min-w-0">
 
@@ -249,11 +297,19 @@ export default function BookingModal() {
                 autoFocus
                 type="text"
                 value={form.customerName}
-                onChange={e => set('customerName', e.target.value)}
+                onChange={e => { setNameMissing(false); set('customerName', e.target.value) }}
                 placeholder="Meno zákazníka / firmy"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={`w-full border rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:border-transparent
+                  ${nameMissing
+                    ? 'border-red-400 ring-2 ring-red-200 focus:ring-red-400'
+                    : 'border-gray-300 focus:ring-indigo-500'}`}
               />
+              {nameMissing && (
+                <p className="mt-1 text-xs text-red-600">
+                  Meno sa z nahrávky nepodarilo rozpoznať — doplň ho ručne.
+                </p>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1.5">
