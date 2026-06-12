@@ -17,3 +17,5 @@ dist/
 .DS_Store
 
 info
+# Claude Code – lokálne nastavenia
+.claude/settings.local.json
