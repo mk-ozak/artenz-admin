@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { IconMicrophone, IconPlayerStopFilled, IconLoader2 } from '@tabler/icons-react'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
@@ -7,6 +8,7 @@ import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
 import { useVoiceBooking } from '../hooks/useVoiceBooking'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
+import StatusSegment from './StatusSegment'
 
 // Čas rezervácie: 09–19 h, minúty po 15
 const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
@@ -17,12 +19,6 @@ const VENUES = [
   { key: 'artenz',     label: 'ARTENZ' },
   { key: 'luna',       label: 'LUNA' },
   { key: 'catering',   label: 'CATERING' },
-]
-
-const STATUSES = [
-  { value: 'dopyt',     label: 'Nezáväzný dopyt' },
-  { value: 'zaloha',    label: 'Čakajúca záloha' },
-  { value: 'potvrdene', label: 'Potvrdené' },
 ]
 
 const EMPTY = {
@@ -136,6 +132,18 @@ export default function BookingModal() {
   }
   function setMinute(m) {
     if (timeHH) set('time', `${timeHH}:${m}`)
+  }
+
+  // Zmena stavu: pri existujúcej rezervácii sa uloží okamžite
+  async function handleStatusChange(next) {
+    set('status', next)
+    if (isEdit) {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: next })
+        .eq('id', modalState.booking.id)
+      if (error) setError(error.message)
+    }
   }
 
   // Zmena sály pri pridávaní: drží pravidlo „CATERING → predvolený typ Catering"
@@ -334,34 +342,33 @@ export default function BookingModal() {
             </div>
           </div>
 
-          {/* Event type + status */}
-          <div className="flex gap-3">
-            <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
-              <select
-                value={form.type}
-                onChange={e => set('type', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                {EVENT_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
-              <select
-                value={form.status}
-                onChange={e => set('status', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                {STATUSES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+          {/* Event type */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
+            <select
+              value={form.type}
+              onChange={e => set('type', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              {EVENT_TYPES.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
+            <StatusSegment
+              value={form.status}
+              onChange={handleStatusChange}
+              customerName={form.customerName}
+              phone={form.phone}
+              typeLabel={typeLabel}
+              dateISO={form.date}
+              amount={Number(form.deposit) > 0 ? Number(form.deposit) : (Number(form.estimatedPrice) || 0)}
+            />
           </div>
 
           {/* Expected guests + estimated price */}

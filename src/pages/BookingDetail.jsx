@@ -9,6 +9,7 @@ import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
 import BottomNav from '../components/layout/BottomNav'
+import StatusSegment from '../components/StatusSegment'
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -157,6 +158,17 @@ export default function BookingDetail() {
     if (error) { setAccessError(error); return }
     setAccess(null)
     setBooking(b => ({ ...b, user_id: null }))
+  }
+
+  // Zmena stavu sa ukladá okamžite (bez čakania na Uložiť)
+  async function handleStatusChange(next) {
+    set('status', next)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: next })
+      .eq('id', id)
+    if (error) { setError(error.message); return }
+    showToast({ message: 'Stav uložený' })
   }
 
   function copyText(text, key) {
@@ -344,7 +356,7 @@ export default function BookingDetail() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex-1 min-w-0">
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
                     <select
@@ -359,15 +371,15 @@ export default function BookingDetail() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
-                    <select
+                    <StatusSegment
                       value={form.status}
-                      onChange={e => set('status', e.target.value)}
-                      className={`${inputCls} bg-white`}
-                    >
-                      {STATUSES.map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
+                      onChange={handleStatusChange}
+                      customerName={form.customerName}
+                      phone={form.phone}
+                      typeLabel={typeLabel}
+                      dateISO={booking.date}
+                      amount={Number(form.deposit) > 0 ? Number(form.deposit) : (Number(form.estimatedPrice) || 0)}
+                    />
                   </div>
                 </div>
               </div>

@@ -23,18 +23,30 @@ export const useAuthStore = create((set) => ({
   // Volaj raz pri štarte aplikácie – vracia cleanup funkciu pre useEffect
   init: () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          const profile = await fetchRole(session.user.id)
-          set({
-            user:      session.user,
-            role:      profile?.role ?? null,
-            fullName:  profile?.full_name ?? null,
-            isLoading: false,
-          })
-        } else {
-          set({ user: null, role: null, fullName: null, isLoading: false })
-        }
+      (event, session) => {
+        // POZOR: žiadny await priamo v callbacku — callback drží interný
+        // auth zámok supabase-js a dotaz na profiles by sa oň zablokoval
+        // (deadlock pri obnove tokenu po prebudení PWA → večný spinner).
+        // setTimeout(0) odloží prácu mimo zámku.
+        setTimeout(async () => {
+          if (session?.user) {
+            const { user, role } = useAuthStore.getState()
+            // Pri obnove tokenu toho istého používateľa rolu nenačítavaj znova
+            if (user?.id === session.user.id && role) {
+              set({ user: session.user, isLoading: false })
+              return
+            }
+            const profile = await fetchRole(session.user.id)
+            set({
+              user:      session.user,
+              role:      profile?.role ?? null,
+              fullName:  profile?.full_name ?? null,
+              isLoading: false,
+            })
+          } else {
+            set({ user: null, role: null, fullName: null, isLoading: false })
+          }
+        }, 0)
       }
     )
     return () => subscription.unsubscribe()
