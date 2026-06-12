@@ -7,15 +7,15 @@ const STATUSES = [
   { value: 'potvrdene', label: 'Potvrdené' },
 ]
 
-// Platobné údaje do SMS — IBAN doplň podľa reality
-const PAYMENT_IBAN = 'SK00 0000 0000 0000 0000 0000'
+// Platobné údaje do SMS
+const PAYMENT_ACCOUNT = 'MARTENZ, s.r.o., IBAN: SK09 0900 0000 0051 4443 4708'
 
 // Variabilný symbol: dátum akcie ako RRRRMMDD
 function paymentSms(phone, { typeLabel, dateISO, amount }) {
   const vs   = (dateISO ?? '').replaceAll('-', '')
   const text =
     `Dobrý deň, k Vašej rezervácii v Artenz (${typeLabel}, ${formatDateSk(dateISO)}) ` +
-    `prosíme o úhradu zálohy ${amount} €. IBAN: ${PAYMENT_IBAN}, VS: ${vs}. Ďakujeme.`
+    `prosíme o úhradu zálohy ${amount} €. ${PAYMENT_ACCOUNT}, VS: ${vs}. Ďakujeme.`
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
