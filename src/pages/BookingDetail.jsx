@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
 import BottomNav from '../components/layout/BottomNav'
 import StatusSegment from '../components/StatusSegment'
+import BookingMenu from '../components/booking/BookingMenu'
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -440,6 +441,13 @@ export default function BookingDetail() {
               </div>
             </div>
             </fieldset>
+
+            {/* Menu — jedálny lístok rezervácie; zmeny sa ukladajú okamžite */}
+            <BookingMenu
+              bookingId={id}
+              editable={editable}
+              printSubtitle={`${form.customerName} — ${typeLabel}, ${formatDateSk(booking.date)}`}
+            />
 
             {/* Prístup zákazníka – len admin */}
             {isAdmin && (

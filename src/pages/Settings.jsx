@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { useAuthStore } from '../store/auth'
 import ActivityLogs from '../components/settings/ActivityLogs'
+import MenuSettings from '../components/settings/MenuSettings'
+import MenuTemplates from '../components/settings/MenuTemplates'
 
 const ROLES = [
   { value: 'admin',     label: 'Admin' },
@@ -43,7 +45,7 @@ export default function Settings() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const confirmTimer = useRef(null)
 
-  const [tab, setTab] = useState('users')   // 'users' | 'logs'
+  const [tab, setTab] = useState('users')   // 'users' | 'menu' | 'templates' | 'logs'
 
   const isAdmin = currentUserRole === 'admin'
 
@@ -172,7 +174,7 @@ export default function Settings() {
         {/* Tabs */}
         <div className="border-b border-[#dde8ec] mb-6">
           <div className="flex gap-1">
-            {[['users', 'Používatelia'], ['logs', 'Logy']].map(([key, label]) => (
+            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -201,6 +203,10 @@ export default function Settings() {
           </div>
         ) : tab === 'logs' ? (
           <ActivityLogs />
+        ) : tab === 'menu' ? (
+          <MenuSettings />
+        ) : tab === 'templates' ? (
+          <MenuTemplates />
         ) : loading ? (
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin" />
