@@ -14,8 +14,8 @@ function defaultQty(cat) {
 // Názov vybratej položky: aktuálny názov z katalógu, fallback na snapshot
 const selName = sel => sel.menu_items?.name ?? sel.item_name
 
-const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#a85151] flex items-center justify-center
-  text-white hover:bg-[#934646] active:bg-[#823d3d] transition-colors`
+const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justify-center
+  text-white hover:bg-[#bd7c7c] active:bg-[#ad6b6b] transition-colors`
 
 // Editor menu — kategórie ako klikateľné pásiky, okno výberu položiek,
 // množstvá ako v košíku. Zmeny sa ukladajú okamžite (bez Uložiť).
@@ -157,9 +157,34 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
 
                 {sels.length > 0 && (
                 <div className="px-4 py-1.5">
-                {sels.map(sel => (
+                {sels.map(sel => {
+                  const nameContent = (
+                    <>
+                      {splitBadge && (
+                        <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
+                                         bg-[#eef3f6] rounded px-1 py-px">
+                          {splitBadge}
+                        </span>
+                      )}
+                      <span className="text-sm font-medium text-[#1a2830]">{selName(sel)}</span>
+                    </>
+                  )
+                  return (
                   <div key={sel.id} className="flex items-center justify-between gap-3 py-2">
-                    <p className="text-sm text-[#1a2830] min-w-0">{selName(sel)}</p>
+                    {/* Klik na položku otvorí výber jej kategórie */}
+                    {clickable ? (
+                      <button
+                        type="button"
+                        onClick={() => setPickerCatId(cat.id)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                      >
+                        {nameContent}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {nameContent}
+                      </div>
+                    )}
 
                     {hasQty ? (
                       editable ? (
@@ -206,33 +231,54 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
                           {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
                         </span>
                       )
-                    ) : (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {splitBadge && (
-                          <span className="text-xs font-semibold text-[#5d7d8e] bg-[#eef3f6]
-                                           rounded-md px-1.5 py-0.5">
-                            {splitBadge}
-                          </span>
-                        )}
-                        {editable && (
-                          <button
-                            type="button"
-                            onClick={() => removeSelection(sel)}
-                            aria-label="Odobrať"
-                            className={X_BTN}
-                          >
-                            <IconX size={15} stroke={2.5} />
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    ) : editable ? (
+                      <button
+                        type="button"
+                        onClick={() => removeSelection(sel)}
+                        aria-label="Odobrať"
+                        className={X_BTN}
+                      >
+                        <IconX size={15} stroke={2.5} />
+                      </button>
+                    ) : null}
                   </div>
-                ))}
+                  )
+                })}
                 </div>
                 )}
               </div>
             )
           })}
+
+          {/* Zhrnutie — živý sumár všetkých vybratých položiek s množstvami */}
+          {hasAnySelection && (
+            <>
+              <div className="flex items-end justify-between gap-3 px-4 pt-5 pb-1.5
+                              bg-[#f0f6f9] border-t border-white">
+                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#5d7d8e]">
+                  Zhrnutie
+                </p>
+              </div>
+              <div className="px-4 py-2.5 space-y-2">
+                {visibleCats.map(cat => {
+                  const sels = selsByCat[cat.id] ?? []
+                  if (sels.length === 0) return null
+                  return (
+                    <div key={cat.id}>
+                      {sels.map(sel => (
+                        <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
+                          {selName(sel)}
+                          {cat.qty_step != null &&
+                            ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
+                          {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
+                        </p>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 

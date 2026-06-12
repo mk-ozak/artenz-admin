@@ -243,7 +243,7 @@ export default function BookingDetail() {
                       href={`tel:${form.phone.replace(/\s+/g, '')}`}
                       title={`Zavolať ${form.phone}`}
                       aria-label="Zavolať"
-                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                      className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
                                  justify-center text-[#3a5160] hover:bg-[#eaf4f2] hover:text-[#2a8d83]
                                  transition-colors"
                     >
@@ -255,7 +255,7 @@ export default function BookingDetail() {
                       )}`}
                       title={`SMS na ${form.phone}`}
                       aria-label="Poslať SMS"
-                      className="w-9 h-9 rounded-full border border-[#d5e2e9] bg-white flex items-center
+                      className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
                                  justify-center text-[#3a5160] hover:bg-[#eef2fa] hover:text-[#4a6bb8]
                                  transition-colors"
                     >

@@ -62,7 +62,7 @@ export default function StatusSegment({
         <button
           type="button"
           onClick={() => { setUnlockText(''); setUnlockOpen(true) }}
-          className="w-full px-4 py-2 rounded-full text-xs font-semibold
+          className="w-full px-4 py-2 rounded-lg text-xs font-semibold
                      shadow-[0_2px_10px_rgba(53,77,93,.10)] transition-opacity hover:opacity-90
                      disabled:opacity-60"
           style={{ background: '#4cbfb3', color: '#0a2d2a' }}
@@ -70,7 +70,7 @@ export default function StatusSegment({
           Potvrdené
         </button>
       ) : (
-        <div className="grid grid-cols-3 rounded-full bg-white border border-gray-200 p-1
+        <div className="grid grid-cols-3 rounded-lg bg-white border border-gray-200 p-1
                         shadow-[0_2px_10px_rgba(53,77,93,.10)]">
           {STATUSES.map(s => {
             const active = value === s.value
@@ -79,7 +79,7 @@ export default function StatusSegment({
                 key={s.value}
                 type="button"
                 onClick={() => select(s.value)}
-                className={`px-1 py-2 rounded-full text-xs font-semibold truncate transition-colors
+                className={`px-1 py-2 rounded-md text-xs font-semibold truncate transition-colors
                             disabled:opacity-60
                             ${active ? '' : 'text-gray-600 hover:text-gray-900'}`}
                 style={active ? { background: '#4cbfb3', color: '#0a2d2a' } : undefined}
