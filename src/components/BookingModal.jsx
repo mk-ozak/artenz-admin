@@ -32,6 +32,11 @@ const EMPTY = {
   // Polia editovateľné v Detaile rezervácie — vo formulári sa nezobrazujú,
   // ale držíme ich v stave, aby sa pri uložení neprepísali.
   guestCount: '',
+  guestsAdults: '',
+  guestsSpecials: '',
+  guestsKidsMeal: '',
+  guestsKidsNoMeal: '',
+  decoration: '',
   deposit: '',
   depositPaid: false,
   notes: '',
@@ -88,6 +93,11 @@ export default function BookingModal() {
         expectedGuests: b.expectedGuests ?? 0,
         estimatedPrice: b.estimatedPrice ?? 0,
         guestCount:   b.guestCount || '',
+        guestsAdults:     b.guestsAdults ?? '',
+        guestsSpecials:   b.guestsSpecials ?? '',
+        guestsKidsMeal:   b.guestsKidsMeal ?? '',
+        guestsKidsNoMeal: b.guestsKidsNoMeal ?? '',
+        decoration:   b.decoration ?? '',
         deposit:      b.deposit || '',
         depositPaid:  b.depositPaid ?? false,
         notes:        b.notes ?? '',
@@ -374,7 +384,7 @@ export default function BookingModal() {
           {/* Expected guests + estimated price */}
           <div className="flex gap-3">
             <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaný počet osôb</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaných hostí</label>
               <input
                 type="number"
                 value={form.expectedGuests}
@@ -386,7 +396,7 @@ export default function BookingModal() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena (€)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena</label>
               <input
                 type="number"
                 value={form.estimatedPrice}
@@ -397,6 +407,28 @@ export default function BookingModal() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Záloha</label>
+              <input
+                type="number"
+                value={form.deposit}
+                onChange={e => set('deposit', e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.depositPaid}
+                  onChange={e => set('depositPaid', e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-[11px] text-gray-600">Zaplatená</span>
+              </label>
             </div>
           </div>
           </fieldset>

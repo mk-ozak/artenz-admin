@@ -104,6 +104,11 @@ export default function BookingDetail() {
           expectedGuests: data.expected_guests ?? 0,
           estimatedPrice: data.estimated_price != null ? Number(data.estimated_price) : 0,
           guestCount:   data.guest_count ?? '',
+          guestsAdults:     data.guests_adults ?? '',
+          guestsSpecials:   data.guests_specials ?? '',
+          guestsKidsMeal:   data.guests_kids_meal ?? '',
+          guestsKidsNoMeal: data.guests_kids_no_meal ?? '',
+          decoration:   data.decoration ?? '',
           deposit:      data.deposit_amount != null ? Number(data.deposit_amount) : '',
           depositPaid:  data.deposit_paid ?? false,
           notes:        data.notes ?? '',
@@ -306,9 +311,13 @@ export default function BookingDetail() {
                   </div>
                 </div>
 
-                <div className="flex gap-6">
+                {/* Čas + 3 malé čísla v jednom riadku — polia sa pružne zužujú,
+                    na desktope sa rozložia po celej šírke */}
+                <div className="flex gap-3">
                   <div className="shrink-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Čas</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
+                      Čas
+                    </label>
                     <div className="flex items-center gap-1.5">
                       <select
                         value={timeHH}
@@ -332,29 +341,56 @@ export default function BookingDetail() {
                       </select>
                     </div>
                   </div>
-                  <div className="w-36 ml-auto">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaný počet osôb</label>
-                    <input
-                      type="number"
-                      value={form.expectedGuests}
-                      onChange={e => set('expectedGuests', e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div className="w-36">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena (€)</label>
-                    <input
-                      type="number"
-                      value={form.estimatedPrice}
-                      onChange={e => set('estimatedPrice', e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      step="0.01"
-                      className={inputCls}
-                    />
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
+                        Očakávaných hostí
+                      </label>
+                      <input
+                        type="number"
+                        value={form.expectedGuests}
+                        onChange={e => set('expectedGuests', e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
+                        Predbežná cena
+                      </label>
+                      <input
+                        type="number"
+                        value={form.estimatedPrice}
+                        onChange={e => set('estimatedPrice', e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
+                        Záloha
+                      </label>
+                      <input
+                        type="number"
+                        value={form.deposit}
+                        onChange={e => set('deposit', e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        className={inputCls}
+                      />
+                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={form.depositPaid}
+                          onChange={e => set('depositPaid', e.target.checked)}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-[11px] text-gray-600">Zaplatená</span>
+                      </label>
+                    </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -392,48 +428,47 @@ export default function BookingDetail() {
                 Detaily
               </p>
               <div className="px-4 pb-4 space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet hostí</label>
-                    <input
-                      type="number"
-                      value={form.guestCount}
-                      onChange={e => set('guestCount', e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Záloha (€)</label>
-                    <input
-                      type="number"
-                      value={form.deposit}
-                      onChange={e => set('deposit', e.target.value)}
-                      placeholder="0"
-                      min="0"
-                      step="0.01"
-                      className={inputCls}
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Výzdoba</label>
+                  <textarea
+                    value={form.decoration}
+                    onChange={e => set('decoration', e.target.value)}
+                    placeholder="Kvety, farby, dekorácia stolov..."
+                    rows={4}
+                    className={`${inputCls} resize-none`}
+                  />
                 </div>
 
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.depositPaid}
-                    onChange={e => set('depositPaid', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-700">Záloha zaplatená</span>
-                </label>
+                {/* Rozpis počtu hostí */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    ['guestsAdults',     'Dospelí bez špeciálov'],
+                    ['guestsSpecials',   'Špeciály'],
+                    ['guestsKidsMeal',   'Deti s jedlom'],
+                    ['guestsKidsNoMeal', 'Deti bez jedla'],
+                  ].map(([field, label]) => (
+                    <div key={field} className="min-w-0">
+                      <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
+                      <input
+                        type="number"
+                        value={form[field]}
+                        onChange={e => set(field, e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className={inputCls}
+                      />
+                    </div>
+                  ))}
+                </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Poznámky</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Špeciálne požiadavky ku strave
+                  </label>
                   <textarea
                     value={form.notes}
                     onChange={e => set('notes', e.target.value)}
-                    placeholder="Špeciálne požiadavky, alergény, výzdoba..."
+                    placeholder="Alergény, diéty, bezlepkové..."
                     rows={4}
                     className={`${inputCls} resize-none`}
                   />
@@ -441,6 +476,27 @@ export default function BookingDetail() {
               </div>
             </div>
             </fieldset>
+
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                {error}
+              </p>
+            )}
+
+            {/* Uloží polia Rezervácie a Detailov — menu aj stav sa ukladajú samé */}
+            {editable && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2 text-sm font-bold rounded-lg
+                  transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+              >
+                {saving ? 'Ukladám…' : 'Uložiť'}
+              </button>
+            </div>
+            )}
 
             {/* Menu — jedálny lístok rezervácie; zmeny sa ukladajú okamžite */}
             <BookingMenu
@@ -550,23 +606,6 @@ export default function BookingDetail() {
             </div>
             )}
 
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
-                {error}
-              </p>
-            )}
-
-            {editable && (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full px-4 py-2.5 text-sm font-bold rounded-lg
-                transition-opacity hover:opacity-90 disabled:opacity-50"
-              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
-            >
-              {saving ? 'Ukladám…' : 'Uložiť'}
-            </button>
-            )}
           </>
         )}
 
