@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconCoins } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
-import { formatDateSk } from '../../utils/format'
+import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Očakávané zálohy" – všetky rezervácie v stave „Čakajúca záloha".
@@ -46,7 +46,7 @@ export default function ExpectedDeposits() {
                 </span>
               </p>
               <p className="text-xs text-gray-400">
-                {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}
+                {formatDateSkYear(r.date)} · {r.hall.replace('_', ' ')}
                 {r.deposit_amount != null && ` · ${Number(r.deposit_amount)} €`}
               </p>
             </div>

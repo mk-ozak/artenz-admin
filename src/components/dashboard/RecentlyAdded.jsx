@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconPlus } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
-import { formatDateSk } from '../../utils/format'
+import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Posledné pridané" – 5 naposledy vytvorených rezervácií.
@@ -45,7 +45,7 @@ export default function RecentlyAdded() {
                 </span>
               </p>
               <p className="text-xs text-[#5f9a92]">
-                {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}
+                {formatDateSkYear(r.date)} · {r.hall.replace('_', ' ')}
               </p>
             </div>
           </li>

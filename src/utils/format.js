@@ -9,6 +9,12 @@ export function formatDateSk(dateStr) {
   return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]}`
 }
 
+// To isté + rok (pre sekcie, kde dátum nemusí byť z aktuálneho roka)
+export function formatDateSkYear(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+}
+
 export function formatTodaySk() {
   const d = new Date()
   return `${DAYS_LONG[d.getDay()]}, ${d.getDate()}. ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}`

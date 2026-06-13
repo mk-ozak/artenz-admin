@@ -3,7 +3,7 @@ import { IconTrash } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { useBookingsStore } from '../../store/bookings'
 import { useAuthStore } from '../../store/auth'
-import { formatDateSk } from '../../utils/format'
+import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Posledné vymazané" – posledných 10 soft-deleted rezervácií.
@@ -75,7 +75,7 @@ export default function DeletedBookings() {
                 </span>
               </p>
               <p className="text-xs text-red-500">
-                {formatDateSk(r.date)} · {r.hall.replace('_', ' ')}
+                {formatDateSkYear(r.date)} · {r.hall.replace('_', ' ')}
               </p>
             </div>
             {isAdmin && (
