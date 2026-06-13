@@ -31,6 +31,19 @@ function mapStatus(raw) {
   return null
 }
 
+// "HH:MM" (24 h) → zarovnané na 15 min; len v rozsahu formulára (09–19 h),
+// inak null (select v modáli ponúka iba tieto hodiny/minúty)
+function mapTime(raw) {
+  if (typeof raw !== 'string') return null
+  const m = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  let h = Number(m[1])
+  let min = Math.round(Number(m[2]) / 15) * 15
+  if (min === 60) { min = 0; h += 1 }
+  if (!Number.isFinite(h) || h < 9 || h > 19) return null
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
 // Vráti len polia, ktoré sa podarilo vytiahnuť — partial na setForm merge.
 export function voiceResultToForm(parsed) {
   const out = {}
@@ -48,11 +61,19 @@ export function voiceResultToForm(parsed) {
   const status = mapStatus(parsed.status)
   if (status) out.status = status
 
+  const time = mapTime(parsed.start_time)
+  if (time) out.time = time
+
   const guests = Number(parsed.guest_count)
   if (Number.isFinite(guests) && guests > 0) out.expectedGuests = Math.round(guests)
 
   const price = Number(parsed.estimated_price)
   if (Number.isFinite(price) && price > 0) out.estimatedPrice = price
+
+  const deposit = Number(parsed.deposit)
+  if (Number.isFinite(deposit) && deposit > 0) out.deposit = deposit
+
+  if (typeof parsed.deposit_paid === 'boolean') out.depositPaid = parsed.deposit_paid
 
   return out
 }

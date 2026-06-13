@@ -15,8 +15,11 @@ Schéma:
   "phone": string | null,
   "event_type": string | null,
   "status": string | null,
+  "start_time": string | null,
   "guest_count": number | null,
-  "estimated_price": number | null
+  "estimated_price": number | null,
+  "deposit": number | null,
+  "deposit_paid": boolean | null
 }
 
 Pravidlá:
@@ -26,10 +29,18 @@ Pravidlá:
 - phone normalizuj na súvislé číslice bez medzier ("0905 123 456" -> "0905123456").
   Ak číslo zaznie po čísliciach, spoj ho. Slovenské čísla majú zvyčajne 10 číslic
   a začínajú na 09.
-- guest_count a estimated_price vráť ako čísla ("asi sto ľudí" -> 100,
-  "okolo dvetisíc eur" -> 2000).
 - event_type je krátky názov typu akcie (svadba, oslava, kar, firemná akcia, stužková...).
-- status namapuj na jednu z hodnôt statusov používaných v systéme; ak nezaznel, daj null.`
+- status namapuj na jednu z hodnôt statusov používaných v systéme; ak nezaznel, daj null.
+- start_time je čas začiatku akcie vo formáte HH:MM (24-hodinový), napr.
+  "o tretej poobede" -> "15:00", "o pol siedmej večer" -> "18:30". Ak nezaznel, null.
+- guest_count je počet hostí ako číslo ("asi sto ľudí" -> 100).
+- estimated_price je cena NA JEDNU OSOBU v eurách, NIE celková cena. Býva obvykle
+  20 až 100 € na osobu. NIKDY ju nenásob počtom hostí — zapíš sumu za jednu osobu
+  presne tak, ako zaznela ("päťdesiatpäť eur na osobu" -> 55, NIE 5500). Ak ti vyjde
+  viac ako pár stoviek, takmer isto si zle rozumel — vráť reálnu sumu na osobu.
+- deposit je záloha v eurách ako číslo. Býva obvykle do 200 €.
+- deposit_paid je true, ak zaznelo, že záloha je už zaplatená/uhradená; false, ak
+  zaznelo, že ešte nie je zaplatená; ak sa o zaplatení zálohy nehovorilo, daj null.`
 
 export default async function handler(req, res) {
   if (!process.env.GEMINI_API_KEY) {
@@ -94,8 +105,11 @@ export default async function handler(req, res) {
       phone:           parsed.phone ?? null,
       event_type:      parsed.event_type ?? null,
       status:          parsed.status ?? null,
+      start_time:      parsed.start_time ?? null,
       guest_count:     parsed.guest_count ?? null,
       estimated_price: parsed.estimated_price ?? null,
+      deposit:         parsed.deposit ?? null,
+      deposit_paid:    typeof parsed.deposit_paid === 'boolean' ? parsed.deposit_paid : null,
     })
   } catch (err) {
     console.error('[parse-booking]', err.message)
