@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconTable } from '@tabler/icons-react'
 import { exportDiaryYear, exportAllBookings } from '../utils/exportDiary'
+import { exportDiaryYearPdf } from '../utils/exportDiaryPdf'
 import { supabase } from '../lib/supabase'
 import DiaryMonth from './diary/DiaryMonth'
 import BookingModal from './BookingModal'
@@ -62,14 +63,15 @@ export default function Diary() {
 
   const [bookings,  setBookings]  = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [exporting,     setExporting]     = useState(null)  // 'year' | 'all' | null
+  const [exporting,     setExporting]     = useState(null)  // 'year' | 'pdf' | 'all' | null
   const [confirmExport, setConfirmExport] = useState(false)
 
   async function handleExport(kind) {
     setExporting(kind)
     try {
-      if (kind === 'year') await exportDiaryYear(page.year, bookings)
-      else                 await exportAllBookings()
+      if (kind === 'year')      await exportDiaryYear(page.year, bookings)
+      else if (kind === 'pdf')  exportDiaryYearPdf(page.year, bookings)
+      else                      await exportAllBookings()
       setConfirmExport(false)
     } catch (e) {
       console.error('[Diary] export error:', e)
@@ -221,8 +223,8 @@ export default function Diary() {
           <button
             onClick={() => setConfirmExport(true)}
             disabled={exporting}
-            aria-label="Export roka do Excelu"
-            title="Export roka do Excelu"
+            aria-label="Exporty"
+            title="Exporty"
             className="w-10 h-10 xl:w-9 xl:h-9 rounded-lg flex items-center justify-center
                        transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{ background: '#8a9aa6', color: '#1d2f3c' }}
@@ -314,19 +316,31 @@ export default function Diary() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="px-5 py-4" style={{ background: '#354d5d' }}>
-              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>Export do Excelu</h2>
+              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>Exporty</h2>
             </div>
             <div className="p-5 space-y-3">
               <button
                 type="button"
                 disabled={exporting !== null}
-                onClick={() => handleExport('year')}
+                onClick={() => handleExport('pdf')}
                 className="w-full px-4 py-3 rounded-lg text-sm font-bold text-left
                   transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ background: '#4cbfb3', color: '#0a2d2a' }}
               >
-                {exporting === 'year' ? 'Exportujem…' : `Exportovať rok ${yearLabel}`}
+                {exporting === 'pdf' ? 'Pripravujem…' : `Exportovať rok ${yearLabel} do PDF`}
                 <span className="block text-[11px] font-normal opacity-70 mt-0.5">
+                  Vizuál diára naležato, 2 mesiace na stranu A4 (6 strán)
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={exporting !== null}
+                onClick={() => handleExport('year')}
+                className="w-full px-4 py-3 rounded-lg text-sm font-bold text-left border border-gray-300
+                  text-gray-800 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {exporting === 'year' ? 'Exportujem…' : `Exportovať rok ${yearLabel} do Excelu`}
+                <span className="block text-[11px] font-normal text-gray-500 mt-0.5">
                   Mriežka diára po mesiacoch
                 </span>
               </button>
