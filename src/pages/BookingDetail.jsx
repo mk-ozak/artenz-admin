@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconMessage, IconPhone } from '@tabler/icons-react'
+import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconMessage, IconPencil, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { formatDateSk } from '../utils/format'
-import { EVENT_TYPES, EVENT_LABEL } from '../lib/eventTypes'
+import { EVENT_LABEL } from '../lib/eventTypes'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
 import BottomNav from '../components/layout/BottomNav'
-import StatusSegment from '../components/StatusSegment'
+import BookingModal from '../components/BookingModal'
 import BookingMenu from '../components/booking/BookingMenu'
 
 const HALL_COLOR = {
@@ -45,25 +45,30 @@ const STATUS_STYLE = {
   potvrdene: { background: '#eaf7f0', color: '#2a8d83' },
 }
 
-// Čas rezervácie: 09–19 h, minúty po 15 (ako v BookingModal)
-const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
-const MINUTES = ['00', '15', '30', '45']
+// Suma v €, prázdne → pomlčka
+const eur = v => (v !== '' && v != null && Number(v) > 0) ? `${Number(v)} €` : '—'
 
-const inputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`
+// Informačný údaj v banneri (popis + hodnota)
+function Fact({ label, value }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] uppercase tracking-wider text-[#9ab0ba]">{label}</span>
+      <span className="text-sm font-semibold text-[#3a5160]">{value}</span>
+    </div>
+  )
+}
 
-// Detail rezervácie – dizajn ako dashboard. Upravujú sa tu základné polia
-// (ako v modáli) aj detaily (počet hostí, záloha, poznámky).
+// Detail rezervácie – dizajn ako dashboard. Základné údaje rezervácie sú tu
+// len informačne (editujú sa cez modál „Upraviť"); priamo sa editujú detaily
+// (výzdoba, rozpis hostí, požiadavky) a menu.
 export default function BookingDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { updateBooking, showToast } = useBookingsStore()
+  const { openEditModal, modalState } = useBookingsStore()
   const isAdmin = useAuthStore(s => s.role) === 'admin'
 
   const [booking, setBooking] = useState(undefined) // undefined = načítava, null = nenašlo sa
   const [form, setForm] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
 
   // Prístup zákazníka
   const [access, setAccess]             = useState(null)  // { email, password? } po vytvorení
@@ -72,27 +77,19 @@ export default function BookingDetail() {
   const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [copied, setCopied]             = useState('')    // 'link' | 'password'
   const revokeTimer = useRef(null)
+  const prevModal   = useRef(modalState)
 
-  useEffect(() => {
-    supabase
+  // Načíta rezerváciu do stavu (booking + form). Volá sa pri otvorení detailu
+  // a po zavretí modálu „Upraviť", aby sa zmeny prejavili.
+  function loadBooking() {
+    return supabase
       .from('bookings')
       .select('*')
       .eq('id', id)
       .single()
       .then(({ data, error }) => {
-        if (error) { console.error('[BookingDetail] fetch error:', error.message); setBooking(null); return }
+        if (error) { console.error('[BookingDetail] fetch error:', error.message); setBooking(null); return null }
         setBooking(data)
-        // Existujúci zákaznícky prístup → načítaj email pre opätovné zobrazenie linku
-        if (data.user_id) {
-          supabase
-            .from('profiles')
-            .select('email')
-            .eq('id', data.user_id)
-            .single()
-            .then(({ data: prof }) => {
-              if (prof?.email) setAccess({ email: prof.email })
-            })
-        }
         setForm({
           customerName: data.customer_name,
           phone:        data.customer_phone ?? '',
@@ -113,24 +110,52 @@ export default function BookingDetail() {
           depositPaid:  data.deposit_paid ?? false,
           notes:        data.notes ?? '',
         })
+        return data
       })
-  }, [id])
-
-  function set(field, value) {
-    setForm(f => ({ ...f, [field]: value }))
   }
 
-  const timeHH = form?.time ? form.time.slice(0, 2) : ''
-  const timeMM = form?.time ? form.time.slice(3, 5) : '00'
+  useEffect(() => {
+    loadBooking().then(data => {
+      // Existujúci zákaznícky prístup → načítaj email pre opätovné zobrazenie linku
+      if (data?.user_id) {
+        supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', data.user_id)
+          .single()
+          .then(({ data: prof }) => {
+            if (prof?.email) setAccess({ email: prof.email })
+          })
+      }
+    })
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleSave() {
-    if (!form.customerName?.trim()) { setError('Meno zákazníka je povinné.'); return }
-    setSaving(true)
-    setError('')
-    const err = await updateBooking(id, form, booking.google_calendar_event_id)
-    setSaving(false)
-    if (err) { setError(err); return }
-    showToast({ message: 'Rezervácia uložená' })
+  // Po zavretí modálu „Upraviť" (uloženie/vymazanie v BookingModal) refetchni detail
+  useEffect(() => {
+    if (prevModal.current !== null && modalState === null) loadBooking()
+    prevModal.current = modalState
+  }, [modalState]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Otvorí modál „Editovať rezerváciu" (rovnaký ako z diára) s aktuálnymi údajmi.
+  // Počty hostí a požiadavky ku strave vlastní sekcia Menu (auto-uloženie),
+  // preto sa do modálu neposielajú.
+  function openEdit() {
+    openEditModal({
+      id:             booking.id,
+      customerName:   form.customerName,
+      phone:          form.phone,
+      date:           form.date,
+      venue:          form.venue,
+      time:           form.time,
+      type:           form.type,
+      status:         form.status,
+      expectedGuests: form.expectedGuests,
+      estimatedPrice: form.estimatedPrice,
+      decoration:     form.decoration,
+      deposit:        form.deposit,
+      depositPaid:    form.depositPaid,
+      googleEventId:  booking.google_calendar_event_id,
+    })
   }
 
   const customerLink = access?.email
@@ -164,17 +189,6 @@ export default function BookingDetail() {
     if (error) { setAccessError(error); return }
     setAccess(null)
     setBooking(b => ({ ...b, user_id: null }))
-  }
-
-  // Zmena stavu sa ukladá okamžite (bez čakania na Uložiť)
-  async function handleStatusChange(next) {
-    set('status', next)
-    const { error } = await supabase
-      .from('bookings')
-      .update({ status: next })
-      .eq('id', id)
-    if (error) { setError(error.message); return }
-    showToast({ message: 'Stav uložený' })
   }
 
   function copyText(text, key) {
@@ -269,6 +283,37 @@ export default function BookingDetail() {
                   </span>
                 )}
               </div>
+
+              {/* Poznámky z modálu */}
+              {form.decoration?.trim() && (
+                <p className="mt-2 text-sm text-[#3a5160] whitespace-pre-wrap">
+                  <span className="font-semibold text-[#6a8898]">Poznámky: </span>
+                  {form.decoration}
+                </p>
+              )}
+
+              {/* Základné údaje rezervácie — informačne; editujú sa cez „Upraviť" */}
+              <div className="flex items-end gap-x-5 gap-y-2 mt-3 pt-3 border-t border-[#eef3f6] flex-wrap">
+                <Fact label="Čas" value={form.time || '—'} />
+                <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
+                <Fact label="Predbežná cena" value={eur(form.estimatedPrice)} />
+                <Fact
+                  label="Záloha"
+                  value={form.deposit && Number(form.deposit) > 0
+                    ? `${eur(form.deposit)}${form.depositPaid ? ' · zaplatená' : ''}`
+                    : '—'}
+                />
+                {editable && (
+                  <button
+                    onClick={openEdit}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                               transition-opacity hover:opacity-90"
+                    style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                  >
+                    <IconPencil size={14} stroke={2.2} /> Upraviť
+                  </button>
+                )}
+              </div>
             </div>
 
             {isPastBooking && (
@@ -277,228 +322,8 @@ export default function BookingDetail() {
               </p>
             )}
 
-            {/* read_only / minulá rezervácia: všetky polia sú len na čítanie */}
-            <fieldset disabled={!editable} className="flex flex-col gap-3 min-w-0">
-
-            {/* Rezervácia – základné údaje (ako v modáli) */}
-            <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
-              <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
-                Rezervácia
-              </p>
-              <div className="px-4 pb-4 space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                      Zákazník <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={form.customerName}
-                      onChange={e => set('customerName', e.target.value)}
-                      placeholder="Meno zákazníka / firmy"
-                      className={inputCls}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Telefón</label>
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={e => set('phone', e.target.value)}
-                      placeholder="+421 905 123 456"
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
-
-                {/* Čas + 3 malé čísla v jednom riadku — polia sa pružne zužujú,
-                    na desktope sa rozložia po celej šírke */}
-                <div className="flex gap-3">
-                  <div className="shrink-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
-                      Čas
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={timeHH}
-                        onChange={e => set('time', e.target.value === '' ? '' : `${e.target.value}:${timeMM}`)}
-                        className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
-                          font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="">–</option>
-                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
-                      <span className="text-sm font-semibold text-gray-500">:</span>
-                      <select
-                        value={timeMM}
-                        onChange={e => { if (timeHH) set('time', `${timeHH}:${e.target.value}`) }}
-                        disabled={!timeHH}
-                        className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm
-                          font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                          disabled:opacity-40"
-                      >
-                        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                    <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
-                        Očakávaných hostí
-                      </label>
-                      <input
-                        type="number"
-                        value={form.expectedGuests}
-                        onChange={e => set('expectedGuests', e.target.value)}
-                        placeholder="0"
-                        min="0"
-                        className={inputCls}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
-                        Predbežná cena
-                      </label>
-                      <input
-                        type="number"
-                        value={form.estimatedPrice}
-                        onChange={e => set('estimatedPrice', e.target.value)}
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        className={inputCls}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">
-                        Záloha
-                      </label>
-                      <input
-                        type="number"
-                        value={form.deposit}
-                        onChange={e => set('deposit', e.target.value)}
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        className={inputCls}
-                      />
-                      <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={form.depositPaid}
-                          onChange={e => set('depositPaid', e.target.checked)}
-                          className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span className="text-[11px] text-gray-600">Zaplatená</span>
-                      </label>
-                    </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
-                    <select
-                      value={form.type}
-                      onChange={e => set('type', e.target.value)}
-                      className={`${inputCls} bg-white`}
-                    >
-                      {EVENT_TYPES.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
-                    <StatusSegment
-                      value={form.status}
-                      onChange={handleStatusChange}
-                      customerName={form.customerName}
-                      phone={form.phone}
-                      typeLabel={typeLabel}
-                      dateISO={booking.date}
-                      amount={Number(form.deposit) > 0 ? Number(form.deposit) : (Number(form.estimatedPrice) || 0)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Detaily */}
-            <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
-              <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
-                Detaily
-              </p>
-              <div className="px-4 pb-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Výzdoba</label>
-                  <textarea
-                    value={form.decoration}
-                    onChange={e => set('decoration', e.target.value)}
-                    placeholder="Kvety, farby, dekorácia stolov..."
-                    rows={4}
-                    className={`${inputCls} resize-none`}
-                  />
-                </div>
-
-                {/* Rozpis počtu hostí */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    ['guestsAdults',     'Dospelí bez špeciálov'],
-                    ['guestsSpecials',   'Špeciály'],
-                    ['guestsKidsMeal',   'Deti s jedlom'],
-                    ['guestsKidsNoMeal', 'Deti bez jedla'],
-                  ].map(([field, label]) => (
-                    <div key={field} className="min-w-0">
-                      <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
-                      <input
-                        type="number"
-                        value={form[field]}
-                        onChange={e => set(field, e.target.value)}
-                        placeholder="0"
-                        min="0"
-                        className={inputCls}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Špeciálne požiadavky ku strave
-                  </label>
-                  <textarea
-                    value={form.notes}
-                    onChange={e => set('notes', e.target.value)}
-                    placeholder="Alergény, diéty, bezlepkové..."
-                    rows={4}
-                    className={`${inputCls} resize-none`}
-                  />
-                </div>
-              </div>
-            </div>
-            </fieldset>
-
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
-                {error}
-              </p>
-            )}
-
-            {/* Uloží polia Rezervácie a Detailov — menu aj stav sa ukladajú samé */}
-            {editable && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-6 py-2 text-sm font-bold rounded-lg
-                  transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
-              >
-                {saving ? 'Ukladám…' : 'Uložiť'}
-              </button>
-            </div>
-            )}
-
-            {/* Menu — jedálny lístok rezervácie; zmeny sa ukladajú okamžite */}
+            {/* Menu — počty hostí, požiadavky ku strave a jedálny lístok;
+                všetko sa ukladá samo */}
             <BookingMenu
               bookingId={id}
               editable={editable}
@@ -615,6 +440,9 @@ export default function BookingDetail() {
       <div className="xl:hidden">
         <BottomNav />
       </div>
+
+      {/* Modál „Editovať rezerváciu" — rovnaký ako z diára */}
+      <BookingModal />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconEraser, IconPrinter, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
@@ -9,6 +9,23 @@ const esc = s => String(s ?? '')
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
+
+// Počty hostí — pole vo formulári → stĺpec v bookings
+const GUEST_FIELDS = [
+  ['guestsAdults',     'Dospelí bez špeciálov'],
+  ['guestsSpecials',   'Špeciály'],
+  ['guestsKidsMeal',   'Deti s jedlom'],
+  ['guestsKidsNoMeal', 'Deti bez jedla'],
+]
+const DETAIL_COLS = {
+  guestsAdults:     'guests_adults',
+  guestsSpecials:   'guests_specials',
+  guestsKidsMeal:   'guests_kids_meal',
+  guestsKidsNoMeal: 'guests_kids_no_meal',
+  notes:            'notes',
+}
+const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+  focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500`
 
 // MENU rezervácie: hlavička s akciami (načítať šablónu, reset, tlač)
 // + spoločný editor menu. Zmeny sa ukladajú okamžite.
@@ -24,6 +41,38 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
   // Prvý klik = potvrdenie (~4 s), druhý = vymazanie všetkých položiek
   const [confirmReset, setConfirmReset] = useState(false)
   const resetTimer = useRef(null)
+
+  // Počty hostí + požiadavky ku strave — vlastní táto sekcia, ukladá sa samo (onBlur)
+  const [details, setDetails] = useState(null)
+
+  useEffect(() => {
+    supabase
+      .from('bookings')
+      .select('guests_adults, guests_specials, guests_kids_meal, guests_kids_no_meal, notes')
+      .eq('id', bookingId)
+      .single()
+      .then(({ data }) => {
+        setDetails({
+          guestsAdults:     data?.guests_adults ?? '',
+          guestsSpecials:   data?.guests_specials ?? '',
+          guestsKidsMeal:   data?.guests_kids_meal ?? '',
+          guestsKidsNoMeal: data?.guests_kids_no_meal ?? '',
+          notes:            data?.notes ?? '',
+        })
+      })
+  }, [bookingId])
+
+  async function saveDetail(field) {
+    const raw = details[field]
+    const value = field === 'notes'
+      ? (raw.trim() || null)
+      : (raw === '' ? null : Number(raw))
+    const { error } = await supabase
+      .from('bookings')
+      .update({ [DETAIL_COLS[field]]: value })
+      .eq('id', bookingId)
+    if (error) setError(error.message)
+  }
 
   async function openTemplates() {
     setShowTemplates(true)
@@ -193,6 +242,41 @@ ${sections || '<p>Menu je prázdne.</p>'}
         <p className="mx-4 mt-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
           {error}
         </p>
+      )}
+
+      {/* Počty hostí + požiadavky ku strave — ukladajú sa samo (po opustení poľa) */}
+      {details && (
+        <fieldset disabled={!editable} className="px-4 pt-4 pb-3 border-b border-[#eef3f6] space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {GUEST_FIELDS.map(([field, label]) => (
+              <div key={field} className="min-w-0">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={details[field]}
+                  onChange={e => setDetails(d => ({ ...d, [field]: e.target.value }))}
+                  onBlur={() => saveDetail(field)}
+                  className={detailInputCls}
+                />
+              </div>
+            ))}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Špeciálne požiadavky ku strave
+            </label>
+            <textarea
+              rows={1}
+              value={details.notes}
+              onChange={e => setDetails(d => ({ ...d, notes: e.target.value }))}
+              onBlur={() => saveDetail('notes')}
+              placeholder="Alergény, diéty, bezlepkové…"
+              className={`${detailInputCls} resize-none`}
+            />
+          </div>
+        </fieldset>
       )}
 
       <MenuEditor
