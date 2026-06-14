@@ -312,7 +312,7 @@ export default function BookingModal() {
                 Zákazník <span className="text-red-500">*</span>
               </label>
               <input
-                autoFocus
+                autoFocus={!isEdit}
                 type="text"
                 value={form.customerName}
                 onChange={e => { setNameMissing(false); set('customerName', e.target.value) }}
