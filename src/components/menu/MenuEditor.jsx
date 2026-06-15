@@ -93,10 +93,9 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     return min > 0 ? min : Number(cat.qty_step)
   }
 
-  async function changeQty(sel, cat, dir) {
-    const step = Number(cat.qty_step)
-    const next = Math.round((Number(sel.quantity) + dir * step) * 100) / 100
-    if (next > Number(cat.qty_max) || next < minQty(cat)) return
+  // Uloženie množstva (optimisticky + rollback pri chybe)
+  async function saveQty(sel, next) {
+    if (next === Number(sel.quantity)) return
     const prev = sel.quantity
     setSelections(s => s.map(x => x.id === sel.id ? { ...x, quantity: next } : x))
     const { error } = await supabase
@@ -107,6 +106,29 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       setError(error.message)
       setSelections(s => s.map(x => x.id === sel.id ? { ...x, quantity: prev } : x))
     }
+  }
+
+  function changeQty(sel, cat, dir) {
+    const step = Number(cat.qty_step)
+    const next = Math.round((Number(sel.quantity) + dir * step) * 100) / 100
+    if (next > Number(cat.qty_max) || next < minQty(cat)) return
+    saveQty(sel, next)
+  }
+
+  // Zadanie množstva z klávesnice — počas písania drží draft, commit pri opustení
+  const [qtyDraft, setQtyDraft] = useState({})
+
+  function commitQty(sel, cat) {
+    const raw = qtyDraft[sel.id]
+    setQtyDraft(d => { const n = { ...d }; delete n[sel.id]; return n })
+    if (raw == null || raw === '') return
+    let n = Number(String(raw).replace(',', '.'))
+    if (!Number.isFinite(n)) return
+    const step = Number(cat.qty_step)
+    n = Math.round(n / step) * step
+    n = Math.min(Math.max(n, minQty(cat)), Number(cat.qty_max))
+    n = Math.round(n * 100) / 100
+    saveQty(sel, n)
   }
 
   const hasAnySelection = selections.length > 0
@@ -204,9 +226,22 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                   >
                     <IconMinus size={15} stroke={2.5} />
                   </button>
-                  <span className="min-w-[52px] px-1 text-center text-sm font-bold text-[#1a2830]">
-                    {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
-                  </span>
+                  <div className="flex items-center">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={qtyDraft[sel.id] ?? fmtQty(sel.quantity)}
+                      onFocus={e => { setQtyDraft(d => ({ ...d, [sel.id]: fmtQty(sel.quantity) })); e.target.select() }}
+                      onChange={e => setQtyDraft(d => ({ ...d, [sel.id]: e.target.value }))}
+                      onBlur={() => commitQty(sel, cat)}
+                      onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                      className="w-10 text-center text-sm font-bold text-[#1a2830] bg-transparent
+                                 rounded focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#4cbfb3]"
+                    />
+                    {cat.qty_unit && (
+                      <span className="text-xs font-medium text-[#5d7d8e] pr-0.5">{cat.qty_unit}</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => changeQty(sel, cat, 1)}

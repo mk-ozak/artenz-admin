@@ -14,6 +14,7 @@ const QTY_PRESETS = [
   { key: 'none',     label: 'Bez množstva',                 qty_min: null, qty_max: null, qty_step: null, qty_unit: null, split_portions: false },
   { key: 'split',    label: 'Bez množstva + podiel (1/2…)', qty_min: null, qty_max: null, qty_step: null, qty_unit: null, split_portions: true },
   { key: 'ks_1_20',  label: '1 – 20 ks',                    qty_min: 1,    qty_max: 20,   qty_step: 1,    qty_unit: 'ks', split_portions: false },
+  { key: 'ks_1_250', label: '1 – 250 ks',                   qty_min: 1,    qty_max: 250,  qty_step: 1,    qty_unit: 'ks', split_portions: false },
   { key: 'kg_05_20', label: '0,5 – 20 kg (krok 0,5)',       qty_min: 0.5,  qty_max: 20,   qty_step: 0.5,  qty_unit: 'kg', split_portions: false },
 ]
 
