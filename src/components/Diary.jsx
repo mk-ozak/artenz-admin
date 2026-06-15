@@ -155,6 +155,7 @@ export default function Diary() {
       type:          b.event_type ?? 'svadba',
       deposit:       b.deposit_amount != null ? Number(b.deposit_amount) : 0,
       depositPaid:   b.deposit_paid ?? false,
+      decoration:    b.decoration ?? '',
       guestCount:    b.guest_count ?? 0,
       notes:         b.notes ?? '',
       googleEventId: b.google_calendar_event_id ?? null,
