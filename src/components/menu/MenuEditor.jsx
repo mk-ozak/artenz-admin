@@ -21,7 +21,8 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // množstvá ako v košíku. Zmeny sa ukladajú okamžite (bez Uložiť).
 // Generický nad „vlastníkom" výberov: menu rezervácie (booking_menu_items /
 // booking_id) aj šablóna menu (menu_template_items / template_id).
-export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
+// extraBeforeBlock: { [číslo bloku]: ReactNode } — vloží sa navrch daného bloku.
+export default function MenuEditor({ table, ownerColumn, ownerId, editable, extraBeforeBlock }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
   const [selections, setSelections] = useState([])
@@ -31,7 +32,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('menu_categories').select('*').order('position'),
+      supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
       supabase.from(table)
         .select('*, menu_items(name)')
@@ -56,6 +57,10 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
   const visibleCats = categories.filter(c =>
     !c.archived_at || (selsByCat[c.id]?.length > 0)
   )
+
+  // Reálne vykreslené kategórie (v read-only sa prázdne vynechávajú) —
+  // potrebné na oddeľovač medzi blokmi
+  const renderCats = visibleCats.filter(c => editable || (selsByCat[c.id]?.length > 0))
 
   const pickerCat = pickerCatId ? categories.find(c => c.id === pickerCatId) : null
 
@@ -106,6 +111,139 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
 
   const hasAnySelection = selections.length > 0
 
+  // Reálne vykreslené čísla blokov (v poradí)
+  const blockNums = [...new Set(renderCats.map(c => c.block))]
+
+  // Jedna kategória (pásik + vybraté položky)
+  function renderCategory(cat) {
+    const sels      = selsByCat[cat.id] ?? []
+    const hasQty    = cat.qty_step != null
+    const clickable = editable && !cat.archived_at
+    // Podiel porcie (Mäso, Príloha): pri 2+ položkách príznak „1/2"…
+    const splitBadge = cat.split_portions && sels.length > 1 ? `1/${sels.length}` : null
+    const header = (
+      <>
+        <p className="text-[10px] uppercase tracking-[.16em] text-[#5d7d8e]">
+          {cat.name}
+        </p>
+        {clickable && (
+          <IconChevronRight size={16} className="shrink-0 text-[#b6c8d2]" />
+        )}
+      </>
+    )
+    return (
+      <div key={cat.id} className="border-t border-white first:border-t-0">
+        {clickable ? (
+          <button
+            type="button"
+            onClick={() => setPickerCatId(cat.id)}
+            aria-label={`Vybrať položky — ${cat.name}`}
+            className="w-full flex items-end justify-between gap-3 px-4 pt-5 pb-1.5 text-left
+                       bg-[#f0f6f9] hover:bg-[#e4eff4] active:bg-[#daeaf1] transition-colors"
+          >
+            {header}
+          </button>
+        ) : (
+          <div className="flex items-end justify-between gap-3 px-4 pt-5 pb-1.5 bg-[#f0f6f9]">
+            {header}
+          </div>
+        )}
+
+        {sels.length > 0 && (
+        <div className="px-4 py-1.5">
+        {sels.map(sel => {
+          const nameContent = (
+            <>
+              {splitBadge && (
+                <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
+                                 bg-[#eef3f6] rounded px-1 py-px">
+                  {splitBadge}
+                </span>
+              )}
+              <span className="text-sm font-medium text-[#1a2830]">{selName(sel)}</span>
+            </>
+          )
+          return (
+          <div key={sel.id} className="flex items-center justify-between gap-3 py-2">
+            {/* Klik na položku otvorí výber jej kategórie */}
+            {clickable ? (
+              <button
+                type="button"
+                onClick={() => setPickerCatId(cat.id)}
+                className="flex items-center gap-2 flex-1 min-w-0 text-left"
+              >
+                {nameContent}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {nameContent}
+              </div>
+            )}
+
+            {hasQty ? (
+              editable ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => removeSelection(sel)}
+                    aria-label="Odobrať položku"
+                    className={X_BTN}
+                  >
+                    <IconX size={15} stroke={2.5} />
+                  </button>
+                  <div className="flex items-center gap-0.5 rounded-lg border
+                                  border-[#d9ebe8] bg-[#f1f8f7] p-1">
+                  <button
+                    type="button"
+                    onClick={() => changeQty(sel, cat, -1)}
+                    disabled={Number(sel.quantity) <= minQty(cat)}
+                    aria-label="Menej"
+                    className="w-8 h-8 rounded-lg bg-[#cdeae6] flex items-center justify-center
+                               text-[#1f7d74] hover:bg-[#b9e2dd] active:bg-[#a8d9d3]
+                               transition-colors disabled:opacity-30"
+                  >
+                    <IconMinus size={15} stroke={2.5} />
+                  </button>
+                  <span className="min-w-[52px] px-1 text-center text-sm font-bold text-[#1a2830]">
+                    {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => changeQty(sel, cat, 1)}
+                    disabled={Number(sel.quantity) >= Number(cat.qty_max)}
+                    aria-label="Viac"
+                    className="w-8 h-8 rounded-lg bg-[#cdeae6] flex items-center justify-center
+                               text-[#1f7d74] hover:bg-[#b9e2dd] active:bg-[#a8d9d3]
+                               transition-colors disabled:opacity-30"
+                  >
+                    <IconPlus size={15} stroke={2.5} />
+                  </button>
+                  </div>
+                </div>
+              ) : (
+                <span className="shrink-0 text-sm font-semibold text-[#3a5160]">
+                  {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
+                </span>
+              )
+            ) : editable ? (
+              <button
+                type="button"
+                onClick={() => removeSelection(sel)}
+                aria-label="Odobrať"
+                className={X_BTN}
+              >
+                <IconX size={15} stroke={2.5} />
+              </button>
+            ) : null}
+          </div>
+          )
+        })}
+        </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       {loading && (
@@ -117,145 +255,21 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
       )}
 
       {!loading && (
-        <div className="pb-2">
-          {visibleCats.map(cat => {
-            const sels = selsByCat[cat.id] ?? []
-            // Read-only pohľad: prázdne kategórie sa nezobrazujú
-            if (!editable && sels.length === 0) return null
-            const hasQty    = cat.qty_step != null
-            const clickable = editable && !cat.archived_at
-            // Podiel porcie (Mäso, Príloha): pri 2+ položkách príznak „1/2"…
-            const splitBadge = cat.split_portions && sels.length > 1
-              ? `1/${sels.length}` : null
-            const header = (
-              <>
-                <p className="text-[10px] uppercase tracking-[.16em] text-[#5d7d8e]">
-                  {cat.name}
-                </p>
-                {clickable && (
-                  <IconChevronRight size={16} className="shrink-0 text-[#b6c8d2]" />
-                )}
-              </>
-            )
-            return (
-              <div key={cat.id} className="border-t border-white first:border-t-0">
-                {clickable ? (
-                  <button
-                    type="button"
-                    onClick={() => setPickerCatId(cat.id)}
-                    aria-label={`Vybrať položky — ${cat.name}`}
-                    className="w-full flex items-end justify-between gap-3 px-4 pt-5 pb-1.5 text-left
-                               bg-[#f0f6f9] hover:bg-[#e4eff4] active:bg-[#daeaf1] transition-colors"
-                  >
-                    {header}
-                  </button>
-                ) : (
-                  <div className="flex items-end justify-between gap-3 px-4 pt-5 pb-1.5 bg-[#f0f6f9]">
-                    {header}
-                  </div>
-                )}
-
-                {sels.length > 0 && (
-                <div className="px-4 py-1.5">
-                {sels.map(sel => {
-                  const nameContent = (
-                    <>
-                      {splitBadge && (
-                        <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
-                                         bg-[#eef3f6] rounded px-1 py-px">
-                          {splitBadge}
-                        </span>
-                      )}
-                      <span className="text-sm font-medium text-[#1a2830]">{selName(sel)}</span>
-                    </>
-                  )
-                  return (
-                  <div key={sel.id} className="flex items-center justify-between gap-3 py-2">
-                    {/* Klik na položku otvorí výber jej kategórie */}
-                    {clickable ? (
-                      <button
-                        type="button"
-                        onClick={() => setPickerCatId(cat.id)}
-                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                      >
-                        {nameContent}
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {nameContent}
-                      </div>
-                    )}
-
-                    {hasQty ? (
-                      editable ? (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => removeSelection(sel)}
-                            aria-label="Odobrať položku"
-                            className={X_BTN}
-                          >
-                            <IconX size={15} stroke={2.5} />
-                          </button>
-                          <div className="flex items-center gap-0.5 rounded-lg border
-                                          border-[#d9ebe8] bg-[#f1f8f7] p-1">
-                          <button
-                            type="button"
-                            onClick={() => changeQty(sel, cat, -1)}
-                            disabled={Number(sel.quantity) <= minQty(cat)}
-                            aria-label="Menej"
-                            className="w-8 h-8 rounded-lg bg-[#cdeae6] flex items-center justify-center
-                                       text-[#1f7d74] hover:bg-[#b9e2dd] active:bg-[#a8d9d3]
-                                       transition-colors disabled:opacity-30"
-                          >
-                            <IconMinus size={15} stroke={2.5} />
-                          </button>
-                          <span className="min-w-[52px] px-1 text-center text-sm font-bold text-[#1a2830]">
-                            {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => changeQty(sel, cat, 1)}
-                            disabled={Number(sel.quantity) >= Number(cat.qty_max)}
-                            aria-label="Viac"
-                            className="w-8 h-8 rounded-lg bg-[#cdeae6] flex items-center justify-center
-                                       text-[#1f7d74] hover:bg-[#b9e2dd] active:bg-[#a8d9d3]
-                                       transition-colors disabled:opacity-30"
-                          >
-                            <IconPlus size={15} stroke={2.5} />
-                          </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="shrink-0 text-sm font-semibold text-[#3a5160]">
-                          {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
-                        </span>
-                      )
-                    ) : editable ? (
-                      <button
-                        type="button"
-                        onClick={() => removeSelection(sel)}
-                        aria-label="Odobrať"
-                        className={X_BTN}
-                      >
-                        <IconX size={15} stroke={2.5} />
-                      </button>
-                    ) : null}
-                  </div>
-                  )
-                })}
-                </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="py-3 space-y-3">
+          {blockNums.map(block => (
+            <div key={block} className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
+              <div className="h-3 bg-[#8fa6b2]" />
+              {extraBeforeBlock?.[block]}
+              {renderCats.filter(c => c.block === block).map(renderCategory)}
+              <div className="h-2" />
+            </div>
+          ))}
 
           {/* Zhrnutie — živý sumár všetkých vybratých položiek s množstvami */}
           {hasAnySelection && (
-            <>
-              <div className="flex items-end justify-between gap-3 px-4 pt-5 pb-1.5
-                              bg-[#f0f6f9] border-t border-white">
-                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#5d7d8e]">
+            <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
+              <div className="flex items-end justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
+                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
                   Zhrnutie
                 </p>
               </div>
@@ -277,7 +291,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable }) {
                   )
                 })}
               </div>
-            </>
+            </div>
           )}
         </div>
       )}

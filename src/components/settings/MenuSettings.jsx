@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash,
 } from '@tabler/icons-react'
@@ -86,7 +86,7 @@ export default function MenuSettings() {
     setLoading(true)
     setError(null)
     const [c, i] = await Promise.all([
-      supabase.from('menu_categories').select('*').is('archived_at', null).order('position'),
+      supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
     ])
     if (c.error || i.error) setError((c.error || i.error).message)
@@ -120,10 +120,12 @@ export default function MenuSettings() {
     e.preventDefault()
     const name = newCatName.trim()
     if (!name) return
-    const position = Math.max(0, ...categories.map(c => c.position)) + 1
+    // Nová kategória ide do posledného bloku
+    const block = Math.max(1, ...categories.map(c => c.block))
+    const position = Math.max(0, ...categories.filter(c => c.block === block).map(c => c.position)) + 1
     const { data, error } = await supabase
       .from('menu_categories')
-      .insert({ name, position })
+      .insert({ name, position, block })
       .select()
       .single()
     if (error) { setError(error.message); return }
@@ -131,14 +133,28 @@ export default function MenuSettings() {
     setNewCatName('')
   }
 
-  function onCategoryDragEnd({ active, over }) {
+  // Preusporiadanie ťahaním — len v rámci jedného bloku
+  function onCategoryDragEnd(block, { active, over }) {
     if (!over || active.id === over.id) return
-    const oldIdx = categories.findIndex(c => c.id === active.id)
-    const newIdx = categories.findIndex(c => c.id === over.id)
-    const next = arrayMove(categories, oldIdx, newIdx).map((c, i) => ({ ...c, position: i + 1 }))
+    const blockCats = categories.filter(c => c.block === block)
+    const oldIdx = blockCats.findIndex(c => c.id === active.id)
+    const newIdx = blockCats.findIndex(c => c.id === over.id)
+    const reordered = arrayMove(blockCats, oldIdx, newIdx).map((c, i) => ({ ...c, position: i + 1 }))
     const prev = categories
-    setCategories(next)
-    persistOrder('menu_categories', prev, next, fetchAll)
+    setCategories(cs => cs
+      .map(c => reordered.find(r => r.id === c.id) ?? c)
+      .sort((a, b) => a.block - b.block || a.position - b.position))
+    persistOrder('menu_categories', prev, reordered, fetchAll)
+  }
+
+  // Presun kategórie do iného bloku — zaradí sa na koniec cieľového bloku
+  function moveCategoryToBlock(cat, block) {
+    if (block === cat.block) return
+    const position = Math.max(0, ...categories.filter(c => c.block === block).map(c => c.position)) + 1
+    patch('menu_categories', cat.id, { block, position }, () =>
+      setCategories(cs => cs
+        .map(c => c.id === cat.id ? { ...c, block, position } : c)
+        .sort((a, b) => a.block - b.block || a.position - b.position)))
   }
 
   function setQtyPreset(cat, key) {
@@ -226,6 +242,10 @@ export default function MenuSettings() {
     )
   }
 
+  // Bloky kategórií — zoradené čísla blokov; medzi nimi sa kreslí oddeľovač
+  const blocks = [...new Set(categories.map(c => c.block))].sort((a, b) => a - b)
+  const maxBlock = blocks.length ? blocks[blocks.length - 1] : 1
+
   return (
     <div className="space-y-3">
       {error && (
@@ -255,10 +275,14 @@ export default function MenuSettings() {
         </button>
       </form>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onCategoryDragEnd}>
-        <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
-            {categories.map(cat => {
+      <div className="space-y-3">
+        {blocks.map((block, bIdx) => (
+          <Fragment key={block}>
+            {bIdx > 0 && <div className="h-1.5 bg-[#8fa6b2] rounded-full" />}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => onCategoryDragEnd(block, e)}>
+              <SortableContext items={categories.filter(c => c.block === block).map(c => c.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {categories.filter(c => c.block === block).map(cat => {
               const catItems = items.filter(i => i.category_id === cat.id)
               const expanded = expandedId === cat.id
               const pKey     = presetKey(cat)
@@ -327,6 +351,17 @@ export default function MenuSettings() {
                               Vlastné ({cat.qty_min}–{cat.qty_max} {cat.qty_unit})
                             </option>
                           )}
+                        </select>
+
+                        <select
+                          value={cat.block}
+                          onChange={e => moveCategoryToBlock(cat, Number(e.target.value))}
+                          title="Blok kategórie"
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700
+                                     shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {blocks.map(b => <option key={b} value={b}>Blok {b}</option>)}
+                          <option value={maxBlock + 1}>+ nový blok</option>
                         </select>
 
                         <button
@@ -432,10 +467,13 @@ export default function MenuSettings() {
                   )}
                 </SortableRow>
               )
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </Fragment>
+        ))}
+      </div>
     </div>
   )
 }

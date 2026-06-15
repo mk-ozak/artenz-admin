@@ -11,18 +11,13 @@ const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
 
 // Počty hostí — pole vo formulári → stĺpec v bookings
-const GUEST_FIELDS = [
-  ['guestsAdults',     'Dospelí bez špeciálov'],
-  ['guestsSpecials',   'Špeciály'],
-  ['guestsKidsMeal',   'Deti s jedlom'],
-  ['guestsKidsNoMeal', 'Deti bez jedla'],
-]
 const DETAIL_COLS = {
-  guestsAdults:     'guests_adults',
-  guestsSpecials:   'guests_specials',
-  guestsKidsMeal:   'guests_kids_meal',
-  guestsKidsNoMeal: 'guests_kids_no_meal',
-  notes:            'notes',
+  guestsAdults:       'guests_adults',
+  guestsAdultsNoMeal: 'guests_adults_no_meal',
+  guestsSpecials:     'guests_specials',
+  guestsKidsMeal:     'guests_kids_meal',
+  guestsKidsNoMeal:   'guests_kids_no_meal',
+  notes:              'notes',
 }
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
   focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500`
@@ -48,16 +43,17 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('guests_adults, guests_specials, guests_kids_meal, guests_kids_no_meal, notes')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, notes')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
         setDetails({
-          guestsAdults:     data?.guests_adults ?? '',
-          guestsSpecials:   data?.guests_specials ?? '',
-          guestsKidsMeal:   data?.guests_kids_meal ?? '',
-          guestsKidsNoMeal: data?.guests_kids_no_meal ?? '',
-          notes:            data?.notes ?? '',
+          guestsAdults:       data?.guests_adults ?? '',
+          guestsAdultsNoMeal: data?.guests_adults_no_meal ?? '',
+          guestsSpecials:     data?.guests_specials ?? '',
+          guestsKidsMeal:     data?.guests_kids_meal ?? '',
+          guestsKidsNoMeal:   data?.guests_kids_no_meal ?? '',
+          notes:              data?.notes ?? '',
         })
       })
   }, [bookingId])
@@ -73,6 +69,63 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       .eq('id', bookingId)
     if (error) setError(error.message)
   }
+
+  // Číselné okienko počtu hostí
+  function numField(field, label) {
+    return (
+      <div className="min-w-0">
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
+        <input
+          type="number"
+          min="0"
+          placeholder="0"
+          value={details[field]}
+          disabled={!editable}
+          onChange={e => setDetails(d => ({ ...d, [field]: e.target.value }))}
+          onBlur={() => saveDetail(field)}
+          className={detailInputCls}
+        />
+      </div>
+    )
+  }
+
+  // Polia napevno navrchu blokov:
+  // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3
+  const menuBlockSlots = details ? {
+    1: (
+      <div className="px-4 py-3 grid grid-cols-2 gap-3">
+        {numField('guestsAdults', 'Dospelí (bez špeciálov)')}
+        {numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
+      </div>
+    ),
+    2: (
+      <div className="px-4 py-3 grid grid-cols-2 gap-3">
+        {numField('guestsKidsMeal', 'Deti s jedlom')}
+        {numField('guestsKidsNoMeal', 'Deti bez jedla')}
+      </div>
+    ),
+    3: (
+      <div className="px-4 py-3 flex gap-3 items-end">
+        <div className="w-20 shrink-0">
+          {numField('guestsSpecials', 'Špeciály')}
+        </div>
+        <div className="flex-1 min-w-0">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">
+            Špeciálne požiadavky ku strave
+          </label>
+          <input
+            type="text"
+            value={details.notes}
+            disabled={!editable}
+            onChange={e => setDetails(d => ({ ...d, notes: e.target.value }))}
+            onBlur={() => saveDetail('notes')}
+            placeholder="Alergény, diéty, bezlepkové…"
+            className={detailInputCls}
+          />
+        </div>
+      </div>
+    ),
+  } : undefined
 
   async function openTemplates() {
     setShowTemplates(true)
@@ -142,7 +195,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
     const [c, s] = await Promise.all([
-      supabase.from('menu_categories').select('*').order('position'),
+      supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('booking_menu_items')
         .select('*, menu_items(name)')
         .eq('booking_id', bookingId)
@@ -191,9 +244,9 @@ ${sections || '<p>Menu je prázdne.</p>'}
   }
 
   return (
-    <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
+    <div>
       {/* Hlavička MENU vo farbe top baru, s akciami */}
-      <div className="px-4 py-2.5 flex items-center justify-between gap-2"
+      <div className="px-4 py-2.5 flex items-center justify-between gap-2 rounded-card"
            style={{ background: '#354d5d' }}>
         <p className="text-[13px] font-bold tracking-[.18em] uppercase" style={{ color: '#ddeef6' }}>
           Menu
@@ -244,47 +297,13 @@ ${sections || '<p>Menu je prázdne.</p>'}
         </p>
       )}
 
-      {/* Počty hostí + požiadavky ku strave — ukladajú sa samo (po opustení poľa) */}
-      {details && (
-        <fieldset disabled={!editable} className="px-4 pt-4 pb-3 border-b border-[#eef3f6] space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {GUEST_FIELDS.map(([field, label]) => (
-              <div key={field} className="min-w-0">
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={details[field]}
-                  onChange={e => setDetails(d => ({ ...d, [field]: e.target.value }))}
-                  onBlur={() => saveDetail(field)}
-                  className={detailInputCls}
-                />
-              </div>
-            ))}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Špeciálne požiadavky ku strave
-            </label>
-            <textarea
-              rows={1}
-              value={details.notes}
-              onChange={e => setDetails(d => ({ ...d, notes: e.target.value }))}
-              onBlur={() => saveDetail('notes')}
-              placeholder="Alergény, diéty, bezlepkové…"
-              className={`${detailInputCls} resize-none`}
-            />
-          </div>
-        </fieldset>
-      )}
-
       <MenuEditor
         key={refreshKey}
         table="booking_menu_items"
         ownerColumn="booking_id"
         ownerId={bookingId}
         editable={editable && !busy}
+        extraBeforeBlock={menuBlockSlots}
       />
 
       {/* Výber šablóny menu */}
