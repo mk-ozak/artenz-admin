@@ -182,18 +182,20 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       2: 'Hlavné jedlo deti',
       3: 'Hlavné jedlo špeciál',
       4: 'Švédske stoly',
-      5: 'Studená kuchyňa',
+      5: 'Prílohy pre raut',
+      6: 'Studená kuchyňa',
     },
     fixedQty: {
       1: Number(details.guestsAdults) || 0,
       // 2 deti s jedlom = 1 porcia (zaokrúhlené nahor)
       2: Math.ceil((Number(details.guestsKidsMeal) || 0) / 2),
       4: rautTotal,
+      5: rautTotal,
     },
     checkBlock:  3,
     checkTarget: Number(details.guestsSpecials) || 0,
-    // Raut: naklikané kg vs počet ľudí na raut × 0,2 kg
-    weightCheck: { block: 4, perPerson: 0.2, people: rautTotal },
+    // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × 0,2 kg
+    weightCheck: { blocks: [4, 5], perPerson: 0.2, people: rautTotal },
   } : undefined
 
   async function openTemplates() {

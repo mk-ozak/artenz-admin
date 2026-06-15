@@ -318,7 +318,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                   Súčet: {sum} / Špeciály: {summary.checkTarget}{ok ? ' ✓' : ' — nesedí'}
                 </p>
               )
-            } else if (summary?.weightCheck?.block === block) {
+            } else if (summary?.weightCheck?.blocks?.includes(block)) {
               // Raut: súčet naklikaných kg vs počet ľudí na raut × 0,2 kg
               const wc = summary.weightCheck
               const sumKg = renderCats
