@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { IconCheck, IconChevronRight, IconMinus, IconPlus, IconX } from '@tabler/icons-react'
+import { IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 
 // Množstvo: 0.5 → „0,5"
 const fmtQty = q => String(Number(q)).replace('.', ',')
+
+const esc = s => String(s ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 // Predvolené množstvo pri pridaní položky: 1, orezané do rozsahu kategórie
 function defaultQty(cat) {
@@ -162,6 +165,177 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         entry.items = [...mirrored, ...entry.items]
       }
     }
+  }
+
+  // Zoskupenie sekcií do riadkov — pár blokov (napr. 4+5) ide vedľa seba
+  function buildRows(sections) {
+    const pair = summary?.pairBlocks
+    if (!pair) return sections.map(s => [s])
+    const rows = []
+    const used = new Set()
+    for (const sec of sections) {
+      if (used.has(sec.block)) continue
+      if (sec.block === pair[0]) {
+        const second = sections.find(s => s.block === pair[1])
+        if (second) { rows.push([sec, second]); used.add(pair[1]); continue }
+      }
+      if (sec.block === pair[1] && sections.some(s => s.block === pair[0])) continue
+      rows.push([sec])
+    }
+    return rows
+  }
+
+  // Obsah jednej sekcie zhrnutia (nadpis + položky)
+  function renderSummarySectionInner(sec) {
+    const title = summary.titles?.[sec.block]
+    const count = sec.block === summary.checkBlock ? summary.checkTarget : summary.fixedQty?.[sec.block]
+    return (
+      <>
+        {title && (
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
+            {sec.block}. {title}
+            {count != null && (
+              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
+            )}
+          </p>
+        )}
+        {sec.items.map(({ sel, cat }) => {
+          const catSels = selsByCat[cat.id] ?? []
+          const splitBadge = cat.split_portions && catSels.length > 1 ? `1/${catSels.length}` : null
+          const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
+          return (
+            <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px flex items-center gap-2">
+              {splitBadge && (
+                <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
+                                 bg-[#eef3f6] rounded px-1 py-px">
+                  {splitBadge}
+                </span>
+              )}
+              <span>
+                {selName(sel)}
+                {showQty && (
+                  <span className="font-medium text-[#9ab0ba]">
+                    {' '}— {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
+                  </span>
+                )}
+              </span>
+            </p>
+          )
+        })}
+      </>
+    )
+  }
+
+  // Obsah jednej sekcie kalkulácie (nadpis + položky so stĺpcami)
+  function renderCalcSectionInner(sec) {
+    const title = summary.titles?.[sec.block]
+    const count = summary.calc.countByBlock?.[sec.block]
+    return (
+      <>
+        {title && (
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
+            {sec.block}. {title}
+            {count != null && (
+              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
+            )}
+          </p>
+        )}
+        {sec.items.map(({ sel, cat }) => {
+          const catSels = selsByCat[cat.id] ?? []
+          const splitBadge = cat.split_portions && catSels.length > 1 ? `1/${catSels.length}` : null
+          const splitDiv = (cat.split_portions && catSels.length > 1) ? catSels.length : 1
+          const isCalc = count != null
+          const dash = isCalc ? '—' : ''
+          const unitSuffix = cat.default_unit ? ` ${cat.default_unit}` : ''
+          const jednAmount = cat.default_amount != null
+            ? Math.round((Number(cat.default_amount) / splitDiv) * 1000) / 1000
+            : null
+          const jedn = jednAmount != null ? `${fmtQty(jednAmount)}${unitSuffix}` : dash
+          let mnozstvo = dash
+          if (isCalc && jednAmount != null) {
+            const amt = Math.round(jednAmount * count * 100) / 100
+            mnozstvo = `${fmtQty(amt)}${unitSuffix}`
+          } else if (!isCalc && cat.qty_step != null) {
+            mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
+          }
+          return (
+            <div key={sel.id} className="flex items-center gap-2 text-[13px] text-[#3a5160] py-px">
+              <span className="flex-1 min-w-0 flex items-center gap-2">
+                {splitBadge && (
+                  <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
+                                   bg-[#eef3f6] rounded px-1 py-px">
+                    {splitBadge}
+                  </span>
+                )}
+                <span className="truncate">{selName(sel)}</span>
+              </span>
+              {jedn && <span className="w-14 text-right text-[#5d7d8e] shrink-0">{jedn}</span>}
+              <span className="w-20 text-right font-semibold text-[#1a2830] shrink-0">{mnozstvo}</span>
+            </div>
+          )
+        })}
+      </>
+    )
+  }
+
+  // Tlač zhrnutia / kalkulácie — systémový print dialóg
+  function printView(mode) {
+    const win = window.open('', '_blank')
+    if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
+    const titleText = mode === 'calc' ? 'Kalkulácia pre kuchyňu' : 'Zhrnutie'
+    const sub = summary?.printSubtitle ? `<p class="sub">${esc(summary.printSubtitle)}</p>` : ''
+    const sections = summarySections.map(sec => {
+      const title = summary.titles?.[sec.block]
+      const count = mode === 'calc'
+        ? summary.calc?.countByBlock?.[sec.block]
+        : (sec.block === summary.checkBlock ? summary.checkTarget : summary.fixedQty?.[sec.block])
+      const heading = title
+        ? `<h2>${sec.block}. ${esc(title)}${count != null ? ` <span class="cnt">— pre ${count} osôb</span>` : ''}</h2>`
+        : ''
+      const lines = sec.items.map(({ sel, cat }) => {
+        const catSels = selsByCat[cat.id] ?? []
+        const splitDiv = (cat.split_portions && catSels.length > 1) ? catSels.length : 1
+        const badge = cat.split_portions && catSels.length > 1
+          ? `<span class="b">1/${catSels.length}</span> ` : ''
+        const name = esc(selName(sel))
+        if (mode === 'calc') {
+          const isCalc = count != null
+          const unit = cat.default_unit ? ` ${esc(cat.default_unit)}` : ''
+          const jednAmount = cat.default_amount != null
+            ? Math.round((Number(cat.default_amount) / splitDiv) * 1000) / 1000 : null
+          const jedn = jednAmount != null ? `${fmtQty(jednAmount)}${unit}` : (isCalc ? '—' : '')
+          let mnozstvo = isCalc ? '—' : ''
+          if (isCalc && jednAmount != null) mnozstvo = `${fmtQty(Math.round(jednAmount * count * 100) / 100)}${unit}`
+          else if (!isCalc && cat.qty_step != null) mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${esc(cat.qty_unit)}` : ''}`
+          return `<tr><td>${badge}${name}</td><td class="r">${jedn}</td><td class="r b2">${mnozstvo}</td></tr>`
+        }
+        const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
+        const qty = showQty ? ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${esc(cat.qty_unit)}` : ''}` : ''
+        return `<tr><td>${badge}${name}${qty}</td></tr>`
+      }).join('')
+      return `<section>${heading}<table>${lines}</table></section>`
+    }).join('')
+
+    win.document.write(`<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>${titleText}</title>
+<style>
+  body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #1a2830; margin: 32px; }
+  h1 { font-size: 18px; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 4px; }
+  .sub { color: #5d7d8e; font-size: 13px; margin: 0 0 18px; }
+  section { margin-bottom: 14px; page-break-inside: avoid; }
+  h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #5d7d8e;
+       border-bottom: 1px solid #d5e2e9; padding-bottom: 3px; margin: 0 0 4px; }
+  h2 .cnt { font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ab0ba; }
+  table { width: 100%; border-collapse: collapse; }
+  td { font-size: 13px; padding: 2px 0; vertical-align: top; }
+  td.r { text-align: right; color: #5d7d8e; white-space: nowrap; width: 90px; padding-left: 12px; }
+  td.b2 { color: #1a2830; font-weight: 600; }
+  .b { font-size: 10px; background: #eef3f6; color: #5d7d8e; border-radius: 3px; padding: 0 3px; }
+</style></head><body>
+<h1>${titleText}</h1>${sub}${sections || '<p>Prázdne.</p>'}
+</body></html>`)
+    win.document.close()
+    win.focus()
+    win.print()
   }
 
   // Jedna kategória (pásik + vybraté položky)
@@ -383,57 +557,35 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
           {/* Zhrnutie — živý sumár všetkých vybratých položiek s množstvami */}
           {hasAnySelection && (
             <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
-              <div className="flex items-end justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
+              <div className="flex items-center justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
                   Zhrnutie
                 </p>
+                {summary && (
+                  <button
+                    type="button"
+                    onClick={() => printView('summary')}
+                    title="Vytlačiť zhrnutie"
+                    aria-label="Vytlačiť zhrnutie"
+                    className="w-7 h-7 rounded flex items-center justify-center text-white
+                               hover:bg-white/15 transition-colors"
+                  >
+                    <IconPrinter size={15} />
+                  </button>
+                )}
               </div>
               <div className="px-4 py-2.5 space-y-3">
                 {summary ? (
-                  summarySections.map(sec => {
-                    const title = summary.titles?.[sec.block]
-                    // Počet osôb pre sekciu (špeciál = počet špeciálov, inak fixný počet)
-                    const count = sec.block === summary.checkBlock
-                      ? summary.checkTarget
-                      : summary.fixedQty?.[sec.block]
-                    return (
-                      <div key={sec.block}>
-                        {title && (
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
-                            {sec.block}. {title}
-                            {count != null && (
-                              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
-                            )}
-                          </p>
-                        )}
-                        {sec.items.map(({ sel, cat }) => {
-                          const catSels = selsByCat[cat.id] ?? []
-                          const splitBadge = cat.split_portions && catSels.length > 1
-                            ? `1/${catSels.length}` : null
-                          const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
-                          return (
-                            <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px
-                                                       flex items-center gap-2">
-                              {splitBadge && (
-                                <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
-                                                 bg-[#eef3f6] rounded px-1 py-px">
-                                  {splitBadge}
-                                </span>
-                              )}
-                              <span>
-                                {selName(sel)}
-                                {showQty && (
-                                  <span className="font-medium text-[#9ab0ba]">
-                                    {' '}— {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
-                                  </span>
-                                )}
-                              </span>
-                            </p>
-                          )
-                        })}
+                  buildRows(summarySections).map((row, i) =>
+                    row.length === 2 ? (
+                      <div key={`r${i}`} className="grid grid-cols-2 gap-4">
+                        <div>{renderSummarySectionInner(row[0])}</div>
+                        <div>{renderSummarySectionInner(row[1])}</div>
                       </div>
+                    ) : (
+                      <div key={row[0].block}>{renderSummarySectionInner(row[0])}</div>
                     )
-                  })
+                  )
                 ) : (
                   visibleCats.map(cat => {
                     const sels = selsByCat[cat.id] ?? []
@@ -451,6 +603,39 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                       </div>
                     )
                   })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Kalkulácia pre kuchyňu — kópia zhrnutia + stĺpce jednotkové/množstvo */}
+          {summary?.calc && hasAnySelection && (
+            <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
+              <div className="flex items-center justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
+                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
+                  Kalkulácia pre kuchyňu
+                </p>
+                <button
+                  type="button"
+                  onClick={() => printView('calc')}
+                  title="Vytlačiť kalkuláciu"
+                  aria-label="Vytlačiť kalkuláciu"
+                  className="w-7 h-7 rounded flex items-center justify-center text-white
+                             hover:bg-white/15 transition-colors"
+                >
+                  <IconPrinter size={15} />
+                </button>
+              </div>
+              <div className="px-4 py-2.5 space-y-3">
+                {buildRows(summarySections).map((row, i) =>
+                  row.length === 2 ? (
+                    <div key={`r${i}`} className="grid grid-cols-2 gap-4">
+                      <div>{renderCalcSectionInner(row[0])}</div>
+                      <div>{renderCalcSectionInner(row[1])}</div>
+                    </div>
+                  ) : (
+                    <div key={row[0].block}>{renderCalcSectionInner(row[0])}</div>
+                  )
                 )}
               </div>
             </div>

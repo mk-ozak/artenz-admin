@@ -196,7 +196,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       1: 'Hlavné jedlo - dospelí',
       2: 'Hlavné jedlo deti',
       3: 'Hlavné jedlo špeciál',
-      4: 'Švédske stoly',
+      4: 'Raut',
       5: 'Prílohy pre raut',
       6: 'Studená kuchyňa',
     },
@@ -213,6 +213,17 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     mirror: { fromCategory: 'Polievka', toBlock: 2 },
     // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke
     qtyBlocks: [6],
+    // Bloky zobrazené vedľa seba (dva stĺpce): RAUT + Prílohy pre raut
+    pairBlocks: [4, 5],
+    printSubtitle,
+    // Kalkulácia pre kuchyňu — počet ľudí na násobenie jednotkového množstva
+    // blok 1 = Dospelí (bez špeciálov), blok 2 = Deti s jedlom (zadaný počet)
+    calc: {
+      countByBlock: {
+        1: Number(details.guestsAdults) || 0,
+        2: Number(details.guestsKidsMeal) || 0,
+      },
+    },
     // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × (gramáž/1000) kg
     weightCheck: {
       blocks: [4, 5],

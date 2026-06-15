@@ -337,6 +337,34 @@ export default function MenuSettings() {
                           />
                         </label>
 
+                        <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0"
+                               title="Kalkulácia pre kuchyňu — množstvo na osobu + jednotka">
+                          jedn.
+                          <BlurInput
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={cat.default_amount ?? ''}
+                            placeholder="0"
+                            onSave={v => {
+                              const default_amount = v === '' ? null : Number(v)
+                              patch('menu_categories', cat.id, { default_amount }, () =>
+                                setCategories(cs => cs.map(c => c.id === cat.id ? { ...c, default_amount } : c)))
+                            }}
+                            className="w-14 text-center border-gray-200"
+                          />
+                          <BlurInput
+                            value={cat.default_unit ?? ''}
+                            placeholder="ks"
+                            onSave={v => {
+                              const default_unit = v.trim() || null
+                              patch('menu_categories', cat.id, { default_unit }, () =>
+                                setCategories(cs => cs.map(c => c.id === cat.id ? { ...c, default_unit } : c)))
+                            }}
+                            className="w-12 text-center border-gray-200"
+                          />
+                        </label>
+
                         <select
                           value={pKey}
                           onChange={e => setQtyPreset(cat, e.target.value)}
