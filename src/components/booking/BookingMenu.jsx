@@ -17,6 +17,7 @@ const DETAIL_COLS = {
   guestsSpecials:     'guests_specials',
   guestsKidsMeal:     'guests_kids_meal',
   guestsKidsNoMeal:   'guests_kids_no_meal',
+  rautExtra:          'raut_extra',
   notes:              'notes',
 }
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
@@ -45,7 +46,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, notes, menu_created')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, notes, menu_created')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -55,6 +56,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
           guestsSpecials:     data?.guests_specials ?? '',
           guestsKidsMeal:     data?.guests_kids_meal ?? '',
           guestsKidsNoMeal:   data?.guests_kids_no_meal ?? '',
+          rautExtra:          data?.raut_extra ?? '',
           notes:              data?.notes ?? '',
         })
         setMenuCreated(!!data?.menu_created)
@@ -108,8 +110,15 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     )
   }
 
+  // Počet ľudí na raut = (dospelí + špeciály) + zaokrúhlené nahor(deti s jedlom / 2)
+  const rautBase = details
+    ? (Number(details.guestsAdults) || 0) + (Number(details.guestsSpecials) || 0)
+      + Math.ceil((Number(details.guestsKidsMeal) || 0) / 2)
+    : 0
+  const rautTotal = rautBase + (Number(details?.rautExtra) || 0)
+
   // Polia napevno navrchu blokov:
-  // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3
+  // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3, raut → blok 4
   const menuBlockSlots = details ? {
     1: (
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
@@ -144,6 +153,47 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
         </div>
       </div>
     ),
+    4: (
+      <div className="px-4 py-3 grid grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
+          <input type="text" readOnly value={rautTotal} className={`${detailInputCls} bg-gray-50`} />
+        </div>
+        <div className="min-w-0">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
+          <input
+            type="number"
+            placeholder="0"
+            value={details.rautExtra}
+            disabled={!editable}
+            onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
+            onBlur={() => saveDetail('rautExtra')}
+            className={detailInputCls}
+          />
+        </div>
+      </div>
+    ),
+  } : undefined
+
+  // Konfigurácia zhrnutia — sekcie podľa blokov + množstvá z počtov hostí
+  const menuSummary = details ? {
+    titles: {
+      1: 'Hlavné jedlo - dospelí',
+      2: 'Hlavné jedlo deti',
+      3: 'Hlavné jedlo špeciál',
+      4: 'Švédske stoly',
+      5: 'Studená kuchyňa',
+    },
+    fixedQty: {
+      1: Number(details.guestsAdults) || 0,
+      // 2 deti s jedlom = 1 porcia (zaokrúhlené nahor)
+      2: Math.ceil((Number(details.guestsKidsMeal) || 0) / 2),
+      4: rautTotal,
+    },
+    checkBlock:  3,
+    checkTarget: Number(details.guestsSpecials) || 0,
+    // Raut: naklikané kg vs počet ľudí na raut × 0,2 kg
+    weightCheck: { block: 4, perPerson: 0.2, people: rautTotal },
   } : undefined
 
   async function openTemplates() {
@@ -349,6 +399,7 @@ ${sections || '<p>Menu je prázdne.</p>'}
           ownerId={bookingId}
           editable={editable && !busy}
           extraBeforeBlock={menuBlockSlots}
+          summary={menuSummary}
         />
       )}
 

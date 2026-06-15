@@ -22,7 +22,8 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // Generický nad „vlastníkom" výberov: menu rezervácie (booking_menu_items /
 // booking_id) aj šablóna menu (menu_template_items / template_id).
 // extraBeforeBlock: { [číslo bloku]: ReactNode } — vloží sa navrch daného bloku.
-export default function MenuEditor({ table, ownerColumn, ownerId, editable, extraBeforeBlock }) {
+// summary: konfigurácia zhrnutia (sekcie podľa blokov + množstvá); null = jednoduché zhrnutie
+export default function MenuEditor({ table, ownerColumn, ownerId, editable, extraBeforeBlock, summary }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
   const [selections, setSelections] = useState([])
@@ -135,6 +136,18 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
 
   // Reálne vykreslené čísla blokov (v poradí)
   const blockNums = [...new Set(renderCats.map(c => c.block))]
+
+  // Zhrnutie po sekciách (blokoch) — len bloky s výberom
+  const summarySections = []
+  if (summary) {
+    for (const cat of visibleCats) {
+      const sels = selsByCat[cat.id] ?? []
+      if (!sels.length) continue
+      let entry = summarySections.find(s => s.block === cat.block)
+      if (!entry) { entry = { block: cat.block, items: [] }; summarySections.push(entry) }
+      for (const sel of sels) entry.items.push({ sel, cat })
+    }
+  }
 
   // Jedna kategória (pásik + vybraté položky)
   function renderCategory(cat) {
@@ -291,14 +304,50 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
 
       {!loading && (
         <div className="py-3 space-y-3">
-          {blockNums.map(block => (
-            <div key={block} className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
-              <div className="h-3 bg-[#8fa6b2]" />
-              {extraBeforeBlock?.[block]}
-              {renderCats.filter(c => c.block === block).map(renderCategory)}
-              <div className="h-2" />
-            </div>
-          ))}
+          {blockNums.map(block => {
+            // Kontrola súčtu množstiev v bloku — pod jedlami bloku
+            let check = null
+            if (summary && summary.checkBlock === block) {
+              // Špeciály: súčet naklikaných množstiev vs počet špeciálov
+              const sum = renderCats
+                .filter(c => c.block === block)
+                .reduce((s, c) => s + (selsByCat[c.id] ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0), 0)
+              const ok = sum === summary.checkTarget
+              check = (
+                <p className={`px-4 pb-2 text-[11px] font-medium ${ok ? 'text-[#2a8d83]' : 'text-[#a87d20]'}`}>
+                  Súčet: {sum} / Špeciály: {summary.checkTarget}{ok ? ' ✓' : ' — nesedí'}
+                </p>
+              )
+            } else if (summary?.weightCheck?.block === block) {
+              // Raut: súčet naklikaných kg vs počet ľudí na raut × 0,2 kg
+              const wc = summary.weightCheck
+              const sumKg = renderCats
+                .filter(c => c.block === block && c.qty_unit === 'kg')
+                .reduce((s, c) => s + (selsByCat[c.id] ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0), 0)
+              const target = Math.round(wc.people * wc.perPerson * 100) / 100
+              const diff   = Math.round((target - sumKg) * 100) / 100
+              const status = diff > 0
+                ? `treba ešte ${fmtQty(diff)} kg`
+                : diff < 0
+                  ? `nad limit o ${fmtQty(-diff)} kg`
+                  : '✓'
+              const color = diff === 0 ? 'text-[#2a8d83]' : diff < 0 ? 'text-[#c0564a]' : 'text-[#a87d20]'
+              check = (
+                <p className={`px-4 pb-2 text-[11px] font-medium ${color}`}>
+                  Raut: {fmtQty(sumKg)} / {fmtQty(target)} kg — {status}
+                </p>
+              )
+            }
+            return (
+              <div key={block} className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
+                <div className="h-3 bg-[#8fa6b2]" />
+                {extraBeforeBlock?.[block]}
+                {renderCats.filter(c => c.block === block).map(renderCategory)}
+                {check}
+                <div className="h-2" />
+              </div>
+            )
+          })}
 
           {/* Zhrnutie — živý sumár všetkých vybratých položiek s množstvami */}
           {hasAnySelection && (
@@ -308,23 +357,56 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                   Zhrnutie
                 </p>
               </div>
-              <div className="px-4 py-2.5 space-y-2">
-                {visibleCats.map(cat => {
-                  const sels = selsByCat[cat.id] ?? []
-                  if (sels.length === 0) return null
-                  return (
-                    <div key={cat.id}>
-                      {sels.map(sel => (
-                        <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
-                          {selName(sel)}
-                          {cat.qty_step != null &&
-                            ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
-                          {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
-                        </p>
-                      ))}
-                    </div>
-                  )
-                })}
+              <div className="px-4 py-2.5 space-y-3">
+                {summary ? (
+                  summarySections.map(sec => {
+                    const isCheck = sec.block === summary.checkBlock
+                    const fixed   = summary.fixedQty?.[sec.block]
+                    const title   = summary.titles?.[sec.block]
+                    return (
+                      <div key={sec.block}>
+                        {title && (
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
+                            {sec.block}. {title}
+                          </p>
+                        )}
+                        {sec.items.map(({ sel, cat }) => {
+                          const qty = isCheck
+                            ? `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
+                            : (fixed != null
+                                ? String(fixed)
+                                : (cat.qty_step != null ? fmtQty(sel.quantity) : ''))
+                          return (
+                            <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px
+                                                       flex justify-between gap-3">
+                              <span>{selName(sel)}</span>
+                              {qty !== '' && (
+                                <span className="font-semibold text-[#1a2830] shrink-0">{qty}</span>
+                              )}
+                            </p>
+                          )
+                        })}
+                      </div>
+                    )
+                  })
+                ) : (
+                  visibleCats.map(cat => {
+                    const sels = selsByCat[cat.id] ?? []
+                    if (sels.length === 0) return null
+                    return (
+                      <div key={cat.id}>
+                        {sels.map(sel => (
+                          <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
+                            {selName(sel)}
+                            {cat.qty_step != null &&
+                              ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
+                            {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
+                          </p>
+                        ))}
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </div>
           )}
