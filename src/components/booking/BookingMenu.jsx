@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconEraser, IconPrinter, IconTemplate, IconX } from '@tabler/icons-react'
+import { IconEraser, IconPlus, IconPrinter, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
 
@@ -39,11 +39,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
 
   // Počty hostí + požiadavky ku strave — vlastní táto sekcia, ukladá sa samo (onBlur)
   const [details, setDetails] = useState(null)
+  // Je pre rezerváciu vytvorené menu? (null = načítava)
+  const [menuCreated, setMenuCreated] = useState(null)
 
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, notes')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, notes, menu_created')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -55,8 +57,25 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
           guestsKidsNoMeal:   data?.guests_kids_no_meal ?? '',
           notes:              data?.notes ?? '',
         })
+        setMenuCreated(!!data?.menu_created)
       })
   }, [bookingId])
+
+  // Vytvorenie prázdneho menu — nastaví príznak, položky ostanú prázdne
+  async function createEmptyMenu() {
+    setBusy(true)
+    setError('')
+    await supabase.from('booking_menu_items').delete().eq('booking_id', bookingId)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ menu_created: true })
+      .eq('id', bookingId)
+    setBusy(false)
+    if (error) { setError(error.message); return }
+    setMenuCreated(true)
+    setShowTemplates(false)
+    setRefreshKey(k => k + 1)
+  }
 
   async function saveDetail(field) {
     const raw = details[field]
@@ -165,6 +184,8 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       const { error: insErr } = await supabase.from('booking_menu_items').insert(rows)
       if (insErr) setError(insErr.message)
     }
+    await supabase.from('bookings').update({ menu_created: true }).eq('id', bookingId)
+    setMenuCreated(true)
     setBusy(false)
     setShowTemplates(false)
     setRefreshKey(k => k + 1)
@@ -251,6 +272,8 @@ ${sections || '<p>Menu je prázdne.</p>'}
         <p className="text-[13px] font-bold tracking-[.18em] uppercase" style={{ color: '#ddeef6' }}>
           Menu
         </p>
+        {/* Akcie len keď je menu vytvorené */}
+        {menuCreated && (
         <div className="flex items-center gap-1">
           {editable && (
             <>
@@ -258,8 +281,8 @@ ${sections || '<p>Menu je prázdne.</p>'}
                 type="button"
                 onClick={openTemplates}
                 disabled={busy}
-                title="Načítať šablónu menu"
-                aria-label="Načítať šablónu menu"
+                title="Načítať šablónu / prázdne menu"
+                aria-label="Načítať šablónu / prázdne menu"
                 className={headerBtnCls}
                 style={{ color: '#ddeef6' }}
               >
@@ -289,6 +312,7 @@ ${sections || '<p>Menu je prázdne.</p>'}
             <IconPrinter size={18} />
           </button>
         </div>
+        )}
       </div>
 
       {error && (
@@ -297,14 +321,36 @@ ${sections || '<p>Menu je prázdne.</p>'}
         </p>
       )}
 
-      <MenuEditor
-        key={refreshKey}
-        table="booking_menu_items"
-        ownerColumn="booking_id"
-        ownerId={bookingId}
-        editable={editable && !busy}
-        extraBeforeBlock={menuBlockSlots}
-      />
+      {/* Menu ešte nevytvorené → ponuka na vytvorenie */}
+      {menuCreated === false && (
+        editable ? (
+          <div className="py-3">
+            <button
+              type="button"
+              onClick={openTemplates}
+              disabled={busy}
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-3 rounded-card
+                         text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+            >
+              <IconPlus size={18} stroke={2.5} /> Vytvoriť menu
+            </button>
+          </div>
+        ) : (
+          <p className="px-4 py-4 text-sm text-gray-500">Menu nie je vytvorené.</p>
+        )
+      )}
+
+      {menuCreated && (
+        <MenuEditor
+          key={refreshKey}
+          table="booking_menu_items"
+          ownerColumn="booking_id"
+          ownerId={bookingId}
+          editable={editable && !busy}
+          extraBeforeBlock={menuBlockSlots}
+        />
+      )}
 
       {/* Výber šablóny menu */}
       {showTemplates && (
@@ -317,7 +363,7 @@ ${sections || '<p>Menu je prázdne.</p>'}
             <div className="px-5 py-4 flex items-center justify-between shrink-0"
                  style={{ background: '#354d5d' }}>
               <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>
-                Načítať šablónu menu
+                Vytvoriť menu
               </h2>
               <button
                 type="button"
@@ -332,6 +378,19 @@ ${sections || '<p>Menu je prázdne.</p>'}
             </div>
 
             <div className="overflow-y-auto divide-y divide-gray-100 flex-1">
+              {/* Prvá možnosť — prázdne menu */}
+              <button
+                type="button"
+                onClick={createEmptyMenu}
+                disabled={busy}
+                className="w-full flex items-center gap-2 px-5 py-3 text-left
+                           text-sm font-bold text-[#2a8d83] hover:bg-[#eaf7f5]
+                           transition-colors disabled:opacity-50"
+              >
+                <IconPlus size={16} stroke={2.5} />
+                Načítať prázdne menu
+              </button>
+
               {templates === null && (
                 <p className="px-5 py-6 text-sm text-[#8aaabb] italic">Načítavam…</p>
               )}
