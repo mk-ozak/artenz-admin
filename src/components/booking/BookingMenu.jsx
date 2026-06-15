@@ -18,6 +18,7 @@ const DETAIL_COLS = {
   guestsKidsMeal:     'guests_kids_meal',
   guestsKidsNoMeal:   'guests_kids_no_meal',
   rautExtra:          'raut_extra',
+  rautGrams:          'raut_grams',
   notes:              'notes',
 }
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
@@ -46,7 +47,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, notes, menu_created')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -57,6 +58,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
           guestsKidsMeal:     data?.guests_kids_meal ?? '',
           guestsKidsNoMeal:   data?.guests_kids_no_meal ?? '',
           rautExtra:          data?.raut_extra ?? '',
+          rautGrams:          data?.raut_grams ?? 200,
           notes:              data?.notes ?? '',
         })
         setMenuCreated(!!data?.menu_created)
@@ -154,13 +156,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       </div>
     ),
     4: (
-      <div className="px-4 py-3 grid grid-cols-2 gap-3">
+      <div className="px-4 py-3 grid grid-cols-3 gap-3">
         <div className="min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Počet ľudí na raut</label>
           <input type="text" readOnly value={rautTotal} className={`${detailInputCls} bg-gray-50`} />
         </div>
         <div className="min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Raut navyše/menej</label>
           <input
             type="number"
             placeholder="0"
@@ -168,6 +170,19 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
             disabled={!editable}
             onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
             onBlur={() => saveDetail('rautExtra')}
+            className={detailInputCls}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Gramáž rautu (g)</label>
+          <input
+            type="number"
+            min="1"
+            placeholder="200"
+            value={details.rautGrams}
+            disabled={!editable}
+            onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
+            onBlur={() => saveDetail('rautGrams')}
             className={detailInputCls}
           />
         </div>
@@ -187,15 +202,23 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     },
     fixedQty: {
       1: Number(details.guestsAdults) || 0,
-      // 2 deti s jedlom = 1 porcia (zaokrúhlené nahor)
-      2: Math.ceil((Number(details.guestsKidsMeal) || 0) / 2),
+      // hlavné jedlo deti = zadaný počet detí (vzorec /2 platí len pre raut)
+      2: Number(details.guestsKidsMeal) || 0,
       4: rautTotal,
       5: rautTotal,
     },
     checkBlock:  3,
     checkTarget: Number(details.guestsSpecials) || 0,
-    // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × 0,2 kg
-    weightCheck: { blocks: [4, 5], perPerson: 0.2, people: rautTotal },
+    // Deti dostanú automaticky tú istú polievku ako dospelí (z bloku 1)
+    mirror: { fromCategory: 'Polievka', toBlock: 2 },
+    // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke
+    qtyBlocks: [6],
+    // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × (gramáž/1000) kg
+    weightCheck: {
+      blocks: [4, 5],
+      perPerson: ((Number(details.rautGrams) > 0 ? Number(details.rautGrams) : 200) / 1000),
+      people: rautTotal,
+    },
   } : undefined
 
   async function openTemplates() {

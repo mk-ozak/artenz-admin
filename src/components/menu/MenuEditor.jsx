@@ -147,6 +147,21 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       if (!entry) { entry = { block: cat.block, items: [] }; summarySections.push(entry) }
       for (const sel of sels) entry.items.push({ sel, cat })
     }
+    // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom)
+    if (summary.mirror) {
+      const mirrored = categories
+        .filter(c => c.name === summary.mirror.fromCategory)
+        .flatMap(c => (selsByCat[c.id] ?? []).map(sel => ({ sel, cat: c })))
+      if (mirrored.length) {
+        let entry = summarySections.find(s => s.block === summary.mirror.toBlock)
+        if (!entry) {
+          entry = { block: summary.mirror.toBlock, items: [] }
+          summarySections.push(entry)
+          summarySections.sort((a, b) => a.block - b.block)
+        }
+        entry.items = [...mirrored, ...entry.items]
+      }
+    }
   }
 
   // Jedna kategória (pásik + vybraté položky)
@@ -338,10 +353,26 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                 </p>
               )
             }
+            // Poznámka o zrkadlenej polievke (napr. pre deti rovnaká ako pre dospelých)
+            let mirrorNote = null
+            if (summary?.mirror?.toBlock === block) {
+              const soupNames = categories
+                .filter(c => c.name === summary.mirror.fromCategory)
+                .flatMap(c => (selsByCat[c.id] ?? []).map(selName))
+              if (soupNames.length) {
+                mirrorNote = (
+                  <p className="px-4 pb-2 text-[11px] text-[#5d7d8e]">
+                    Polievka (ako pre dospelých):{' '}
+                    <span className="font-medium text-[#3a5160]">{soupNames.join(', ')}</span>
+                  </p>
+                )
+              }
+            }
             return (
               <div key={block} className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
                 <div className="h-3 bg-[#8fa6b2]" />
                 {extraBeforeBlock?.[block]}
+                {mirrorNote}
                 {renderCats.filter(c => c.block === block).map(renderCategory)}
                 {check}
                 <div className="h-2" />
@@ -360,29 +391,43 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
               <div className="px-4 py-2.5 space-y-3">
                 {summary ? (
                   summarySections.map(sec => {
-                    const isCheck = sec.block === summary.checkBlock
-                    const fixed   = summary.fixedQty?.[sec.block]
-                    const title   = summary.titles?.[sec.block]
+                    const title = summary.titles?.[sec.block]
+                    // Počet osôb pre sekciu (špeciál = počet špeciálov, inak fixný počet)
+                    const count = sec.block === summary.checkBlock
+                      ? summary.checkTarget
+                      : summary.fixedQty?.[sec.block]
                     return (
                       <div key={sec.block}>
                         {title && (
                           <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
                             {sec.block}. {title}
+                            {count != null && (
+                              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
+                            )}
                           </p>
                         )}
                         {sec.items.map(({ sel, cat }) => {
-                          const qty = isCheck
-                            ? `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
-                            : (fixed != null
-                                ? String(fixed)
-                                : (cat.qty_step != null ? fmtQty(sel.quantity) : ''))
+                          const catSels = selsByCat[cat.id] ?? []
+                          const splitBadge = cat.split_portions && catSels.length > 1
+                            ? `1/${catSels.length}` : null
+                          const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
                           return (
                             <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px
-                                                       flex justify-between gap-3">
-                              <span>{selName(sel)}</span>
-                              {qty !== '' && (
-                                <span className="font-semibold text-[#1a2830] shrink-0">{qty}</span>
+                                                       flex items-center gap-2">
+                              {splitBadge && (
+                                <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
+                                                 bg-[#eef3f6] rounded px-1 py-px">
+                                  {splitBadge}
+                                </span>
                               )}
+                              <span>
+                                {selName(sel)}
+                                {showQty && (
+                                  <span className="font-medium text-[#9ab0ba]">
+                                    {' '}— {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
+                                  </span>
+                                )}
+                              </span>
                             </p>
                           )
                         })}
