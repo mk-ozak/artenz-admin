@@ -420,16 +420,27 @@ export default function BookingModal() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.depositPaid}
-                  onChange={e => set('depositPaid', e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-[11px] text-gray-600">Zaplatená</span>
-              </label>
             </div>
+          </div>
+
+          {/* Živý predpoklad (hostia × cena, neukladá sa) vľavo, Zaplatená vpravo */}
+          <div className="flex items-center justify-between -mt-2">
+            <p className="text-[11px] text-gray-500">
+              Predpoklad:{' '}
+              <span className="font-semibold text-gray-700">
+                {String(Math.round((Number(form.expectedGuests) || 0) * (Number(form.estimatedPrice) || 0) * 100) / 100)
+                  .replace('.', ',')} €
+              </span>
+            </p>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.depositPaid}
+                onChange={e => set('depositPaid', e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-[11px] text-gray-600">Zaplatená</span>
+            </label>
           </div>
 
           {/* Poznámky — jeden rolovateľný riadok */}
