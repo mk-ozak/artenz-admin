@@ -153,7 +153,7 @@ export default function Diary() {
       date:          b.date,
       venue:         HALL_VENUE[b.hall] ?? b.hall.toLowerCase(),
       type:          b.event_type ?? 'svadba',
-      deposit:       b.deposit_amount != null ? Number(b.deposit_amount) : 0,
+      deposit:       b.deposit_amount != null ? Number(b.deposit_amount) : '',
       depositPaid:   b.deposit_paid ?? false,
       decoration:    b.decoration ?? '',
       guestCount:    b.guest_count ?? 0,
@@ -162,8 +162,8 @@ export default function Diary() {
       status:        b.status ?? 'dopyt',
       phone:         b.customer_phone ?? null,
       time:          b.start_time ? b.start_time.slice(0, 5) : '',
-      expectedGuests: b.expected_guests ?? 0,
-      estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : 0,
+      expectedGuests: b.expected_guests != null ? b.expected_guests : '',
+      estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : '',
     }
   }
 

@@ -19,14 +19,20 @@ function paymentSms(phone, { typeLabel, dateISO, amount }) {
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
-// Prepínač stavu rezervácie s ochranou potvrdeného stavu:
+// Prepínač stavu rezervácie s ochranou potvrdeného stavu a logikou zálohy:
 //  - potvrdene → zobrazené len jedno tlačidlo; zmena stavu vyžaduje prepis mena
-//    zákazníka a vráti stav na "zaloha"
-//  - dopyt → zaloha ponúkne prípravu SMS s platobnými údajmi
-//  - onChange(next) volá rodič — ten stav aj okamžite uloží (ak rezervácia existuje)
+//  - dopyt/zaloha → kliknutie na „Čakajúca záloha" vyhodnotí pole Záloha:
+//      prázdne → dialóg „Nechať bez zálohy?" (Áno = záloha 0 + Potvrdené, Nie = focus)
+//      0       → bez SMS, rovno Potvrdené
+//      > 0     → ponuka SMS s platobnými údajmi, stav ostáva Čakajúca záloha
+//  - priame „Potvrdené" → len nastaví stav (žiadna SMS, žiadny dialóg)
+//  - onChange(next) / onSetDeposit(v) volá rodič — ten okamžite uloží (ak edit)
 export default function StatusSegment({
   value,
   onChange,
+  deposit = '',
+  onSetDeposit = () => {},
+  onFocusDeposit = () => {},
   customerName = '',
   phone = '',
   typeLabel = '',
@@ -36,6 +42,10 @@ export default function StatusSegment({
   const [unlockOpen, setUnlockOpen] = useState(false)
   const [unlockText, setUnlockText] = useState('')
   const [smsOpen, setSmsOpen]       = useState(false)
+  // Dialóg prázdnej zálohy — drží otázku (null = zatvorený). Áno = záloha 0
+  // + Potvrdené; Nie = vráti na zadanie sumy (focus). Cieľový stav po Áno
+  // je vždy „Potvrdené" (priame potvrdenie aj prepnutie na čakajúcu zálohu).
+  const [askZero, setAskZero] = useState(null)
 
   const smsPhone  = phone?.replace(/\s+/g, '') ?? ''
   const canUnlock =
@@ -44,9 +54,32 @@ export default function StatusSegment({
 
   function select(next) {
     if (next === value) return
-    const prev = value
-    onChange(next)
-    if (prev === 'dopyt' && next === 'zaloha') setSmsOpen(true)
+    const empty = deposit === '' || deposit == null
+    if (next === 'zaloha') {
+      if (empty) { setAskZero('Nechať bez zálohy?'); return }      // spýtaj sa
+      if (Number(deposit) === 0) { onChange('potvrdene'); return } // vedome bez zálohy → Potvrdené
+      onChange('zaloha')                                          // > 0 → SMS, stav Čakajúca záloha
+      setSmsOpen(true)
+      return
+    }
+    if (next === 'potvrdene') {
+      if (empty) { setAskZero('Záloha je nulová?'); return }       // spýtaj sa pri priamom potvrdení
+      onChange('potvrdene')                                       // záloha zadaná → len potvrď
+      return
+    }
+    onChange(next)   // „Nezáväzný dopyt"
+  }
+
+  // Áno = záloha 0 + Potvrdené
+  function confirmZero() {
+    setAskZero(null)
+    onSetDeposit(0)
+    onChange('potvrdene')
+  }
+  // Nie = zruš prepnutie (stav ostáva), vráť na zadanie výšky zálohy (focus)
+  function cancelZero() {
+    setAskZero(null)
+    onFocusDeposit()
   }
 
   function confirmUnlock() {
@@ -172,6 +205,41 @@ export default function StatusSegment({
                     Áno, pripraviť SMS
                   </a>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prázdna záloha pri prepnutí na „Čakajúca záloha" / „Potvrdené" */}
+      {askZero && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-5 py-4" style={{ background: '#354d5d' }}>
+              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>{askZero}</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-700">
+                Záloha nie je zadaná. Ak potvrdíš, zapíše sa záloha 0 €.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={cancelZero}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                    font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Nie, zadám zálohu
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmZero}
+                  className="flex-1 px-4 py-2.5 text-sm font-bold rounded-lg text-center
+                    transition-opacity hover:opacity-90"
+                  style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                >
+                  Áno
+                </button>
               </div>
             </div>
           </div>

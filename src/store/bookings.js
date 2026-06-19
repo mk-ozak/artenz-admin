@@ -19,7 +19,7 @@ function toFrontend(row) {
     date:           row.date,
     venue:          HALL_REVERSE[row.hall] ?? row.hall.toLowerCase(),
     type:           row.event_type ?? 'svadba',
-    deposit:        row.deposit_amount != null ? Number(row.deposit_amount) : 0,
+    deposit:        row.deposit_amount != null ? Number(row.deposit_amount) : '',
     depositPaid:    row.deposit_paid ?? false,
     decoration:     row.decoration ?? '',
     guestCount:     row.guest_count ?? 0,
@@ -33,8 +33,8 @@ function toFrontend(row) {
     status:         row.status ?? 'dopyt',
     phone:          row.customer_phone ?? null,
     time:           row.start_time ? row.start_time.slice(0, 5) : '',
-    expectedGuests: row.expected_guests ?? 0,
-    estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : 0,
+    expectedGuests: row.expected_guests != null ? row.expected_guests : '',
+    estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : '',
   }
 }
 
@@ -82,8 +82,9 @@ function toBackend(b) {
     status: b.status ?? 'dopyt',
     customer_phone: b.phone?.trim() || null,
     start_time: b.time || null,
-    expected_guests: Number(b.expectedGuests) || 0,
-    estimated_price: Number(b.estimatedPrice) || 0,
+    // Prázdne (nezadané) → NULL; inak číslo
+    expected_guests: b.expectedGuests !== '' && b.expectedGuests != null ? Number(b.expectedGuests) : null,
+    estimated_price: b.estimatedPrice !== '' && b.estimatedPrice != null ? Number(b.estimatedPrice) : null,
   }
 }
 
