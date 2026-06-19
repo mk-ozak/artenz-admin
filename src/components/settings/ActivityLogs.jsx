@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { EVENT_LABEL } from '../../lib/eventTypes'
+import { SETTLEMENT_DOCUMENT_LABEL, SETTLEMENT_METHOD_LABEL } from '../../lib/settlement'
 
 const ACTION_LABEL = {
   booking_create:         'Vytvoril rezerváciu',
@@ -50,7 +51,8 @@ const FIELD_LABEL = {
   estimated_price: 'Predbežná cena',
   guest_count:     'Počet hostí',
   deposit_amount:  'Záloha',
-  deposit_paid:    'Záloha zaplatená',
+  settlement_document: 'Vyúčtovanie – doklad',
+  settlement_method:   'Vyúčtovanie – spôsob',
   notes:           'Poznámky',
 }
 
@@ -59,7 +61,8 @@ function formatValue(field, value) {
   if (field === 'status')     return STATUS_LABEL[value] ?? value
   if (field === 'hall')       return HALL_LABEL[value] ?? value
   if (field === 'event_type') return EVENT_LABEL[value] ?? value
-  if (field === 'deposit_paid') return value ? 'Áno' : 'Nie'
+  if (field === 'settlement_document') return SETTLEMENT_DOCUMENT_LABEL[value] ?? value
+  if (field === 'settlement_method')   return SETTLEMENT_METHOD_LABEL[value] ?? value
   if (field === 'start_time')   return String(value).slice(0, 5)
   const s = String(value)
   return s.length > 40 ? s.slice(0, 40) + '…' : s

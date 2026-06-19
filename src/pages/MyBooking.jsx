@@ -140,10 +140,6 @@ export default function MyBooking() {
               {booking.deposit_amount != null && Number(booking.deposit_amount) > 0 && (
                 <p>
                   Záloha: <span className="font-semibold">{Number(booking.deposit_amount)} €</span>
-                  {' '}
-                  <span className={booking.deposit_paid ? 'text-[#2a8d83]' : 'text-[#a87d20]'}>
-                    ({booking.deposit_paid ? 'zaplatená' : 'čaká sa na úhradu'})
-                  </span>
                 </p>
               )}
             </div>

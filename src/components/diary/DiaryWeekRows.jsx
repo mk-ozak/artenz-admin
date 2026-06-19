@@ -22,6 +22,9 @@ function getEvents(bookings, date, hall) {
   return bookings.filter(b => b.date === iso && b.hall === hall)
 }
 
+// Rezervácia zošedne až po vyúčtovaní (doklad vyplnený), nie kvôli dátumu.
+const settled = (b) => !!b?.settlement_document
+
 function isOutside(date, year, month) {
   return date.getMonth() !== month || date.getFullYear() !== year
 }
@@ -44,7 +47,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
   return (
     <div className={`flex flex-col gap-px h-full ${className}`} style={{ padding: '2px' }}>
       <DiaryEventBlock title={first.customer_name} hall="CATERING"
-                       status={first.status ?? 'dopyt'} size={size} past={past}
+                       status={first.status ?? 'dopyt'} size={size} past={settled(first)}
                        onClick={() => onBookingClick(first)} />
       {rest.length > 0 && (
         <>
@@ -56,7 +59,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
           </button>
           {expanded && rest.map((e, i) => (
             <DiaryEventBlock key={i} title={e.customer_name} hall="CATERING"
-                             status={e.status ?? 'dopyt'} size={size} past={past}
+                             status={e.status ?? 'dopyt'} size={size} past={settled(e)}
                              onClick={() => onBookingClick(e)} />
           ))}
         </>
@@ -158,7 +161,7 @@ function WeekdayHallCell({ mon, tue, wed, thu, year, month, todayISO, hall, book
             >
               {evt && (
                 <DiaryEventBlock title={evt.customer_name} hall={hall}
-                                 status={evt.status ?? 'dopyt'} size="sm" past={past}
+                                 status={evt.status ?? 'dopyt'} size="sm" past={settled(evt)}
                                  onClick={() => onBookingClick(evt)} />
               )}
             </div>
@@ -231,7 +234,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
             style={{ padding: '3px', ...bg }}>
           {evt ? (
             <DiaryEventBlock title={evt.customer_name} hall={hall}
-                             status={evt.status ?? 'dopyt'} size={size} past={past}
+                             status={evt.status ?? 'dopyt'} size={size} past={settled(evt)}
                              onClick={() => onBookingClick(evt)} />
           ) : past ? (
             <div className={`w-full h-full ${minH}`} />
@@ -288,7 +291,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
         <div className="sat-inner">
           <div className="evl">
             <DiaryEventBlock title={evt.customer_name} hall={hall}
-                             status={evt.status ?? 'dopyt'} size="lg" past={past}
+                             status={evt.status ?? 'dopyt'} size="lg" past={settled(evt)}
                              onClick={() => onBookingClick(evt)} />
           </div>
         </div>

@@ -9,6 +9,7 @@ import { useVoiceBooking } from '../hooks/useVoiceBooking'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
+import SettlementPanel from './SettlementPanel'
 
 // Čas rezervácie: 09–19 h, minúty po 15
 const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
@@ -38,7 +39,6 @@ const EMPTY = {
   guestsKidsNoMeal: '',
   decoration: '',
   deposit: '',
-  depositPaid: false,
   notes: '',
 }
 
@@ -101,7 +101,6 @@ export default function BookingModal() {
         guestsKidsNoMeal: b.guestsKidsNoMeal ?? '',
         decoration:   b.decoration ?? '',
         deposit:      b.deposit || '',
-        depositPaid:  b.depositPaid ?? false,
         notes:        b.notes ?? '',
         phone:        b.phone ?? '',
       })
@@ -483,9 +482,13 @@ export default function BookingModal() {
           </fieldset>
 
           {isPastBooking && (
-            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
-              Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
-            </p>
+            <>
+              <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
+                Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
+              </p>
+              {/* Panel vyúčtovania — vždy editovateľný (mimo zamknutého fieldsetu) */}
+              {isAdmin && <SettlementPanel bookingId={modalState.booking.id} />}
+            </>
           )}
 
           {error && (

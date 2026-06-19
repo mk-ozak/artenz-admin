@@ -154,7 +154,6 @@ export default function Diary() {
       venue:         HALL_VENUE[b.hall] ?? b.hall.toLowerCase(),
       type:          b.event_type ?? 'svadba',
       deposit:       b.deposit_amount != null ? Number(b.deposit_amount) : '',
-      depositPaid:   b.deposit_paid ?? false,
       decoration:    b.decoration ?? '',
       guestCount:    b.guest_count ?? 0,
       notes:         b.notes ?? '',

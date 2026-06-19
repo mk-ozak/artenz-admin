@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { supabase } from '../lib/supabase'
 import { EVENT_LABEL } from '../lib/eventTypes'
+import { SETTLEMENT_DOCUMENT_LABEL, SETTLEMENT_METHOD_LABEL } from '../lib/settlement'
 
 const SK_MONTHS = [
   'Január','Február','Marec','Apríl','Máj','Jún',
@@ -164,7 +165,8 @@ export async function exportAllBookings() {
     { header: 'Predbežná cena (€)',    key: 'estimatedPrice', width: 12 },
     { header: 'Počet hostí',           key: 'guestCount',     width: 12 },
     { header: 'Záloha (€)',            key: 'deposit',        width: 10 },
-    { header: 'Záloha zaplatená',      key: 'depositPaid',    width: 10 },
+    { header: 'Vyúčtovanie – doklad',  key: 'settlementDoc',    width: 16 },
+    { header: 'Vyúčtovanie – spôsob',  key: 'settlementMethod', width: 14 },
     { header: 'Poznámky',              key: 'notes',          width: 40 },
     { header: 'Vytvorené',             key: 'createdAt',      width: 18 },
   ]
@@ -191,7 +193,8 @@ export async function exportAllBookings() {
       estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : 0,
       guestCount:     b.guest_count ?? '',
       deposit:        b.deposit_amount != null ? Number(b.deposit_amount) : '',
-      depositPaid:    b.deposit_paid ? 'Áno' : 'Nie',
+      settlementDoc:    SETTLEMENT_DOCUMENT_LABEL[b.settlement_document] ?? '',
+      settlementMethod: SETTLEMENT_METHOD_LABEL[b.settlement_method] ?? '',
       notes:          b.notes ?? '',
       createdAt:      b.created_at ? b.created_at.slice(0, 16).replace('T', ' ') : '',
     })

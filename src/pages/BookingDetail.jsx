@@ -11,6 +11,7 @@ import { toISO } from '../utils/diaryWeeks'
 import BottomNav from '../components/layout/BottomNav'
 import BookingModal from '../components/BookingModal'
 import BookingMenu from '../components/booking/BookingMenu'
+import SettlementPanel from '../components/SettlementPanel'
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -107,7 +108,6 @@ export default function BookingDetail() {
           guestsKidsNoMeal: data.guests_kids_no_meal ?? '',
           decoration:   data.decoration ?? '',
           deposit:      data.deposit_amount != null ? Number(data.deposit_amount) : '',
-          depositPaid:  data.deposit_paid ?? false,
           notes:        data.notes ?? '',
         })
         return data
@@ -153,7 +153,6 @@ export default function BookingDetail() {
       estimatedPrice: form.estimatedPrice,
       decoration:     form.decoration,
       deposit:        form.deposit,
-      depositPaid:    form.depositPaid,
       googleEventId:  booking.google_calendar_event_id,
     })
   }
@@ -297,12 +296,7 @@ export default function BookingDetail() {
                 <Fact label="Čas" value={form.time || '—'} />
                 <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
                 <Fact label="Predbežná cena" value={eur(form.estimatedPrice)} />
-                <Fact
-                  label="Záloha"
-                  value={form.deposit && Number(form.deposit) > 0
-                    ? `${eur(form.deposit)}${form.depositPaid ? ' · zaplatená' : ''}`
-                    : '—'}
-                />
+                <Fact label="Záloha" value={eur(form.deposit)} />
                 {editable && (
                   <button
                     onClick={openEdit}
@@ -317,9 +311,13 @@ export default function BookingDetail() {
             </div>
 
             {isPastBooking && (
-              <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
-                Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
-              </p>
+              <>
+                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
+                  Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
+                </p>
+                {/* Panel vyúčtovania — vždy editovateľný */}
+                {isAdmin && <SettlementPanel bookingId={id} />}
+              </>
             )}
 
             {/* Menu — počty hostí, požiadavky ku strave a jedálny lístok;

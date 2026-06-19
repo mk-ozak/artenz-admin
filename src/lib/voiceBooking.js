@@ -73,7 +73,5 @@ export function voiceResultToForm(parsed) {
   const deposit = Number(parsed.deposit)
   if (Number.isFinite(deposit) && deposit > 0) out.deposit = deposit
 
-  if (typeof parsed.deposit_paid === 'boolean') out.depositPaid = parsed.deposit_paid
-
   return out
 }
