@@ -100,7 +100,7 @@ export default function BookingModal() {
         guestsKidsMeal:   b.guestsKidsMeal ?? '',
         guestsKidsNoMeal: b.guestsKidsNoMeal ?? '',
         decoration:   b.decoration ?? '',
-        deposit:      b.deposit || '',
+        deposit:      b.deposit ?? '',   // ?? aby sa nestratila vedomá 0
         notes:        b.notes ?? '',
         phone:        b.phone ?? '',
       })
