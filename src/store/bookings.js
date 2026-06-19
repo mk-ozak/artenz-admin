@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { EVENT_LABEL } from '../lib/eventTypes'
 
-const HALL_MAP = {
+export const HALL_MAP = {
   artenzPlus: 'ARTENZ_PLUS',
   artenz: 'ARTENZ',
   luna: 'LUNA',

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { IconMicrophone, IconPlayerStopFilled, IconLoader2 } from '@tabler/icons-react'
-import { useBookingsStore } from '../store/bookings'
+import { useBookingsStore, HALL_MAP } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
 import { useVoiceBooking } from '../hooks/useVoiceBooking'
@@ -52,6 +52,10 @@ export default function BookingModal() {
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  // Presun rezervácie: po prepise názvu sa odomknú polia Dátum a Sála
+  const [confirmMove, setConfirmMove]   = useState(false)
+  const [moveText, setMoveText]         = useState('')
+  const [moveUnlocked, setMoveUnlocked] = useState(false)
   // Hlasom sa nepodarilo rozpoznať meno → zvýrazni povinné pole
   const [nameMissing, setNameMissing] = useState(false)
   // Focus do poľa Záloha (po „Nie" v dialógu „Nechať bez zálohy?")
@@ -75,6 +79,9 @@ export default function BookingModal() {
     setSaving(false)
     setConfirmDelete(false)
     setConfirmText('')
+    setConfirmMove(false)
+    setMoveText('')
+    setMoveUnlocked(false)
     if (modalState.mode === 'add') {
       setForm({
         ...EMPTY,
@@ -116,9 +123,11 @@ export default function BookingModal() {
   const canEdit       = isAdmin && !isPastBooking
   const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
-  const canDelete  =
-    confirmText.trim() !== '' &&
-    confirmText.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
+  const nameMatches = (text) =>
+    text.trim() !== '' &&
+    text.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
+  const canDelete = nameMatches(confirmText)
+  const canMove   = nameMatches(moveText)
 
   async function handleDelete() {
     setDeleting(true)
@@ -189,7 +198,7 @@ export default function BookingModal() {
     if (!form.customerName?.trim()) { setError('Meno zákazníka je povinné.'); return }
     if (!form.date)  { setError('Dátum je povinný.'); return }
     if (!form.venue) { setError('Sála je povinná.'); return }
-    if (!isEdit && form.date < toISO(new Date())) {
+    if ((!isEdit || moveUnlocked) && form.date < toISO(new Date())) {
       setError('Dátum nemôže byť v minulosti.'); return
     }
     // Číselné polia: prázdne je OK; inak bez záporných hodnôt,
@@ -205,6 +214,22 @@ export default function BookingModal() {
       if (!Number.isFinite(n) || n < 0 || (intOnly && !Number.isInteger(n))) {
         setError(`${label}: zadaj ${intOnly ? 'celé číslo' : 'číslo'} ≥ 0.`)
         return
+      }
+    }
+    // Presun: cieľová sála nesmie byť v termíne obsadená (CATERING povoľuje viac)
+    if (isEdit && moveUnlocked && form.venue !== 'catering') {
+      const hall = HALL_MAP[form.venue] ?? form.venue.toUpperCase()
+      const { data: clash, error: clashErr } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('date', form.date)
+        .eq('hall', hall)
+        .is('deleted_at', null)
+        .neq('id', modalState.booking.id)
+        .limit(1)
+      if (clashErr) { setError(clashErr.message); return }
+      if (clash && clash.length > 0) {
+        setError('Táto sála je v zvolenom termíne už obsadená.'); return
       }
     }
     setSaving(true)
@@ -298,9 +323,10 @@ export default function BookingModal() {
                 </select>
               </div>
             </div>
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
+            <div className={`flex-1 rounded-lg px-3 py-2.5 border
+                            ${isEdit && moveUnlocked ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'}`}>
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Dátum</p>
-              {isEdit ? (
+              {isEdit && !moveUnlocked ? (
                 <p className="font-semibold text-gray-800 text-sm mt-0.5">{form.date}</p>
               ) : (
                 <input
@@ -314,14 +340,15 @@ export default function BookingModal() {
                 />
               )}
             </div>
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
+            <div className={`flex-1 rounded-lg px-3 py-2.5 border
+                            ${isEdit && moveUnlocked ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'}`}>
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Sála</p>
-              {isEdit ? (
+              {isEdit && !moveUnlocked ? (
                 <p className="font-semibold text-gray-800 text-sm mt-0.5">{venueName}</p>
               ) : (
                 <select
                   value={form.venue ?? ''}
-                  onChange={e => setVenue(e.target.value)}
+                  onChange={e => isEdit ? set('venue', e.target.value) : setVenue(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded px-1 py-0.5 mt-0.5
                     text-sm font-semibold text-gray-800
                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -509,15 +536,33 @@ export default function BookingModal() {
               </button>
             )}
             {isEdit && canEdit && (
-              <button
-                type="button"
-                disabled={deleting || saving}
-                onClick={() => { setConfirmText(''); setConfirmDelete(true) }}
-                className="w-full px-4 py-2.5 border border-red-300 text-red-600 text-sm
-                  font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                Vymazať rezerváciu
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={deleting || saving}
+                  onClick={() => { setConfirmText(''); setConfirmDelete(true) }}
+                  className="flex-1 px-3 py-2 border border-red-300 text-red-600 text-xs
+                    font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  Vymazať rezerváciu
+                </button>
+                {!moveUnlocked && (
+                  <button
+                    type="button"
+                    disabled={deleting || saving}
+                    onClick={() => { setMoveText(''); setConfirmMove(true) }}
+                    className="flex-1 px-3 py-2 border border-orange-300 text-orange-600 text-xs
+                      font-medium rounded-lg hover:bg-orange-50 transition-colors disabled:opacity-50"
+                  >
+                    Presunúť rezerváciu
+                  </button>
+                )}
+              </div>
+            )}
+            {isEdit && canEdit && moveUnlocked && (
+              <p className="text-xs text-orange-600 bg-orange-50 border border-orange-200 px-3 py-2 rounded-lg">
+                Dátum a sála sú odomknuté — uprav ich hore a ulož zmeny.
+              </p>
             )}
             <div className="flex gap-3">
               <button
@@ -630,6 +675,84 @@ export default function BookingModal() {
                     disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {deleting ? 'Mažem…' : 'Vymazať'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potvrdenie presunu — odomkne dátum a sálu */}
+      {confirmMove && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmMove(false) }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4" style={{ background: '#d97706' }}>
+              <h2 className="text-white font-semibold text-sm">Presunúť rezerváciu?</h2>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 space-y-1.5">
+                <p className="font-semibold text-gray-900 text-sm">
+                  {form.customerName}
+                  <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-gray-400">
+                    {typeLabel}
+                  </span>
+                </p>
+                <dl className="text-xs text-gray-600 space-y-0.5">
+                  <div className="flex gap-2">
+                    <dt className="text-gray-400 w-14 shrink-0">Dátum</dt>
+                    <dd className="font-medium text-gray-700">{form.date}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="text-gray-400 w-14 shrink-0">Sála</dt>
+                    <dd className="font-medium text-gray-700">{venueName}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <p className="text-sm text-gray-700">
+                Po potvrdení sa odomknú polia <span className="font-semibold">Dátum</span> a{' '}
+                <span className="font-semibold">Sála</span> na úpravu.
+              </p>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Pre potvrdenie prepíš meno zákazníka:{' '}
+                  <span className="font-semibold text-gray-900">{form.customerName}</span>
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={moveText}
+                  onChange={e => setMoveText(e.target.value)}
+                  placeholder="Meno zákazníka"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmMove(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                    font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Späť
+                </button>
+                <button
+                  type="button"
+                  disabled={!canMove}
+                  onClick={() => { setMoveUnlocked(true); setConfirmMove(false) }}
+                  className="flex-1 px-4 py-2.5 text-white text-sm font-medium rounded-lg
+                    transition-colors hover:opacity-90
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: '#d97706' }}
+                >
+                  Presunúť
                 </button>
               </div>
             </div>
