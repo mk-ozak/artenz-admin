@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     if (!r.ok) {
       const detail = await r.text()
       console.error('[menu-ocr] Gemini error:', r.status, detail.slice(0, 500))
-      return res.status(502).json({ error: 'Prepis menu zlyhal, skús to znova.' })
+      return res.status(502).json({ error: 'Prepis menu zlyhal, skús to znova.', status: r.status, detail: detail.slice(0, 400) })
     }
 
     const data = await r.json()
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
       parsed = JSON.parse(text)
     } catch {
       console.error('[menu-ocr] invalid JSON from Gemini:', text.slice(0, 500))
-      return res.status(502).json({ error: 'Prepis menu zlyhal, skús to znova.' })
+      return res.status(502).json({ error: 'Prepis menu zlyhal, skús to znova.', detail: 'neplatný JSON: ' + text.slice(0, 200) })
     }
 
     const days = Array.isArray(parsed?.days) ? parsed.days : []
@@ -94,6 +94,6 @@ export default async function handler(req, res) {
     })
   } catch (err) {
     console.error('[menu-ocr]', err.message)
-    return res.status(500).json({ error: 'Prepis menu zlyhal, skús to znova.' })
+    return res.status(500).json({ error: 'Prepis menu zlyhal, skús to znova.', detail: err.message })
   }
 }

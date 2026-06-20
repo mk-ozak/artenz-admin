@@ -127,12 +127,15 @@ export default function ImportMenu() {
         body: JSON.stringify({ fileBase64, mimeType }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok || !data || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      if (!res.ok || !data || data.error) {
+        const detail = data?.detail ? ` — ${data.detail}` : ''
+        throw new Error((data?.error ?? `HTTP ${res.status}`) + detail)
+      }
       await applyOcrDays(data.days ?? [])
       setMode('edit')
     } catch (err) {
       console.warn('[import] ocr failed:', err.message)
-      setError('Prepis menu zlyhal — skús inú fotku/PDF alebo vyplň ručne.')
+      setError('Prepis menu zlyhal: ' + err.message)
     } finally {
       setBusy('')
     }
