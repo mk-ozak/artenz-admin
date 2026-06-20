@@ -1,37 +1,40 @@
-# api/generate-pdf.py – Vercel Python serverless funkcia
+# api/generate-pdf.py – Vercel Python serverless funkcia (sebestačná).
+# Zámerne BEZ susedných modulov (data.py/my_functions.py) – Vercel by ich
+# musel zabaliť do funkcie, čo pri lazy importoch zlyháva ("No module named …").
+# Externé závislosti: reportlab + requests (requirements.txt), assets/ (vercel.json includeFiles).
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from os.path import dirname, abspath, join
-from datetime import date
+from datetime import date, timedelta
 import io
+import os
 
 DIR = dirname(abspath(__file__))
 ASSETS = join(DIR, "assets")        # fonty + logo (pribalené cez vercel.json includeFiles)
 
-# Tieto globály naplní _setup(). Ťažké importy (reportlab) aj registrácia
-# fontov sú lazy – aby sa prípadná chyba dala vrátiť cez handler ako čitateľná
-# 500-ka, nie ako FUNCTION_INVOCATION_FAILED pri importe modulu.
-c = None          # plátno – nastaví build_pdf; template()/obsah_menu() ho čítajú ako globál
+DNI_SK = ["pondelok", "utorok", "streda", "štvrtok", "piatok", "sobota", "nedeľa"]
+
+# globály naplní _setup() (lazy reportlab + fonty), aby sa chyba vrátila
+# cez handler ako čitateľná 500-ka, nie ako FUNCTION_INVOCATION_FAILED.
+c = None
 canvas = None
-y = None
-pol = None
+stringWidth = None
 my_black = my_dblue = my_white = None
 _ready = False
 
 
 def _setup():
-    global canvas, y, pol, my_black, my_dblue, my_white, _ready
+    global canvas, stringWidth, my_black, my_dblue, my_white, _ready
     if _ready:
         return
     from reportlab.pdfgen import canvas as _canvas
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase.pdfmetrics import stringWidth as _stringWidth
     from reportlab.lib.colors import CMYKColor
-    from my_functions import y as _y, pol as _pol
 
     canvas = _canvas
-    y = _y
-    pol = _pol
+    stringWidth = _stringWidth
     pdfmetrics.registerFont(TTFont("MyriadSB",     join(ASSETS, "MyriadPro-Semibold.ttf")))
     pdfmetrics.registerFont(TTFont("MyriadB",      join(ASSETS, "MyriadPro-Bold.ttf")))
     pdfmetrics.registerFont(TTFont("MyriadBlck",   join(ASSETS, "MyriadPro-Black.ttf")))
@@ -43,7 +46,97 @@ def _setup():
     _ready = True
 
 
-# --- prenesené z main.py BEZ ZMENY (okrem cesty k logu cez join(ASSETS, ...)) ---
+# ============================================================
+# Text helpers (pôvodné my_functions.py)
+# ============================================================
+def y(coord):
+    return 842 - coord
+
+
+def wrap_lines(text, font, size, max_width, max_lines=2):
+    words, lines, cur = (text or "").split(), [], ""
+    for i, w in enumerate(words):
+        test = (cur + " " + w).strip()
+        if cur and stringWidth(test, font, size) > max_width:
+            lines.append(cur)
+            cur = w
+            if len(lines) == max_lines - 1:               # posledný riadok = zvyšok slov
+                cur = " ".join([cur] + words[i + 1:]); break
+        else:
+            cur = test
+    lines.append(cur)
+    return lines
+
+
+def pol(sentence, cast, font="MyriadSB", size=20, max_width=380):
+    """Delí podľa skutočnej šírky textu, nie počtu znakov."""
+    lines = wrap_lines(sentence or "", font, size, max_width, 2)
+    return (lines[0] if lines else "") if cast == 1 else (lines[1] if len(lines) > 1 else "")
+
+
+# ============================================================
+# Načítanie dát zo Supabase (pôvodné data.py)
+# ============================================================
+def _s(v):
+    return "" if v is None else str(v)
+
+
+def _cena(v):
+    return "" if v is None else f"{float(v):.2f}".replace(".", ",") + " €"
+
+
+def _den_row(d, dt):
+    if not d or d.get("status") != "open":          # sviatok/zatvorené → main() deň preskočí (index [2])
+        return [DNI_SK[dt.weekday()], f"{dt.day}.{dt.month}.{dt.year}", "sviatok"] + [""] * 15
+    return [
+        DNI_SK[dt.weekday()], f"{dt.day}.{dt.month}.{dt.year}",
+        _s(d.get("soup1_name")), _s(d.get("soup1_allergens")), "0,33 l", "súčasť menu",
+        _s(d.get("soup2_name")), _s(d.get("soup2_allergens")), "0,33 l", "súčasť menu",
+        _s(d.get("main1_name")), _s(d.get("main1_allergens")), _s(d.get("main1_portion")), _cena(d.get("main1_price")),
+        _s(d.get("main2_name")), _s(d.get("main2_allergens")), _s(d.get("main2_portion")), _cena(d.get("main2_price")),
+    ]
+
+
+def _trvale_row(by_pos):
+    row = ["Trvalá ponuka", "", "", "", ""]                                   # [0..4] výplň, kód ich nečíta
+    row += ["Vyprážaný rezeň zemiakový šalát", "1,3,7", "200/200 g", "8,50 €"]  # [5..8] rezeň, fixný
+    for pos in (3, 4, 5, 6):                                                  # [9..24] z DB
+        it = by_pos.get(pos, {})
+        row += [_s(it.get("name")), _s(it.get("allergens")), _s(it.get("portion")), _cena(it.get("price"))]
+    return row
+
+
+def load_menu(monday=None):
+    import requests
+    url = os.environ["SUPABASE_URL"]
+    key = os.environ["SUPABASE_ANON_KEY"]   # anon stačí – funkcia len číta, RLS to dovoľuje
+    head = {"apikey": key, "Authorization": f"Bearer {key}"}
+
+    monday = monday or (date.today() - timedelta(days=date.today().weekday()))
+    friday = monday + timedelta(days=4)
+
+    dni = requests.get(
+        f"{url}/rest/v1/daily_menus"
+        f"?menu_date=gte.{monday}&menu_date=lte.{friday}&order=menu_date.asc",
+        headers=head, timeout=10).json()
+    trvale = requests.get(
+        f"{url}/rest/v1/permanent_menu?order=position.asc", headers=head, timeout=10).json()
+
+    dni = dni if isinstance(dni, list) else []
+    trvale = trvale if isinstance(trvale, list) else []
+
+    by_date = {r["menu_date"]: r for r in dni}
+    by_pos = {r["position"]: r for r in trvale}
+    menu = [_den_row(by_date.get((monday + timedelta(days=i)).isoformat()), monday + timedelta(days=i))
+            for i in range(5)]
+    menu.append(_trvale_row(by_pos))
+    return menu
+
+
+# ============================================================
+# Kreslenie – prenesené z main.py BEZ ZMENY
+# (jediná úprava: logo cez join(ASSETS, "logoLUNA.jpg"))
+# ============================================================
 def template():
     # Draw the rectangle
     c.setFillColor(my_dblue)
@@ -181,7 +274,6 @@ def obsah_menu(jedlo, p):
     c.drawRightString(567, y(605), "na rozvoz: 9,90 €", charSpace=-0.5)
     c.drawRightString(567, y(660), "na rozvoz: 9,90 €", charSpace=-0.5)
     c.drawRightString(567, y(715), "na rozvoz: 9,90 €", charSpace=-0.5)
-# --- koniec preneseného kódu ---
 
 
 def build_pdf(menu) -> bytes:
@@ -202,7 +294,6 @@ def build_pdf(menu) -> bytes:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            from data import load_menu                       # lazy – chybu vráti handler, nie import modulu
             qs = parse_qs(urlparse(self.path).query)
             week = qs.get("week", [None])[0]                 # 'YYYY-MM-DD' (pondelok), inak aktuálny týždeň
             monday = date.fromisoformat(week) if week else None
