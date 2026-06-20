@@ -54,7 +54,13 @@ def y(coord):
 
 
 def wrap_lines(text, font, size, max_width, max_lines=2):
-    words, lines, cur = (text or "").split(), [], ""
+    text = text or ""
+    if "\n" in text:                                  # tvrdé zalomenie (napr. zlúčený rezeň)
+        lines = [p.strip() for p in text.split("\n")][:max_lines]
+        while len(lines) < max_lines:
+            lines.append("")
+        return lines
+    words, lines, cur = text.split(), [], ""
     for i, w in enumerate(words):
         test = (cur + " " + w).strip()
         if cur and stringWidth(test, font, size) > max_width:
@@ -99,7 +105,7 @@ def _den_row(d, dt):
 
 def _trvale_row(by_pos):
     row = ["Trvalá ponuka", "", "", "", ""]                                   # [0..4] výplň, kód ich nečíta
-    row += ["Vyprážaný rezeň zemiakový šalát", "1,3,7", "200/200 g", "8,50 €"]  # [5..8] rezeň, fixný
+    row += ["Vyprážaný rezeň\nzemiakový šalát", "1,3,7", "200/200 g", "8,50 €"]  # [5..8] rezeň, fixný (zalomený)
     for pos in (3, 4, 5, 6):                                                  # [9..24] z DB
         it = by_pos.get(pos, {})
         row += [_s(it.get("name")), _s(it.get("allergens")), _s(it.get("portion")), _cena(it.get("price"))]
