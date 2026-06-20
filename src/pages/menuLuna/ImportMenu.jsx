@@ -128,8 +128,7 @@ export default function ImportMenu() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data || data.error) {
-        const detail = data?.detail ? ` — ${data.detail}` : ''
-        throw new Error((data?.error ?? `HTTP ${res.status}`) + detail)
+        throw new Error(data?.detail || data?.error || `HTTP ${res.status}`)
       }
       await applyOcrDays(data.days ?? [])
       setMode('edit')

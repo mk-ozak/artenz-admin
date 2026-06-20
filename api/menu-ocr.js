@@ -2,10 +2,10 @@
 // Rovnaký vzor ako parse-booking.js: REST volanie, GEMINI_API_KEY drží
 // Vercel env a na frontend sa nikdy nedostane. Žiadne SDK navyše.
 // Model 3.x: temperature sa nenastavuje (odporúčaný default).
-// gemini-3-pro(-preview) bol vypnutý 9.3.2026 → aktuálna „3 Pro" trieda
-// je gemini-3.1-pro-preview (vstup Image aj PDF).
+// Pro modely (2.5 Pro, 3.1 Pro) nie sú na free tier dostupné (limit 0/0).
+// gemini-3.5-flash je najnovší dostupný Flash (multimodálny, Image aj PDF).
 
-const GEMINI_MODEL = 'gemini-3.1-pro-preview'
+const GEMINI_MODEL = 'gemini-3.5-flash'
 const GEMINI_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
