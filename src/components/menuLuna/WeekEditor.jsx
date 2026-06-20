@@ -5,7 +5,6 @@ import { inputCls, Label, PortionSelect } from './menuFields'
 
 const STATUS_OPTS = [
   { value: 'open', label: 'Otvorené' },
-  { value: 'holiday', label: 'Sviatok' },
   { value: 'closed', label: 'Zatvorené' },
 ]
 
@@ -27,7 +26,7 @@ function emptyRow(menu_date, defaultPrice) {
 
 function StatusToggle({ value, onChange }) {
   return (
-    <div className="grid grid-cols-3 rounded-lg bg-white border border-gray-200 p-1
+    <div className="grid grid-cols-2 rounded-lg bg-white border border-gray-200 p-1
                     shadow-[0_2px_10px_rgba(53,77,93,.10)] w-full sm:w-auto">
       {STATUS_OPTS.map((o) => {
         const active = value === o.value
@@ -58,16 +57,16 @@ function DayCard({ date, row, portionOptions, onPatch }) {
           {dayNameSk(date)}{' '}
           <span className="font-normal text-[13px] text-[#8aaabb]">{fmtDatumSk(date)}</span>
         </div>
-        <StatusToggle value={row.status} onChange={(v) => onPatch({ status: v })} />
+        <StatusToggle value={open ? 'open' : 'closed'} onChange={(v) => onPatch({ status: v })} />
       </div>
 
       {!open ? (
         <div>
-          <Label>Poznámka (napr. názov sviatku)</Label>
+          <Label>Dôvod zatvorenia</Label>
           <input
             className={inputCls}
             value={row.note ?? ''}
-            placeholder={row.status === 'holiday' ? 'Veľká noc, Vianoce…' : 'Dôvod zatvorenia…'}
+            placeholder="Napr. sviatok – Veľká noc, dovolenka…"
             onChange={(e) => onPatch({ note: e.target.value })}
           />
         </div>

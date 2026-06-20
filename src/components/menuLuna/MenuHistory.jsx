@@ -25,7 +25,7 @@ function DayLine({ r }) {
           {dayNameSk(fromISO(r.menu_date))} {fmtDatumSk(fromISO(r.menu_date))}
         </span>
         <span className="italic text-[#b0626a]">
-          {r.status === 'holiday' ? 'Sviatok' : 'Zatvorené'}{r.note ? ` – ${r.note}` : ''}
+          Zatvorené{r.note ? ` – ${r.note}` : ''}
         </span>
       </div>
     )
