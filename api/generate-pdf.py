@@ -5,28 +5,42 @@ from os.path import dirname, abspath, join
 from datetime import date
 import io
 
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.colors import CMYKColor
-
-from data import load_menu          # vedľa tohto súboru
-from my_functions import y, pol     # s opraveným pol()
-
 DIR = dirname(abspath(__file__))
-ASSETS = join(DIR, "assets")        # fonty + logo
+ASSETS = join(DIR, "assets")        # fonty + logo (pribalené cez vercel.json includeFiles)
 
-pdfmetrics.registerFont(TTFont("MyriadSB",     join(ASSETS, "MyriadPro-Semibold.ttf")))
-pdfmetrics.registerFont(TTFont("MyriadB",      join(ASSETS, "MyriadPro-Bold.ttf")))
-pdfmetrics.registerFont(TTFont("MyriadBlck",   join(ASSETS, "MyriadPro-Black.ttf")))
-pdfmetrics.registerFont(TTFont("MyriadBolCon", join(ASSETS, "MyriadPro-BoldCond.ttf")))
-pdfmetrics.registerFont(TTFont("MyriadCond",   join(ASSETS, "MyriadPro-Cond.ttf")))
+# Tieto globály naplní _setup(). Ťažké importy (reportlab) aj registrácia
+# fontov sú lazy – aby sa prípadná chyba dala vrátiť cez handler ako čitateľná
+# 500-ka, nie ako FUNCTION_INVOCATION_FAILED pri importe modulu.
+c = None          # plátno – nastaví build_pdf; template()/obsah_menu() ho čítajú ako globál
+canvas = None
+y = None
+pol = None
+my_black = my_dblue = my_white = None
+_ready = False
 
-my_black = CMYKColor(0, 0, 0, 1)
-my_dblue = CMYKColor(0.40, 0.19, 0, 0.64)
-my_white = CMYKColor(0, 0, 0, 0)
 
-c = None  # plátno – nastaví build_pdf; template()/obsah_menu() ho čítajú ako globál
+def _setup():
+    global canvas, y, pol, my_black, my_dblue, my_white, _ready
+    if _ready:
+        return
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.colors import CMYKColor
+    from my_functions import y as _y, pol as _pol
+
+    canvas = _canvas
+    y = _y
+    pol = _pol
+    pdfmetrics.registerFont(TTFont("MyriadSB",     join(ASSETS, "MyriadPro-Semibold.ttf")))
+    pdfmetrics.registerFont(TTFont("MyriadB",      join(ASSETS, "MyriadPro-Bold.ttf")))
+    pdfmetrics.registerFont(TTFont("MyriadBlck",   join(ASSETS, "MyriadPro-Black.ttf")))
+    pdfmetrics.registerFont(TTFont("MyriadBolCon", join(ASSETS, "MyriadPro-BoldCond.ttf")))
+    pdfmetrics.registerFont(TTFont("MyriadCond",   join(ASSETS, "MyriadPro-Cond.ttf")))
+    my_black = CMYKColor(0, 0, 0, 1)
+    my_dblue = CMYKColor(0.40, 0.19, 0, 0.64)
+    my_white = CMYKColor(0, 0, 0, 0)
+    _ready = True
 
 
 # --- prenesené z main.py BEZ ZMENY (okrem cesty k logu cez join(ASSETS, ...)) ---
@@ -172,6 +186,7 @@ def obsah_menu(jedlo, p):
 
 def build_pdf(menu) -> bytes:
     global c
+    _setup()
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(595, 842), enforceColorSpace="CMYK")
     for i in range(5):
@@ -187,6 +202,7 @@ def build_pdf(menu) -> bytes:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
+            from data import load_menu                       # lazy – chybu vráti handler, nie import modulu
             qs = parse_qs(urlparse(self.path).query)
             week = qs.get("week", [None])[0]                 # 'YYYY-MM-DD' (pondelok), inak aktuálny týždeň
             monday = date.fromisoformat(week) if week else None
