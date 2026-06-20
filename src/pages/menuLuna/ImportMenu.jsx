@@ -3,6 +3,7 @@ import { IconCopy, IconCamera, IconFileUpload, IconPencil, IconLoader2, IconArro
 import { supabase } from '../../lib/supabase'
 import MenuLunaHeader from '../../components/menuLuna/MenuLunaHeader'
 import WeekEditor from '../../components/menuLuna/WeekEditor'
+import DownloadPdfButton from '../../components/menuLuna/DownloadPdfButton'
 import { useMenuSettings } from '../../hooks/useMenuSettings'
 import { toISO, mondayOf, addDays, fromISO, weekRangeLabel } from '../../utils/menuDates'
 import { zmensiObrazok } from '../../utils/imageResize'
@@ -270,13 +271,16 @@ export default function ImportMenu() {
           </div>
         ) : (
           <div>
-            <button
-              type="button"
-              onClick={() => setMode('choose')}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6a8898] hover:text-[#2b3f4c] mb-3"
-            >
-              <IconArrowLeft size={16} /> Zmeniť týždeň / spôsob
-            </button>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setMode('choose')}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6a8898] hover:text-[#2b3f4c]"
+              >
+                <IconArrowLeft size={16} /> Zmeniť týždeň / spôsob
+              </button>
+              <DownloadPdfButton monday={selectedMonday} />
+            </div>
             <p className="text-[13px] text-[#8aaabb] mb-2">
               Skontroluj a uprav — zmeny sa ukladajú automaticky.
             </p>

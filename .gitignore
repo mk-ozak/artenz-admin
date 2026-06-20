@@ -19,3 +19,7 @@ dist/
 info
 # Claude Code – lokálne nastavenia
 .claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
