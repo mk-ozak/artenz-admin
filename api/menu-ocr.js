@@ -29,6 +29,23 @@ Vráť IBA platný JSON, bez markdownu, bez \`\`\`, bez textu navyše, v tvare:
 { "days": [ { "day": "pondelok|utorok|streda|štvrtok|piatok",
               "soup1_name": string, "main1_name": string, "main2_name": string } ] }`
 
+// Z odseknutej (truncated) odpovede vytiahne kompletné dni – objekty bez
+// vnoreného {} – aby aspoň plne prepísané dni neprišli nazmar.
+function salvageDays(text) {
+  const out = []
+  const re = /\{[^{}]*\}/g
+  let m
+  while ((m = re.exec(text)) !== null) {
+    try {
+      const o = JSON.parse(m[0])
+      if (o && (o.day || o.soup1_name || o.main1_name || o.main2_name)) out.push(o)
+    } catch {
+      // neúplný objekt – preskoč
+    }
+  }
+  return out
+}
+
 export default async function handler(req, res) {
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: 'OCR API not configured' })
@@ -58,7 +75,13 @@ export default async function handler(req, res) {
             { inline_data: { mime_type: mime, data: fileBase64 } },
           ],
         }],
-        generationConfig: { responseMimeType: 'application/json' },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          maxOutputTokens: 8192,
+          // transkripcia nepotrebuje „thinking" – uvoľní to celý budget na výstup
+          // a zabráni odseknutiu (truncation) JSON-u pri 3.x modeloch
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     })
     if (!r.ok) {
@@ -75,15 +98,20 @@ export default async function handler(req, res) {
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/\s*```$/, '')
 
-    let parsed
+    let days = null
     try {
-      parsed = JSON.parse(text)
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed?.days)) days = parsed.days
     } catch {
+      // odseknutý/nevalidný JSON → zachráň aspoň kompletne prepísané dni
+      days = salvageDays(text)
+    }
+
+    if (!days || days.length === 0) {
       console.error('[menu-ocr] invalid JSON from Gemini:', text.slice(0, 500))
       return res.status(502).json({ error: 'Prepis menu zlyhal, skús to znova.', detail: 'neplatný JSON: ' + text.slice(0, 200) })
     }
 
-    const days = Array.isArray(parsed?.days) ? parsed.days : []
     return res.json({
       days: days.map((d) => ({
         day: typeof d?.day === 'string' ? d.day : null,
