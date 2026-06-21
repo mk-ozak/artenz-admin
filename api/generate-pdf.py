@@ -356,8 +356,12 @@ def build_overview(menu) -> bytes:
     def txt(x, font, size, color, text):
         ops.append(("text", x, font, size, color, cur[0], text))
 
-    def rule(dark=False, h=1.5):
-        ops.append(("rule", L, R, cur[0], h, dark))
+    def rule(h=0.75):                         # tmavomodrá, polovičná hrúbka
+        ops.append(("rule", L, R, cur[0], h))
+
+    def soup(label, name, al):                # názov čierne, objem+alergény ako pri jedlách (menšie tmavomodré)
+        ops.append(("soup", L + 12, cur[0], f"{label}   {name}", f"0,33L   ·   AL: {al}"))
+        cur[0] += 14
 
     def wrapped(text, x, font, size, maxw, lh, color):
         lines = [ln for ln in wrap_lines(text, font, size, maxw, 2) if ln != ""] or [""]
@@ -367,8 +371,8 @@ def build_overview(menu) -> bytes:
 
     # nadpis
     txt(L, "MyriadBlck", 30, my_dblue, "Reštaurácia LUNA"); cur[0] += 18
-    txt(L, "MyriadB", 12, my_black, "Celotýždňový prehľad jedál"); cur[0] += 16
-    rule(dark=True); cur[0] += 18
+    txt(L, "MyriadB", 12, my_black, "Týždenný jedálny lístok"); cur[0] += 16
+    rule(); cur[0] += 18
 
     # denné menu (vrátane polievky 2)
     for i in range(5):
@@ -377,8 +381,8 @@ def build_overview(menu) -> bytes:
         if d[2] == "sviatok":
             txt(L + 12, "MyriadSB", 11.5, my_black, "Zatvorené"); cur[0] += 14
         else:
-            txt(L + 12, "MyriadSB", 11, my_black, f"P1   {d[2]}   (AL: {d[3]})"); cur[0] += 13
-            txt(L + 12, "MyriadSB", 11, my_black, f"P2   {d[6]}   (AL: {d[7]})"); cur[0] += 14
+            soup("P1", d[2], d[3])
+            soup("P2", d[6], d[7])
             for num, (name, al, portion, price) in [
                 ("1.", (d[10], d[11], d[12], d[13])),
                 ("2.", (d[14], d[15], d[16], d[17])),
@@ -389,8 +393,8 @@ def build_overview(menu) -> bytes:
                 cur[0] += 15
         rule(); cur[0] += 14
 
-    # trvalé menu
-    rule(dark=True); cur[0] += 18
+    # trvalé menu (bez druhej čiary – ostáva len čiara pod denným menu)
+    cur[0] += 6
     txt(L, "MyriadB", 14, my_dblue, "TRVALÉ MENU – MINÚTKY"); cur[0] += 16
     tr = menu[5]
     for k in range(5):
@@ -412,9 +416,19 @@ def build_overview(menu) -> bytes:
             c.setFillColor(color)
             c.setFont(font, size * s)
             c.drawString(x, y(top * s), text)
-        else:
-            _, x0, x1, top, h, dark = op
-            c.setFillColor(my_dblue if dark else my_black)
+        elif op[0] == "soup":
+            _, x, top, prefix, meta = op
+            yy = y(top * s)
+            c.setFillColor(my_black)
+            c.setFont("MyriadSB", 11 * s)
+            c.drawString(x, yy, prefix)
+            w = stringWidth(prefix, "MyriadSB", 11 * s)
+            c.setFillColor(my_dblue)
+            c.setFont("MyriadBolCon", 10.5 * s)
+            c.drawString(x + w + 8 * s, yy, meta)
+        else:                                 # rule – tmavomodrá, polovičná hrúbka
+            _, x0, x1, top, h = op
+            c.setFillColor(my_dblue)
             c.roundRect(x0, y(top * s), x1 - x0, h, h / 2, stroke=0, fill=1)
 
     c.save()
