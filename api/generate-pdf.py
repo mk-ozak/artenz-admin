@@ -339,100 +339,83 @@ def build_2up(menu) -> bytes:
 
 # ============================================================
 # 3) Celotýždňový prehľad jedál (textový sumár, vrátane polievky 2)
+#    Najprv sa obsah „rozloží" (ops + zvislé pozície), potom sa
+#    písmo a riadkovanie rovnomerne zmenší tak, aby vyšiel na 1 stranu.
 # ============================================================
-def _ov_line(left, right, top, dark=False, h=1.5):
-    c.setFillColor(my_dblue if dark else my_black)
-    c.roundRect(left, y(top), right - left, h, h / 2, stroke=0, fill=1)
-
-
 def build_overview(menu) -> bytes:
     global c
     _setup()
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(595, 842), enforceColorSpace="CMYK")
     L, R = 40, 555
-    top = [70]                                # mutovateľný kurzor (kvôli vnoreným funkciám)
 
-    def page_break_if_needed(space):
-        if top[0] + space > 812:
-            c.showPage()
-            top[0] = 60
+    # --- 1. rozloženie (base veľkosti, zvislá pozícia = vzdialenosť od vrchu) ---
+    ops = []
+    cur = [70.0]
 
-    def wrapped(text, x, font, size, maxw, lh, max_lines=2):
-        lines = [ln for ln in wrap_lines(text, font, size, maxw, max_lines) if ln != ""] or [""]
-        c.setFont(font, size)
+    def txt(x, font, size, color, text):
+        ops.append(("text", x, font, size, color, cur[0], text))
+
+    def rule(dark=False, h=1.5):
+        ops.append(("rule", L, R, cur[0], h, dark))
+
+    def wrapped(text, x, font, size, maxw, lh, color):
+        lines = [ln for ln in wrap_lines(text, font, size, maxw, 2) if ln != ""] or [""]
         for ln in lines:
-            c.drawString(x, y(top[0]), ln)
-            top[0] += lh
+            txt(x, font, size, color, ln)
+            cur[0] += lh
 
     # nadpis
-    c.setFillColor(my_dblue)
-    c.setFont("MyriadBlck", 30)
-    c.drawString(L, y(top[0]), "Reštaurácia LUNA")
-    top[0] += 18
-    c.setFillColor(my_black)
-    c.setFont("MyriadB", 12)
-    c.drawString(L, y(top[0]), "Celotýždňový prehľad jedál")
-    top[0] += 16
-    _ov_line(L, R, top[0], dark=True)
-    top[0] += 18
+    txt(L, "MyriadBlck", 30, my_dblue, "Reštaurácia LUNA"); cur[0] += 18
+    txt(L, "MyriadB", 12, my_black, "Celotýždňový prehľad jedál"); cur[0] += 16
+    rule(dark=True); cur[0] += 18
 
     # denné menu (vrátane polievky 2)
     for i in range(5):
         d = menu[i]
-        page_break_if_needed(80)
-        c.setFillColor(my_dblue)
-        c.setFont("MyriadB", 14)
-        c.drawString(L, y(top[0]), f"{d[0].upper()}  {d[1]}")
-        top[0] += 15
-        c.setFillColor(my_black)
+        txt(L, "MyriadB", 14, my_dblue, f"{d[0].upper()}  {d[1]}"); cur[0] += 15
         if d[2] == "sviatok":
-            c.setFont("MyriadSB", 11.5)
-            c.drawString(L + 12, y(top[0]), "Zatvorené")
-            top[0] += 14
+            txt(L + 12, "MyriadSB", 11.5, my_black, "Zatvorené"); cur[0] += 14
         else:
-            c.setFont("MyriadSB", 11)
-            c.drawString(L + 12, y(top[0]), f"P1   {d[2]}   (AL: {d[3]})")
-            top[0] += 13
-            c.drawString(L + 12, y(top[0]), f"P2   {d[6]}   (AL: {d[7]})")
-            top[0] += 14
+            txt(L + 12, "MyriadSB", 11, my_black, f"P1   {d[2]}   (AL: {d[3]})"); cur[0] += 13
+            txt(L + 12, "MyriadSB", 11, my_black, f"P2   {d[6]}   (AL: {d[7]})"); cur[0] += 14
             for num, (name, al, portion, price) in [
                 ("1.", (d[10], d[11], d[12], d[13])),
                 ("2.", (d[14], d[15], d[16], d[17])),
             ]:
-                c.setFont("MyriadB", 11)
-                c.drawString(L + 12, y(top[0]), num)
-                wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13)
-                c.setFont("MyriadBolCon", 10.5)
-                c.setFillColor(my_dblue)
-                c.drawString(L + 32, y(top[0]), f"{portion}   ·   AL: {al}   ·   {price}")
-                c.setFillColor(my_black)
-                top[0] += 15
-        _ov_line(L, R, top[0])
-        top[0] += 14
+                txt(L + 12, "MyriadB", 11, my_black, num)            # číslo = baseline 1. riadku názvu
+                wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13, my_black)
+                txt(L + 32, "MyriadBolCon", 10.5, my_dblue, f"{portion}   ·   AL: {al}   ·   {price}")
+                cur[0] += 15
+        rule(); cur[0] += 14
 
     # trvalé menu
-    page_break_if_needed(40)
-    _ov_line(L, R, top[0], dark=True)
-    top[0] += 18
-    c.setFillColor(my_dblue)
-    c.setFont("MyriadB", 14)
-    c.drawString(L, y(top[0]), "TRVALÉ MENU – MINÚTKY")
-    top[0] += 16
-    c.setFillColor(my_black)
+    rule(dark=True); cur[0] += 18
+    txt(L, "MyriadB", 14, my_dblue, "TRVALÉ MENU – MINÚTKY"); cur[0] += 16
     tr = menu[5]
     for k in range(5):
         name = (tr[5 + k * 4] or "").replace("\n", ", ")
         al, portion, price = tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4]
-        page_break_if_needed(28)
-        c.setFont("MyriadB", 11)
-        c.drawString(L + 12, y(top[0]), f"{k + 3}.")
-        wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13)
-        c.setFont("MyriadBolCon", 10.5)
-        c.setFillColor(my_dblue)
-        c.drawString(L + 32, y(top[0]), f"{portion}   ·   AL: {al}   ·   {price}")
-        c.setFillColor(my_black)
-        top[0] += 16
+        txt(L + 12, "MyriadB", 11, my_black, f"{k + 3}.")
+        wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13, my_black)
+        txt(L + 32, "MyriadBolCon", 10.5, my_dblue, f"{portion}   ·   AL: {al}   ·   {price}")
+        cur[0] += 16
+
+    # --- 2. mierka tak, aby spodok obsahu nepresiahol stranu (max 1.0) ---
+    total = cur[0]
+    s = min(1.0, 822.0 / total)               # 822 ≈ spodný okraj (~20 px rezerva)
+
+    # --- 3. vykreslenie (písmo aj zvislé pozície × s, x ostáva) ---
+    for op in ops:
+        if op[0] == "text":
+            _, x, font, size, color, top, text = op
+            c.setFillColor(color)
+            c.setFont(font, size * s)
+            c.drawString(x, y(top * s), text)
+        else:
+            _, x0, x1, top, h, dark = op
+            c.setFillColor(my_dblue if dark else my_black)
+            c.roundRect(x0, y(top * s), x1 - x0, h, h / 2, stroke=0, fill=1)
 
     c.save()
     return buf.getvalue()
