@@ -282,19 +282,167 @@ def obsah_menu(jedlo, p):
     c.drawRightString(567, y(715), "na rozvoz: 9,90 €", charSpace=-0.5)
 
 
+def _draw_day(menu, i):
+    """Jeden deň (celá A4 stránka denného menu) na aktuálny canvas."""
+    template()
+    obsah_menu(menu, i)
+
+
+# ============================================================
+# 1) Denné menu – po jednom dni na stranu (pôvodné správanie)
+# ============================================================
 def build_pdf(menu) -> bytes:
     global c
     _setup()
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(595, 842), enforceColorSpace="CMYK")
+    first = True
     for i in range(5):
-        if menu[i][2] != "sviatok":
-            template()
-            obsah_menu(menu, i)
-            if i != 4:
-                c.showPage()
+        if menu[i][2] == "sviatok":          # zatvorené → deň preskočíme
+            continue
+        if not first:
+            c.showPage()
+        _draw_day(menu, i)
+        first = False
     c.save()
     return buf.getvalue()
+
+
+# ============================================================
+# 2) 2× denné menu na A4 naležato (dve identické kópie vedľa seba)
+# ============================================================
+def build_2up(menu) -> bytes:
+    global c
+    _setup()
+    buf = io.BytesIO()
+    # A4 naležato; každá kópia = portrétová strana zmenšená na polovicu šírky.
+    PW, PH = 842, 595
+    s = PH / 842.0                            # mierka: výška 842 → 595 (rovnaký pomer strán)
+    half = 595 * s                            # šírka jednej zmenšenej kópie (~420,4)
+    c = canvas.Canvas(buf, pagesize=(PW, PH), enforceColorSpace="CMYK")
+    first = True
+    for i in range(5):
+        if menu[i][2] == "sviatok":
+            continue
+        if not first:
+            c.showPage()
+        for col in (0, 1):
+            c.saveState()
+            c.translate(col * half, 0)
+            c.scale(s, s)
+            _draw_day(menu, i)
+            c.restoreState()
+        first = False
+    c.save()
+    return buf.getvalue()
+
+
+# ============================================================
+# 3) Celotýždňový prehľad jedál (textový sumár, vrátane polievky 2)
+# ============================================================
+def _ov_line(left, right, top, dark=False, h=1.5):
+    c.setFillColor(my_dblue if dark else my_black)
+    c.roundRect(left, y(top), right - left, h, h / 2, stroke=0, fill=1)
+
+
+def build_overview(menu) -> bytes:
+    global c
+    _setup()
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(595, 842), enforceColorSpace="CMYK")
+    L, R = 40, 555
+    top = [70]                                # mutovateľný kurzor (kvôli vnoreným funkciám)
+
+    def page_break_if_needed(space):
+        if top[0] + space > 812:
+            c.showPage()
+            top[0] = 60
+
+    def wrapped(text, x, font, size, maxw, lh, max_lines=2):
+        lines = [ln for ln in wrap_lines(text, font, size, maxw, max_lines) if ln != ""] or [""]
+        c.setFont(font, size)
+        for ln in lines:
+            c.drawString(x, y(top[0]), ln)
+            top[0] += lh
+
+    # nadpis
+    c.setFillColor(my_dblue)
+    c.setFont("MyriadBlck", 30)
+    c.drawString(L, y(top[0]), "Reštaurácia LUNA")
+    top[0] += 18
+    c.setFillColor(my_black)
+    c.setFont("MyriadB", 12)
+    c.drawString(L, y(top[0]), "Celotýždňový prehľad jedál")
+    top[0] += 16
+    _ov_line(L, R, top[0], dark=True)
+    top[0] += 18
+
+    # denné menu (vrátane polievky 2)
+    for i in range(5):
+        d = menu[i]
+        page_break_if_needed(80)
+        c.setFillColor(my_dblue)
+        c.setFont("MyriadB", 14)
+        c.drawString(L, y(top[0]), f"{d[0].upper()}  {d[1]}")
+        top[0] += 15
+        c.setFillColor(my_black)
+        if d[2] == "sviatok":
+            c.setFont("MyriadSB", 11.5)
+            c.drawString(L + 12, y(top[0]), "Zatvorené")
+            top[0] += 14
+        else:
+            c.setFont("MyriadSB", 11)
+            c.drawString(L + 12, y(top[0]), f"P1   {d[2]}   (AL: {d[3]})")
+            top[0] += 13
+            c.drawString(L + 12, y(top[0]), f"P2   {d[6]}   (AL: {d[7]})")
+            top[0] += 14
+            for num, (name, al, portion, price) in [
+                ("1.", (d[10], d[11], d[12], d[13])),
+                ("2.", (d[14], d[15], d[16], d[17])),
+            ]:
+                c.setFont("MyriadB", 11)
+                c.drawString(L + 12, y(top[0]), num)
+                wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13)
+                c.setFont("MyriadBolCon", 10.5)
+                c.setFillColor(my_dblue)
+                c.drawString(L + 32, y(top[0]), f"{portion}   ·   AL: {al}   ·   {price}")
+                c.setFillColor(my_black)
+                top[0] += 15
+        _ov_line(L, R, top[0])
+        top[0] += 14
+
+    # trvalé menu
+    page_break_if_needed(40)
+    _ov_line(L, R, top[0], dark=True)
+    top[0] += 18
+    c.setFillColor(my_dblue)
+    c.setFont("MyriadB", 14)
+    c.drawString(L, y(top[0]), "TRVALÉ MENU – MINÚTKY")
+    top[0] += 16
+    c.setFillColor(my_black)
+    tr = menu[5]
+    for k in range(5):
+        name = (tr[5 + k * 4] or "").replace("\n", ", ")
+        al, portion, price = tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4]
+        page_break_if_needed(28)
+        c.setFont("MyriadB", 11)
+        c.drawString(L + 12, y(top[0]), f"{k + 3}.")
+        wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13)
+        c.setFont("MyriadBolCon", 10.5)
+        c.setFillColor(my_dblue)
+        c.drawString(L + 32, y(top[0]), f"{portion}   ·   AL: {al}   ·   {price}")
+        c.setFillColor(my_black)
+        top[0] += 16
+
+    c.save()
+    return buf.getvalue()
+
+
+_BUILDERS = {
+    "menu": (build_pdf, "Luna_menu.pdf"),
+    "stoly": (build_2up, "Luna_stoly.pdf"),
+    "prehlad": (build_overview, "Luna_prehlad.pdf"),
+}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -302,11 +450,13 @@ class handler(BaseHTTPRequestHandler):
         try:
             qs = parse_qs(urlparse(self.path).query)
             week = qs.get("week", [None])[0]                 # 'YYYY-MM-DD' (pondelok), inak aktuálny týždeň
+            doc = qs.get("doc", ["menu"])[0]                 # 'menu' | 'stoly' | 'prehlad'
+            build, fname = _BUILDERS.get(doc, _BUILDERS["menu"])
             monday = date.fromisoformat(week) if week else None
-            pdf = build_pdf(load_menu(monday))
+            pdf = build(load_menu(monday))
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
-            self.send_header("Content-Disposition", 'attachment; filename="Luna_menu.pdf"')
+            self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
             self.end_headers()
             self.wfile.write(pdf)
         except Exception as e:

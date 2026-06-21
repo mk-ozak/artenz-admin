@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python3 -m pip --version)",
+      "Bash(python3 -m pip install --quiet --user reportlab)",
+      "Bash(python3 -c \"import reportlab; print\\('OK reportlab', reportlab.Version\\)\")",
+      "Read(//tmp/**)",
+      "Bash(python3 -m venv rlenv)",
+      "Bash(rlenv/bin/pip install *)",
+      "Bash(rlenv/bin/python -c \"import reportlab; print\\('OK reportlab', reportlab.Version\\)\")"
+    ]
+  }
+}

@@ -1,7 +1,3 @@
-kopírovacie menu na hlavnú stránku, 
-export čistého týždňa, export Luna_stoly, 
+
 zaklikávacie alergény 1, 3, 7, zyšok vypisovacie, 
 local backup databázy
-
-160/200g | Dusené bravčové na pive, karamelizovaná hlávková kapusta, domáca parená knedľa | A: 1,3,7 | Polievka zahrnutá v cene menu
-#gramáž | #Názov_jedla | A: #alergeny | Polievka zahrnutá v cene menu

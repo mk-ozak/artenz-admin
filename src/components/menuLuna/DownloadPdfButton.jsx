@@ -17,23 +17,35 @@ export default function DownloadPdfButton({ monday }) {
     offset: i - 1,
   }))
 
+  // 3 dokumenty na jedno kliknutie: denné menu, stolové 2× a celotýždňový prehľad.
+  const DOCS = [
+    { doc: 'menu', name: 'LUNA_menu' },
+    { doc: 'stoly', name: 'LUNA_stoly' },
+    { doc: 'prehlad', name: 'LUNA_prehlad' },
+  ]
+
   async function stiahni(m) {
     setOpen(false)
     setErr('')
     setBusy(true)
+    const iso = toISO(m)
+    const prefix = iso.replaceAll('-', '') // RRRRMMDD podľa pondelka týždňa
     try {
-      const res = await fetch(`/api/generate-pdf?week=${toISO(m)}`)
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '')
-        throw new Error(detail || `HTTP ${res.status}`)
+      // postupne – prehliadač tak spustí všetky tri sťahovania
+      for (const { doc, name } of DOCS) {
+        const res = await fetch(`/api/generate-pdf?week=${iso}&doc=${doc}`)
+        if (!res.ok) {
+          const detail = await res.text().catch(() => '')
+          throw new Error(detail || `HTTP ${res.status}`)
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${prefix}_${name}.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
       }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'Luna_menu.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
     } catch (e) {
       console.warn('[pdf] download failed:', e.message)
       setErr('PDF sa nepodarilo vygenerovať: ' + e.message)
