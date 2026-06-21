@@ -8,7 +8,8 @@
       "Read(//tmp/**)",
       "Bash(python3 -m venv rlenv)",
       "Bash(rlenv/bin/pip install *)",
-      "Bash(rlenv/bin/python -c \"import reportlab; print\\('OK reportlab', reportlab.Version\\)\")"
+      "Bash(rlenv/bin/python -c \"import reportlab; print\\('OK reportlab', reportlab.Version\\)\")",
+      "Bash(python3 -m py_compile api/generate-pdf.py)"
     ]
   }
 }

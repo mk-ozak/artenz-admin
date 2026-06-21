@@ -441,6 +441,31 @@ _BUILDERS = {
     "prehlad": (build_overview, "Luna_prehlad.pdf"),
 }
 
+# Verejný Supabase Storage bucket + fixný názov súboru pre web lunacadca.sk.
+# Verejný odkaz potom vždy: {SUPABASE_URL}/storage/v1/object/public/{BUCKET}/{OBJECT}
+PUBLISH_BUCKET = os.environ.get("MENU_PDF_BUCKET", "menu")
+PUBLISH_OBJECT = "LUNA_menu.pdf"
+
+
+def publish_menu_pdf(pdf: bytes):
+    """Nahrá denné menu do verejného Supabase Storage bucketu (upsert).
+    Zámerne potichu – ak upload zlyhá, sťahovanie v prehliadači sa nesmie pokaziť."""
+    import requests
+    url = os.environ["SUPABASE_URL"]
+    # na zápis treba service_role kľúč (anon má len čítanie); fallback na anon ak nie je
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_ANON_KEY"]
+    requests.post(
+        f"{url}/storage/v1/object/{PUBLISH_BUCKET}/{PUBLISH_OBJECT}",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/pdf",
+            "x-upsert": "true",                 # prepíše existujúci súbor
+            "cache-control": "max-age=300",     # CDN drží max 5 min → web sa obnoví rýchlo
+        },
+        data=pdf, timeout=15,
+    ).raise_for_status()
+
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -451,6 +476,11 @@ class handler(BaseHTTPRequestHandler):
             build, fname = _BUILDERS.get(doc, _BUILDERS["menu"])
             monday = date.fromisoformat(week) if week else None
             pdf = build(load_menu(monday))
+            if doc == "menu":                    # denné menu zverejníme aj na web
+                try:
+                    publish_menu_pdf(pdf)
+                except Exception as pub_err:
+                    print(f"[publish] upload zlyhal: {pub_err}")
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
             self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
