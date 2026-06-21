@@ -18,6 +18,15 @@ export function addDays(date, n) {
   return d
 }
 
+// Pondelok „aktívneho" týždňa pre Denné menu.
+// Od piatka 15:00 (a cez víkend) sa preklopí na nasledujúci týždeň.
+export function activeMonday(now = new Date()) {
+  const mon = mondayOf(now)
+  const cutoff = addDays(mon, 4) // piatok
+  cutoff.setHours(15, 0, 0, 0)
+  return now >= cutoff ? addDays(mon, 7) : mon
+}
+
 // pondelok–piatok ako Date[] pre daný pondelok
 export function workWeek(monday) {
   return Array.from({ length: 5 }, (_, i) => addDays(monday, i))
