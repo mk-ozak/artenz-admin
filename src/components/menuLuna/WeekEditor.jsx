@@ -10,7 +10,7 @@ const STATUS_OPTS = [
 
 // Prázdny deň (zobrazený, kým sa neuloží do DB). Polievka 2 a cena
 // hlavných jedál sú predvyplnené – nové jedlo dostane default cenu.
-function emptyRow(menu_date, defaultPrice) {
+function emptyRow(menu_date, defaultPrice, defaultPortion = '') {
   return {
     menu_date,
     status: 'open',
@@ -19,8 +19,8 @@ function emptyRow(menu_date, defaultPrice) {
     soup1_allergens: '',
     soup2_name: 'Vývar s rezancami/cestovinou',
     soup2_allergens: '1,3,9',
-    main1_name: '', main1_allergens: '', main1_portion: '', main1_price: defaultPrice ?? null,
-    main2_name: '', main2_allergens: '', main2_portion: '', main2_price: defaultPrice ?? null,
+    main1_name: '', main1_allergens: '', main1_portion: defaultPortion, main1_price: defaultPrice ?? null,
+    main2_name: '', main2_allergens: '', main2_portion: defaultPortion, main2_price: defaultPrice ?? null,
   }
 }
 
@@ -47,7 +47,7 @@ function StatusToggle({ value, onChange }) {
   )
 }
 
-function DayCard({ date, row, portionOptions, onPatch }) {
+function DayCard({ date, row, portionOptions, onPatch, lockSoup2 }) {
   const open = row.status === 'open'
   return (
     <div className="rounded-card border border-[#e8eef2] bg-white p-3.5">
@@ -72,60 +72,70 @@ function DayCard({ date, row, portionOptions, onPatch }) {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {/* Polievka 1 */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2">
+          {/* Polievky – spoločné nadpisy raz, oba riadky pri sebe */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-x-2 gap-y-1">
+            {/* nadpisy (len tablet/desktop) */}
+            <Label className="hidden sm:block">Polievka (0,33 l)</Label>
+            <Label className="hidden sm:block">Alergény</Label>
+            {/* polievka 1 */}
             <div>
-              <Label>Polievka (0,33 l)</Label>
+              <Label className="sm:hidden">Polievka (0,33 l)</Label>
               <input className={inputCls} value={row.soup1_name ?? ''} placeholder="Denná polievka"
                      onChange={(e) => onPatch({ soup1_name: e.target.value })} />
             </div>
             <div>
-              <Label>Alergény</Label>
+              <Label className="sm:hidden">Alergény</Label>
               <input className={inputCls} value={row.soup1_allergens ?? ''} placeholder="napr. 1,3,9"
                      onChange={(e) => onPatch({ soup1_allergens: e.target.value })} />
             </div>
-          </div>
-
-          {/* Polievka 2 */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2">
+            {/* polievka 2 – v Dennom menu fixná (needitovateľná), v Importe editovateľná */}
             <div>
-              <Label>Polievka 2</Label>
-              <input className={inputCls} value={row.soup2_name ?? ''}
-                     onChange={(e) => onPatch({ soup2_name: e.target.value })} />
+              <Label className="sm:hidden">Polievka 2</Label>
+              <input className={inputCls + (lockSoup2 ? ' bg-[#f4f7f9] text-[#6a8898] cursor-default' : '')}
+                     value={row.soup2_name ?? ''} readOnly={lockSoup2} tabIndex={lockSoup2 ? -1 : undefined}
+                     onChange={lockSoup2 ? undefined : (e) => onPatch({ soup2_name: e.target.value })} />
             </div>
             <div>
-              <Label>Alergény</Label>
-              <input className={inputCls} value={row.soup2_allergens ?? ''}
-                     onChange={(e) => onPatch({ soup2_allergens: e.target.value })} />
+              <Label className="sm:hidden">Alergény</Label>
+              <input className={inputCls + (lockSoup2 ? ' bg-[#f4f7f9] text-[#6a8898] cursor-default' : '')}
+                     value={row.soup2_allergens ?? ''} readOnly={lockSoup2} tabIndex={lockSoup2 ? -1 : undefined}
+                     onChange={lockSoup2 ? undefined : (e) => onPatch({ soup2_allergens: e.target.value })} />
             </div>
           </div>
 
-          {/* Hlavné 1 a 2 */}
-          {[1, 2].map((n) => (
-            <div key={n} className="grid grid-cols-1 sm:grid-cols-[1fr_110px_120px_90px] gap-2">
-              <div>
-                <Label>Hlavné jedlo {n}</Label>
-                <input className={inputCls} value={row[`main${n}_name`] ?? ''} placeholder={`Jedlo ${n}`}
-                       onChange={(e) => onPatch({ [`main${n}_name`]: e.target.value })} />
+          {/* Hlavné jedlá – spoločné nadpisy raz, oba riadky pri sebe */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_120px_90px] gap-x-2 gap-y-1">
+            {/* nadpisy (len tablet/desktop) */}
+            <Label className="hidden sm:block">Hlavné jedlo</Label>
+            <Label className="hidden sm:block">Alergény</Label>
+            <Label className="hidden sm:block">Gramáž</Label>
+            <Label className="hidden sm:block">Cena €</Label>
+            {[1, 2].map((n) => (
+              <div key={n} className="contents">
+                <div>
+                  <Label className="sm:hidden">Hlavné jedlo {n}</Label>
+                  <input className={inputCls} value={row[`main${n}_name`] ?? ''} placeholder={`Jedlo ${n}`}
+                         onChange={(e) => onPatch({ [`main${n}_name`]: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="sm:hidden">Alergény</Label>
+                  <input className={inputCls} value={row[`main${n}_allergens`] ?? ''} placeholder="1,3,7"
+                         onChange={(e) => onPatch({ [`main${n}_allergens`]: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="sm:hidden">Gramáž</Label>
+                  <PortionSelect value={row[`main${n}_portion`]} options={portionOptions}
+                                 onChange={(v) => onPatch({ [`main${n}_portion`]: v })} />
+                </div>
+                <div>
+                  <Label className="sm:hidden">Cena €</Label>
+                  <input type="number" inputMode="decimal" step="0.10" min="0" className={inputCls}
+                         value={row[`main${n}_price`] ?? ''}
+                         onChange={(e) => onPatch({ [`main${n}_price`]: e.target.value === '' ? null : Number(e.target.value) })} />
+                </div>
               </div>
-              <div>
-                <Label>Alergény</Label>
-                <input className={inputCls} value={row[`main${n}_allergens`] ?? ''} placeholder="1,3,7"
-                       onChange={(e) => onPatch({ [`main${n}_allergens`]: e.target.value })} />
-              </div>
-              <div>
-                <Label>Gramáž</Label>
-                <PortionSelect value={row[`main${n}_portion`]} options={portionOptions}
-                               onChange={(v) => onPatch({ [`main${n}_portion`]: v })} />
-              </div>
-              <div>
-                <Label>Cena €</Label>
-                <input type="number" inputMode="decimal" step="0.10" min="0" className={inputCls}
-                       value={row[`main${n}_price`] ?? ''}
-                       onChange={(e) => onPatch({ [`main${n}_price`]: e.target.value === '' ? null : Number(e.target.value) })} />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -138,7 +148,7 @@ function DayCard({ date, row, portionOptions, onPatch }) {
 //   portionOptions  – string[] z app_settings
 //   defaultPrice    – number (default cena nového denného jedla)
 //   onSaved         – voliteľný callback po uložení
-export default function WeekEditor({ monday, portionOptions = [], defaultPrice = null, onSaved }) {
+export default function WeekEditor({ monday, portionOptions = [], defaultPrice = null, defaultPortion = '', onSaved, lockSoup2 = false }) {
   const mondayIso = toISO(monday)
   const fridayIso = toISO(addDays(monday, 4))
   const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i))
@@ -212,13 +222,14 @@ export default function WeekEditor({ monday, portionOptions = [], defaultPrice =
       <div className="flex flex-col gap-2.5">
         {days.map((date) => {
           const iso = toISO(date)
-          const row = rows[iso] ?? emptyRow(iso, defaultPrice)
+          const row = rows[iso] ?? emptyRow(iso, defaultPrice, defaultPortion)
           return (
             <DayCard
               key={iso}
               date={date}
               row={row}
               portionOptions={portionOptions}
+              lockSoup2={lockSoup2}
               onPatch={(patch) => ulozDen(iso, { ...row, ...patch })}
             />
           )

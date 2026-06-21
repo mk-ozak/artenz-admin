@@ -60,6 +60,7 @@ export default function DailyMenu() {
           portionOptions={portionOptions}
           defaultPrice={defaultPriceDaily}
           onSaved={checkLoaded}
+          lockSoup2
         />
 
         <MenuHistory beforeMonday={monday} />

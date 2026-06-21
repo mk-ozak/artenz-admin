@@ -5,8 +5,8 @@ export const inputCls =
   'focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]/40 focus:border-[#4cbfb3] ' +
   'placeholder:text-[#b0c4cc]'
 
-export const Label = ({ children }) => (
-  <span className="text-[11px] uppercase tracking-wide text-[#8aaabb] block mb-0.5">{children}</span>
+export const Label = ({ children, className = '' }) => (
+  <span className={`text-[11px] uppercase tracking-wide text-[#8aaabb] block mb-0.5 ${className}`}>{children}</span>
 )
 
 // Gramáž select – povolí aj existujúcu hodnotu mimo zoznamu (staré dáta).

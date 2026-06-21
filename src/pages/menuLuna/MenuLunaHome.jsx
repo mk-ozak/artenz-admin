@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { IconFileImport, IconCalendarWeek, IconToolsKitchen2, IconSettings } from '@tabler/icons-react'
 import MenuLunaHeader from '../../components/menuLuna/MenuLunaHeader'
 import NavButton from '../../components/dashboard/NavButton'
+import CurrentMenuPreview from '../../components/menuLuna/CurrentMenuPreview'
 
 // Domovská obrazovka menuLuna – 4 veľké karty v rovnakom štýle ako dashboard.
 export default function MenuLunaHome() {
@@ -50,6 +51,8 @@ export default function MenuLunaHome() {
             onClick={() => navigate('/menu/nastavenia')}
           />
         </div>
+
+        <CurrentMenuPreview />
 
         <div className="flex-1" />
       </div>

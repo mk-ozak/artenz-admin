@@ -9,6 +9,9 @@ import { zmensiObrazok } from '../../utils/imageResize'
 
 const DAY_INDEX = { pondelok: 0, utorok: 1, streda: 2, 'štvrtok': 3, piatok: 4 }
 
+// Východisková gramáž pre nové menu (bez ohľadu na spôsob vytvorenia).
+const DEFAULT_PORTION = '160/200g'
+
 // Súbor → base64 (bez kompresie) – pre PDF.
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -46,6 +49,7 @@ export default function ImportMenu() {
     return {
       menu_date, status: 'open',
       soup2_name: 'Vývar s rezancami/cestovinou', soup2_allergens: '1,3,9',
+      main1_portion: DEFAULT_PORTION, main2_portion: DEFAULT_PORTION,
       main1_price: defaultPriceDaily, main2_price: defaultPriceDaily,
     }
   }
@@ -280,7 +284,7 @@ export default function ImportMenu() {
             <p className="text-[13px] text-[#8aaabb] mb-2">
               Skontroluj a uprav — zmeny sa ukladajú automaticky.
             </p>
-            <WeekEditor monday={selectedMonday} portionOptions={portionOptions} defaultPrice={defaultPriceDaily} />
+            <WeekEditor monday={selectedMonday} portionOptions={portionOptions} defaultPrice={defaultPriceDaily} defaultPortion={DEFAULT_PORTION} />
           </div>
         )}
       </div>
