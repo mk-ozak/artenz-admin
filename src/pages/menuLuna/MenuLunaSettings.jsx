@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconPlus, IconTrash, IconFileSpreadsheet, IconLoader2 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuLunaHeader from '../../components/menuLuna/MenuLunaHeader'
 import { inputCls, Label } from '../../components/menuLuna/menuFields'
+import { exportDailyMenus } from '../../utils/exportMenu'
 
 export default function MenuLunaSettings() {
   const [portions, setPortions] = useState([])
@@ -10,7 +11,22 @@ export default function MenuLunaSettings() {
   const [pricePermanent, setPricePermanent] = useState('')
   const [loading, setLoading] = useState(true)
   const [stav, setStav] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportErr, setExportErr] = useState('')
   const timers = useRef({})
+
+  async function handleExport() {
+    setExportErr('')
+    setExporting(true)
+    try {
+      await exportDailyMenus()
+    } catch (e) {
+      console.warn('[export] daily_menus failed:', e.message)
+      setExportErr('Export zlyhal: ' + e.message)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -148,6 +164,27 @@ export default function MenuLunaSettings() {
                   />
                 </div>
               </div>
+            </section>
+
+            {/* Export databázy */}
+            <section className="rounded-card border border-[#e8eef2] bg-white p-4">
+              <h2 className="text-[15px] font-bold text-[#2b3f4c] mb-1">Export databázy</h2>
+              <p className="text-[12px] text-[#8aaabb] mb-3">
+                Stiahne celú históriu denných menu do Excelu (od najstaršieho po najnovšie).
+              </p>
+
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold
+                           bg-[#3db8ad] text-white hover:bg-[#2f9489] transition-colors disabled:opacity-60"
+              >
+                {exporting ? <IconLoader2 size={17} className="animate-spin" /> : <IconFileSpreadsheet size={17} />}
+                {exporting ? 'Pripravujem…' : 'Stiahnuť Excel'}
+              </button>
+
+              {exportErr && <p className="mt-2 text-xs text-red-500">{exportErr}</p>}
             </section>
           </div>
         )}
