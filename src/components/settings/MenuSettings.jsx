@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash,
+  IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash, IconX,
 } from '@tabler/icons-react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../../lib/supabase'
+import { MENU_COLORS } from '../../lib/menuColors'
 import BlurInput from './BlurInput'
 
 // Pravidlá množstva kategórie — predvoľby podľa biznis pravidiel.
@@ -57,6 +58,58 @@ function DragHandle(props) {
     >
       <IconGripVertical size={16} />
     </button>
+  )
+}
+
+// Výber farebného pásika položky — kruh s aktuálnou farbou, klik otvorí
+// paletu (9 farieb + „bez farby")
+function ColorPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title="Farebný pásik"
+        aria-label="Farebný pásik"
+        className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center
+                   hover:border-gray-300"
+      >
+        {value
+          ? <span className="w-4 h-4 rounded-full" style={{ background: value }} />
+          : <span className="w-4 h-4 rounded-full border border-dashed border-gray-300" />}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div className="absolute z-30 top-9 right-0 bg-white rounded-xl shadow-xl border border-gray-100
+                          p-2 grid grid-cols-5 gap-1.5 w-max">
+            {MENU_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onChange(c); setOpen(false) }}
+                aria-label={c}
+                className={`w-6 h-6 rounded-full transition-transform hover:scale-110
+                            ${value === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false) }}
+              title="Bez farby"
+              aria-label="Bez farby"
+              className={`w-6 h-6 rounded-full border border-dashed border-gray-300 flex items-center
+                          justify-center text-gray-400 hover:text-gray-600
+                          ${!value ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+            >
+              <IconX size={13} />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -435,6 +488,13 @@ export default function MenuSettings() {
                                             setItems(is => is.map(i => i.id === item.id ? { ...i, name: name.trim() } : i)))
                                         }}
                                         className="flex-1 min-w-[160px] text-gray-800"
+                                      />
+
+                                      <ColorPicker
+                                        value={item.color ?? null}
+                                        onChange={color =>
+                                          patch('menu_items', item.id, { color }, () =>
+                                            setItems(is => is.map(i => i.id === item.id ? { ...i, color } : i)))}
                                       />
 
                                       <select

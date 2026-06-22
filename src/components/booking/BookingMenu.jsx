@@ -304,7 +304,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     const [c, s] = await Promise.all([
       supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('booking_menu_items')
-        .select('*, menu_items(name)')
+        .select('*, menu_items(name, category_id)')
         .eq('booking_id', bookingId)
         .order('created_at'),
     ])
@@ -316,8 +316,10 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
     const cats = c.data ?? []
     const sels = s.data ?? []
 
+    // Zoskupenie podľa aktuálnej kategórie z katalógu (po prípadnom presune),
+    // fallback na uložené category_id (keď položka už v katalógu neexistuje)
     const sections = cats.map(cat => {
-      const catSels = sels.filter(x => x.category_id === cat.id)
+      const catSels = sels.filter(x => (x.menu_items?.category_id ?? x.category_id) === cat.id)
       if (catSels.length === 0) return ''
       const split = cat.split_portions && catSels.length > 1 ? ` (1/${catSels.length})` : ''
       const lis = catSels.map(x => {

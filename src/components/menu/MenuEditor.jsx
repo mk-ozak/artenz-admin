@@ -16,6 +16,18 @@ function defaultQty(cat) {
 
 // Názov vybratej položky: aktuálny názov z katalógu, fallback na snapshot
 const selName = sel => sel.menu_items?.name ?? sel.item_name
+// Kategória vybratej položky: aktuálna z katalógu (po prípadnom presune),
+// fallback na uložené category_id (keď položka v katalógu už neexistuje)
+const selCatId = sel => sel.menu_items?.category_id ?? sel.category_id
+
+// Stmavenie hex farby (×factor) — pásik vo výbere nech je výraznejší
+function darken(hex, f = 0.6) {
+  const n = parseInt(hex.slice(1), 16)
+  const r = Math.round(((n >> 16) & 255) * f)
+  const g = Math.round(((n >> 8)  & 255) * f)
+  const b = Math.round(( n        & 255) * f)
+  return `rgb(${r}, ${g}, ${b})`
+}
 
 const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justify-center
   text-white hover:bg-[#bd7c7c] active:bg-[#ad6b6b] transition-colors`
@@ -42,7 +54,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
       supabase.from(table)
-        .select('*, menu_items(name)')
+        .select('*, menu_items(name, category_id)')
         .eq(ownerColumn, ownerId)
         .order('created_at'),
     ]).then(([c, i, s]) => {
@@ -60,7 +72,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
 
   const selsByCat = {}
   for (const sel of selections) {
-    (selsByCat[sel.category_id] ??= []).push(sel)
+    (selsByCat[selCatId(sel)] ??= []).push(sel)
   }
 
   // Archivovaná kategória sa zobrazí, len ak v nej výber už niečo má
@@ -84,7 +96,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         item_name:     item.name,
         quantity:      defaultQty(cat),
       })
-      .select('*, menu_items(name)')
+      .select('*, menu_items(name, category_id)')
       .single()
     if (error) { setError(error.message); return }
     setSelections(s => [...s, data])
@@ -719,6 +731,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                     type="button"
                     onClick={() => sel ? removeSelection(sel) : addItem(pickerCat, item)}
                     disabled={!sel && limitFull}
+                    style={{ borderLeft: `6px solid ${(item.color && !sel) ? darken(item.color) : 'transparent'}` }}
                     className={`w-full flex items-center justify-between gap-3 px-5 py-3 text-left
                                 text-sm transition-colors disabled:opacity-40
                                 ${sel ? 'bg-[#eaf7f5]' : 'hover:bg-gray-50'}`}
