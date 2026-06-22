@@ -1,12 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash, IconX,
+  IconFileSpreadsheet, IconLoader2,
 } from '@tabler/icons-react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../../lib/supabase'
 import { MENU_COLORS } from '../../lib/menuColors'
+import { exportMenuCatalog } from '../../utils/exportMenu'
 import BlurInput from './BlurInput'
 
 // Pravidlá množstva kategórie — predvoľby podľa biznis pravidiel.
@@ -130,6 +132,22 @@ export default function MenuSettings() {
   // Prvý klik = potvrdenie (~4 s), druhý = archivácia
   const [confirmDelete, setConfirmDelete] = useState(null) // 'cat:<id>' | 'item:<id>'
   const confirmTimer = useRef(null)
+
+  // Export katalógu menu do Excelu
+  const [exporting, setExporting] = useState(false)
+  const [exportErr, setExportErr] = useState('')
+
+  async function handleExport() {
+    setExportErr('')
+    setExporting(true)
+    try {
+      await exportMenuCatalog()
+    } catch (e) {
+      setExportErr('Export zlyhal: ' + e.message)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Ťahanie sa spustí až po pohybe o pár px — klik na úchytku nič nepresúva
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
@@ -562,6 +580,24 @@ export default function MenuSettings() {
             </DndContext>
           </Fragment>
         ))}
+      </div>
+
+      {/* Export katalógu do Excelu */}
+      <div className="pt-2 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-bold
+                     transition-opacity hover:opacity-90 disabled:opacity-60"
+          style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+        >
+          {exporting
+            ? <IconLoader2 size={17} className="animate-spin" />
+            : <IconFileSpreadsheet size={17} />}
+          {exporting ? 'Pripravujem…' : 'Export do Excelu'}
+        </button>
+        {exportErr && <p className="mt-2 text-xs text-red-500">{exportErr}</p>}
       </div>
     </div>
   )

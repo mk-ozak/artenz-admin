@@ -53,6 +53,58 @@ function denSk(iso) {
   return DNI_SK[d.getDay()] ?? ''
 }
 
+// ── Export katalógu menu (kategórie + položky) do Excelu ──
+// Riadok = jedna položka, zoradené podľa bloku, kategórie a poradia.
+// Prázdne kategórie majú vlastný riadok (bez položky). Len nearchivované.
+export async function exportMenuCatalog() {
+  const [c, i] = await Promise.all([
+    supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
+    supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+  ])
+  if (c.error) throw new Error(c.error.message)
+  if (i.error) throw new Error(i.error.message)
+  const cats  = c.data ?? []
+  const items = i.data ?? []
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Menu katalóg', { views: [{ state: 'frozen', ySplit: 1 }] })
+
+  ws.columns = [
+    { header: 'Blok',      key: 'block', width: 7 },
+    { header: 'Kategória', key: 'cat',   width: 26 },
+    { header: 'Položka',   key: 'item',  width: 64 },
+    { header: 'Farba',     key: 'color', width: 12 },
+  ]
+
+  const head = ws.getRow(1)
+  head.height = 20
+  head.eachCell((cell) => {
+    cell.fill = solid('FF2B3F4E')
+    cell.font = { bold: true, size: 10, color: { argb: 'FFC0D8E8' } }
+    cell.alignment = { vertical: 'middle' }
+  })
+
+  let count = 0
+  for (const cat of cats) {
+    const catItems = items.filter((it) => it.category_id === cat.id)
+    if (catItems.length === 0) {
+      ws.addRow({ block: cat.block, cat: cat.name, item: '', color: '' }).font = { size: 10 }
+      continue
+    }
+    for (const it of catItems) {
+      const row = ws.addRow({ block: cat.block, cat: cat.name, item: it.name, color: it.color ?? '' })
+      row.font = { size: 10 }
+      if (it.color) {
+        row.getCell('color').fill = solid('FF' + String(it.color).replace('#', '').toUpperCase())
+      }
+      count++
+    }
+  }
+
+  await downloadWorkbook(wb, `${todayStamp()}_menu_katalog.xlsx`)
+  return count
+}
+
 // ── Export celej databázy denných menu (meničiek) do Excelu ──
 // Riadok = jeden deň, zoradené od najstaršieho po najnovšie.
 export async function exportDailyMenus() {
