@@ -33,6 +33,9 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [pickerCatId, setPickerCatId] = useState(null)
+  // Pridanie novej položky do katalógu priamo z výberu
+  const [newItemName, setNewItemName] = useState('')
+  const [addingItem, setAddingItem]   = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -51,6 +54,9 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       setLoading(false)
     })
   }, [table, ownerColumn, ownerId])
+
+  // Pri otvorení/zatvorení výberu vyčisti rozpísaný názov novej položky
+  useEffect(() => { setNewItemName('') }, [pickerCatId])
 
   const selsByCat = {}
   for (const sel of selections) {
@@ -82,6 +88,30 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       .single()
     if (error) { setError(error.message); return }
     setSelections(s => [...s, data])
+  }
+
+  // Nová položka do katalógu (menu_items) pre práve otvorenú kategóriu.
+  // Zaradí sa na koniec kategórie a hneď sa predvyberie do tohto menu,
+  // ak to limit kategórie dovolí.
+  async function addCatalogItem(e) {
+    e.preventDefault()
+    const name = newItemName.trim()
+    if (!name || !pickerCat) return
+    setAddingItem(true)
+    const catItems = items.filter(i => i.category_id === pickerCat.id)
+    const position = Math.max(0, ...catItems.map(i => i.position)) + 1
+    const { data, error } = await supabase
+      .from('menu_items')
+      .insert({ category_id: pickerCat.id, name, position })
+      .select()
+      .single()
+    if (error) { setError(error.message); setAddingItem(false); return }
+    setItems(is => [...is, data])
+    setNewItemName('')
+    const limitFull = pickerCat.max_items != null &&
+      (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
+    if (!limitFull) await addItem(pickerCat, data)
+    setAddingItem(false)
   }
 
   async function removeSelection(sel) {
@@ -707,10 +737,35 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
               })}
               {items.filter(i => i.category_id === pickerCat.id).length === 0 && (
                 <p className="px-5 py-6 text-sm text-gray-400 text-center">
-                  Kategória zatiaľ nemá žiadne položky — pridajte ich v Nastaveniach.
+                  Kategória zatiaľ nemá žiadne položky — pridajte novú vyššie.
                 </p>
               )}
             </div>
+
+            {/* Pridať novú položku rovno do katalógu tejto kategórie */}
+            <form
+              onSubmit={addCatalogItem}
+              className="flex gap-2 px-5 py-3 bg-gray-50 border-t border-gray-100 shrink-0"
+            >
+              <input
+                value={newItemName}
+                onChange={e => setNewItemName(e.target.value)}
+                placeholder="Nová položka do katalógu…"
+                disabled={addingItem}
+                className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]"
+              />
+              <button
+                type="submit"
+                disabled={!newItemName.trim() || addingItem}
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-bold shrink-0
+                           transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+              >
+                <IconPlus size={15} stroke={2.5} />
+                Pridať
+              </button>
+            </form>
 
             <div className="px-5 py-3 border-t border-gray-100 shrink-0">
               <button
