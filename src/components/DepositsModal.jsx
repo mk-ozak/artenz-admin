@@ -18,7 +18,8 @@ export default function DepositsModal({ payments = [], defaultAmount = '', onCha
 
   function startAdd() {
     setDate(toISO(new Date()))
-    setAmount(payments.length === 0 && defaultAmount !== '' && defaultAmount != null
+    // Prvá platba: predvyplň dohodnutú zálohu (0 = „bez zálohy" nepredvypĺňaj)
+    setAmount(payments.length === 0 && Number(defaultAmount) > 0
       ? String(defaultAmount)
       : '')
     setAdding(true)

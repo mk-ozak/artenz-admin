@@ -298,7 +298,12 @@ export default function BookingDetail() {
                 <Fact label="Čas" value={form.time || '—'} />
                 <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
                 <Fact label="Cena na osobu" value={eur(form.estimatedPrice)} />
-                <Fact label="Záloha" value={eur(form.deposit)} />
+                <Fact
+                  label="Záloha"
+                  value={form.deposit !== '' && form.deposit != null && Number(form.deposit) === 0
+                    ? 'Bez zálohy'
+                    : eur(form.deposit)}
+                />
                 {editable && (
                   <button
                     onClick={openEdit}

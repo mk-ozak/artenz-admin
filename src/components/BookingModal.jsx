@@ -62,6 +62,8 @@ export default function BookingModal() {
   const [nameMissing, setNameMissing] = useState(false)
   // Modál evidencie zaplatených záloh
   const [depositsOpen, setDepositsOpen] = useState(false)
+  // Počas editácie poľa Záloha ukazuj surové číslo (inak vedomá 0 → „Bez zálohy")
+  const [depositFocused, setDepositFocused] = useState(false)
   // Focus do poľa Záloha (po „Nie" v dialógu „Nechať bez zálohy?")
   const depositRef = useRef(null)
 
@@ -87,6 +89,7 @@ export default function BookingModal() {
     setMoveText('')
     setMoveUnlocked(false)
     setDepositsOpen(false)
+    setDepositFocused(false)
     if (modalState.mode === 'add') {
       setForm({
         ...EMPTY,
@@ -136,6 +139,8 @@ export default function BookingModal() {
   const canMove   = nameMatches(moveText)
   // Sú evidované zaplatené zálohy → pole Záloha je ich súčet (upravuje sa cez modál)
   const hasPayments = (form.deposits?.length ?? 0) > 0
+  // Vedomá nula (0 = bez zálohy); prázdne pole znamená „ešte nezadané"
+  const depositIsZero = form.deposit !== '' && form.deposit != null && Number(form.deposit) === 0
   // Spolu = hostia × cena na osobu (len na zobrazenie, neukladá sa)
   const estimatedTotal =
     String(Math.round((Number(form.expectedGuests) || 0) * (Number(form.estimatedPrice) || 0) * 100) / 100)
@@ -458,14 +463,22 @@ export default function BookingModal() {
               <div className="flex gap-2">
                 <input
                   ref={depositRef}
-                  type="number"
-                  value={form.deposit}
-                  onChange={e => set('deposit', e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={depositFocused || hasPayments
+                    ? form.deposit
+                    : depositIsZero ? 'Bez zálohy' : form.deposit}
+                  onChange={e => set('deposit', e.target.value.replace(/\D/g, ''))}
+                  onFocus={e => {
+                    if (hasPayments) return
+                    setDepositFocused(true)
+                    // Nulu po fokuse označ, aby ju nová suma rovno prepísala
+                    if (depositIsZero) { const el = e.target; setTimeout(() => el.select(), 0) }
+                  }}
+                  onBlur={() => setDepositFocused(false)}
                   readOnly={hasPayments}
                   title={hasPayments ? 'Súčet zaplatených záloh — uprav ich tlačidlom vedľa' : undefined}
                   placeholder=""
-                  min="0"
-                  step="1"
                   className={`w-full min-w-0 border rounded-lg px-3 py-2 text-sm
                     focus:outline-none focus:ring-2 focus:ring-indigo-500
                     ${hasPayments ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-gray-300'}`}
