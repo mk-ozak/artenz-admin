@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icons/icon-192.svg', 'icons/icon-512.svg'],
       manifest: {
         name: 'Artenz Admin',

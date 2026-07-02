@@ -13,6 +13,7 @@ import PermanentMenu from './pages/menuLuna/PermanentMenu'
 import MenuLunaSettings from './pages/menuLuna/MenuLunaSettings'
 import ProtectedRoute from './components/ProtectedRoute'
 import Toast from './components/Toast'
+import UpdatePrompt from './components/UpdatePrompt'
 import { useAuthStore } from './store/auth'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toast />
+      <UpdatePrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
