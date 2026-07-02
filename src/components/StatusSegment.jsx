@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatDateSk } from '../utils/format'
+import { formatDateSkYear } from '../utils/format'
 
 const STATUSES = [
   { value: 'dopyt',     label: 'Nezáväzný dopyt' },
@@ -7,14 +7,14 @@ const STATUSES = [
   { value: 'potvrdene', label: 'Potvrdené' },
 ]
 
-// Platobné údaje do SMS
-const PAYMENT_ACCOUNT = 'MARTENZ, s.r.o., IBAN: SK09 0900 0000 0051 4443 4708'
+// Platobné údaje do SMS — IBAN bez medzier (ľahšie kopírovanie do bankovej appky)
+const PAYMENT_ACCOUNT = 'MARTENZ, s.r.o., IBAN: SK0909000000005144434708'
 
 // Variabilný symbol: dátum akcie ako RRRRMMDD
 function paymentSms(phone, { typeLabel, dateISO, amount }) {
   const vs   = (dateISO ?? '').replaceAll('-', '')
   const text =
-    `Dobrý deň, k Vašej rezervácii v Artenz (${typeLabel}, ${formatDateSk(dateISO)}) ` +
+    `Dobrý deň, k Vašej rezervácii v Artenz (${typeLabel}, ${formatDateSkYear(dateISO)}) ` +
     `prosíme o úhradu zálohy ${amount} €. ${PAYMENT_ACCOUNT}, VS: ${vs}. Ďakujeme.`
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
