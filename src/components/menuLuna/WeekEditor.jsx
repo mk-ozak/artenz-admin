@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toISO, addDays, dayNameSk, fmtDatumSk } from '../../utils/menuDates'
-import { inputCls, Label, PortionSelect } from './menuFields'
+import { inputCls, Label, PortionSelect, AllergenField } from './menuFields'
 
 const STATUS_OPTS = [
   { value: 'open', label: 'Otvorené' },
@@ -73,7 +73,7 @@ function DayCard({ date, row, portionOptions, onPatch, lockSoup2 }) {
       ) : (
         <div className="flex flex-col gap-3">
           {/* Polievky – spoločné nadpisy raz, oba riadky pri sebe */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-x-2 gap-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_170px] gap-x-2 gap-y-1">
             {/* nadpisy (len tablet/desktop) */}
             <Label className="hidden sm:block">Polievka (0,33 l)</Label>
             <Label className="hidden sm:block">Alergény</Label>
@@ -85,8 +85,8 @@ function DayCard({ date, row, portionOptions, onPatch, lockSoup2 }) {
             </div>
             <div>
               <Label className="sm:hidden">Alergény</Label>
-              <input className={inputCls} value={row.soup1_allergens ?? ''} placeholder="napr. 1,3,9"
-                     onChange={(e) => onPatch({ soup1_allergens: e.target.value })} />
+              <AllergenField value={row.soup1_allergens}
+                             onChange={(v) => onPatch({ soup1_allergens: v })} />
             </div>
             {/* polievka 2 – v Dennom menu fixná (needitovateľná), v Importe editovateľná */}
             <div>
@@ -104,7 +104,7 @@ function DayCard({ date, row, portionOptions, onPatch, lockSoup2 }) {
           </div>
 
           {/* Hlavné jedlá – spoločné nadpisy raz, oba riadky pri sebe */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_120px_90px] gap-x-2 gap-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px_95px_70px] gap-x-2 gap-y-1">
             {/* nadpisy (len tablet/desktop) */}
             <Label className="hidden sm:block">Hlavné jedlo</Label>
             <Label className="hidden sm:block">Alergény</Label>
@@ -119,8 +119,8 @@ function DayCard({ date, row, portionOptions, onPatch, lockSoup2 }) {
                 </div>
                 <div>
                   <Label className="sm:hidden">Alergény</Label>
-                  <input className={inputCls} value={row[`main${n}_allergens`] ?? ''} placeholder="1,3,7"
-                         onChange={(e) => onPatch({ [`main${n}_allergens`]: e.target.value })} />
+                  <AllergenField compact value={row[`main${n}_allergens`]}
+                                 onChange={(v) => onPatch({ [`main${n}_allergens`]: v })} />
                 </div>
                 <div>
                   <Label className="sm:hidden">Gramáž</Label>

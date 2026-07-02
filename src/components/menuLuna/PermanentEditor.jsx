@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { inputCls, Label, PortionSelect } from './menuFields'
+import { inputCls, Label, PortionSelect, AllergenField } from './menuFields'
 
 const POSITIONS = [1, 2, 3, 4, 5, 6]
 
@@ -25,7 +25,7 @@ function ItemCard({ position, item, portionOptions, onPatch }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_120px_90px] gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px_95px_70px] gap-2">
         <div>
           <Label>Názov jedla</Label>
           <input className={inputCls} value={item.name ?? ''} placeholder="Názov položky"
@@ -33,8 +33,8 @@ function ItemCard({ position, item, portionOptions, onPatch }) {
         </div>
         <div>
           <Label>Alergény</Label>
-          <input className={inputCls} value={item.allergens ?? ''} placeholder="1,3,7"
-                 onChange={(e) => onPatch({ allergens: e.target.value })} />
+          <AllergenField compact value={item.allergens}
+                         onChange={(v) => onPatch({ allergens: v })} />
         </div>
         <div>
           <Label>Gramáž</Label>

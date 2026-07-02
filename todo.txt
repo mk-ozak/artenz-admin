@@ -1,2 +1,6 @@
+zákazník môže pripraviť svoje menu, ktoré sa skonzultuje na stretnutí - bude to zvlášť funkcia, kde si bude zákazník klikať z nášho zoznamu
 
-zaklikávacie alergény 1, 3, 7, zyšok vypisovacie
+kalkulácie do kuchyne - pre celý deň kliknutím na dátum v diári
+
+
+do tlače detailov menu pre zákazníka pridať aj základné info o cene a času, atď
