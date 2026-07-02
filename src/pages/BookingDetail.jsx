@@ -108,6 +108,7 @@ export default function BookingDetail() {
           guestsKidsNoMeal: data.guests_kids_no_meal ?? '',
           decoration:   data.decoration ?? '',
           deposit:      data.deposit_amount != null ? Number(data.deposit_amount) : '',
+          deposits:     Array.isArray(data.deposit_payments) ? data.deposit_payments : [],
           notes:        data.notes ?? '',
         })
         return data
@@ -153,6 +154,7 @@ export default function BookingDetail() {
       estimatedPrice: form.estimatedPrice,
       decoration:     form.decoration,
       deposit:        form.deposit,
+      deposits:       form.deposits,
       googleEventId:  booking.google_calendar_event_id,
     })
   }
@@ -295,7 +297,7 @@ export default function BookingDetail() {
               <div className="flex items-end gap-x-5 gap-y-2 mt-3 pt-3 border-t border-[#eef3f6] flex-wrap">
                 <Fact label="Čas" value={form.time || '—'} />
                 <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
-                <Fact label="Predbežná cena" value={eur(form.estimatedPrice)} />
+                <Fact label="Cena na osobu" value={eur(form.estimatedPrice)} />
                 <Fact label="Záloha" value={eur(form.deposit)} />
                 {editable && (
                   <button

@@ -20,6 +20,7 @@ function toFrontend(row) {
     venue:          HALL_REVERSE[row.hall] ?? row.hall.toLowerCase(),
     type:           row.event_type ?? 'svadba',
     deposit:        row.deposit_amount != null ? Number(row.deposit_amount) : '',
+    deposits:       Array.isArray(row.deposit_payments) ? row.deposit_payments : [],
     decoration:     row.decoration ?? '',
     guestCount:     row.guest_count ?? 0,
     guestsAdults:     row.guests_adults ?? '',
@@ -74,6 +75,9 @@ function toBackend(b) {
     hall: HALL_MAP[b.venue] ?? b.venue.toUpperCase(),
     event_type: b.type || null,
     deposit_amount: b.deposit !== '' && b.deposit != null ? Number(b.deposit) : null,
+    // Zaplatené zálohy: zapisuj len keď ich formulár nesie — volajúci bez
+    // poľa deposits nesmie evidované platby vymazať
+    ...(Array.isArray(b.deposits) ? { deposit_payments: b.deposits } : {}),
     decoration: b.decoration || null,
     // Pozn.: počty hostí (guests_*) a notes vlastní sekcia Menu (auto-uloženie),
     // modál ich zámerne nezapisuje, aby ich neprepísal.

@@ -133,7 +133,7 @@ export default function MyBooking() {
               )}
               {booking.estimated_price > 0 && (
                 <p>
-                  Predbežná cena:{' '}
+                  Cena na osobu:{' '}
                   <span className="font-semibold">{Number(booking.estimated_price)} €</span>
                 </p>
               )}

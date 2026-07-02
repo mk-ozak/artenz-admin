@@ -162,7 +162,7 @@ export async function exportAllBookings() {
     { header: 'Telefón',               key: 'phone',          width: 16 },
     { header: 'Stav',                  key: 'status',         width: 16 },
     { header: 'Očakávaný počet osôb',  key: 'expectedGuests', width: 12 },
-    { header: 'Predbežná cena (€)',    key: 'estimatedPrice', width: 12 },
+    { header: 'Cena na osobu (€)',     key: 'estimatedPrice', width: 12 },
     { header: 'Počet hostí',           key: 'guestCount',     width: 12 },
     { header: 'Záloha (€)',            key: 'deposit',        width: 10 },
     { header: 'Vyúčtovanie – doklad',  key: 'settlementDoc',    width: 16 },

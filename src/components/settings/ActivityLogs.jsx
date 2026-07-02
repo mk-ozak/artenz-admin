@@ -48,9 +48,10 @@ const FIELD_LABEL = {
   event_type:      'Typ akcie',
   status:          'Stav',
   expected_guests: 'Očakávaný počet osôb',
-  estimated_price: 'Predbežná cena',
+  estimated_price: 'Cena na osobu',
   guest_count:     'Počet hostí',
   deposit_amount:  'Záloha',
+  deposit_payments: 'Zaplatené zálohy',
   settlement_document: 'Vyúčtovanie – doklad',
   settlement_method:   'Vyúčtovanie – spôsob',
   notes:           'Poznámky',
@@ -64,6 +65,10 @@ function formatValue(field, value) {
   if (field === 'settlement_document') return SETTLEMENT_DOCUMENT_LABEL[value] ?? value
   if (field === 'settlement_method')   return SETTLEMENT_METHOD_LABEL[value] ?? value
   if (field === 'start_time')   return String(value).slice(0, 5)
+  if (field === 'deposit_payments') {
+    const arr = Array.isArray(value) ? value : []
+    return arr.length ? arr.map(p => `${p.amount} € (${p.date})`).join(', ') : '—'
+  }
   const s = String(value)
   return s.length > 40 ? s.slice(0, 40) + '…' : s
 }

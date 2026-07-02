@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { IconMicrophone, IconPlayerStopFilled, IconLoader2 } from '@tabler/icons-react'
+import { IconMicrophone, IconPlayerStopFilled, IconLoader2, IconCoinEuro } from '@tabler/icons-react'
 import { useBookingsStore, HALL_MAP } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
@@ -10,6 +10,7 @@ import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
 import SettlementPanel from './SettlementPanel'
+import DepositsModal from './DepositsModal'
 
 // Čas rezervácie: 09–19 h, minúty po 15
 const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
@@ -39,6 +40,7 @@ const EMPTY = {
   guestsKidsNoMeal: '',
   decoration: '',
   deposit: '',
+  deposits: [],   // zaplatené zálohy [{ date, amount }]
   notes: '',
 }
 
@@ -58,6 +60,8 @@ export default function BookingModal() {
   const [moveUnlocked, setMoveUnlocked] = useState(false)
   // Hlasom sa nepodarilo rozpoznať meno → zvýrazni povinné pole
   const [nameMissing, setNameMissing] = useState(false)
+  // Modál evidencie zaplatených záloh
+  const [depositsOpen, setDepositsOpen] = useState(false)
   // Focus do poľa Záloha (po „Nie" v dialógu „Nechať bez zálohy?")
   const depositRef = useRef(null)
 
@@ -82,6 +86,7 @@ export default function BookingModal() {
     setConfirmMove(false)
     setMoveText('')
     setMoveUnlocked(false)
+    setDepositsOpen(false)
     if (modalState.mode === 'add') {
       setForm({
         ...EMPTY,
@@ -108,6 +113,7 @@ export default function BookingModal() {
         guestsKidsNoMeal: b.guestsKidsNoMeal ?? '',
         decoration:   b.decoration ?? '',
         deposit:      b.deposit ?? '',   // ?? aby sa nestratila vedomá 0
+        deposits:     Array.isArray(b.deposits) ? b.deposits : [],
         notes:        b.notes ?? '',
         phone:        b.phone ?? '',
       })
@@ -128,6 +134,12 @@ export default function BookingModal() {
     text.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
   const canDelete = nameMatches(confirmText)
   const canMove   = nameMatches(moveText)
+  // Sú evidované zaplatené zálohy → pole Záloha je ich súčet (upravuje sa cez modál)
+  const hasPayments = (form.deposits?.length ?? 0) > 0
+  // Spolu = hostia × cena na osobu (len na zobrazenie, neukladá sa)
+  const estimatedTotal =
+    String(Math.round((Number(form.expectedGuests) || 0) * (Number(form.estimatedPrice) || 0) * 100) / 100)
+      .replace('.', ',') + ' €'
 
   async function handleDelete() {
     setDeleting(true)
@@ -180,6 +192,23 @@ export default function BookingModal() {
     }
   }
 
+  // Zmena zoznamu zaplatených záloh: pole Záloha drží ich súčet; pri
+  // existujúcej rezervácii sa uloží okamžite (ako stav/záloha). Po zmazaní
+  // poslednej platby suma v poli ostáva (dohodnutá záloha sa nestráca).
+  async function handleDepositsChange(next) {
+    const sum = next.reduce((s, p) => s + Number(p.amount || 0), 0)
+    setForm(f => ({ ...f, deposits: next, deposit: next.length > 0 ? sum : f.deposit }))
+    if (isEdit) {
+      const patch = { deposit_payments: next }
+      if (next.length > 0) patch.deposit_amount = sum
+      const { error } = await supabase
+        .from('bookings')
+        .update(patch)
+        .eq('id', modalState.booking.id)
+      if (error) setError(error.message)
+    }
+  }
+
   // Zmena sály pri pridávaní: drží pravidlo „CATERING → predvolený typ Catering"
   function setVenue(venue) {
     setForm(f => ({
@@ -202,10 +231,10 @@ export default function BookingModal() {
       setError('Dátum nemôže byť v minulosti.'); return
     }
     // Číselné polia: prázdne je OK; inak bez záporných hodnôt,
-    // Očakávaných hostí a Záloha celé čísla, Predbežná cena smie mať desatinné
+    // Očakávaných hostí a Záloha celé čísla, Cena na osobu smie mať desatinné
     for (const [field, label, intOnly] of [
       ['expectedGuests', 'Očakávaných hostí', true],
-      ['estimatedPrice', 'Predbežná cena',    false],
+      ['estimatedPrice', 'Cena na osobu',     false],
       ['deposit',        'Záloha',            true],
     ]) {
       const v = form[field]
@@ -409,19 +438,59 @@ export default function BookingModal() {
             </div>
           </div>
 
-          {/* Event type */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
-            <select
-              value={form.type}
-              onChange={e => set('type', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            >
-              {EVENT_TYPES.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+          {/* Event type + záloha (so zaplatenými zálohami je pole ich súčtom) */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
+              <select
+                value={form.type}
+                onChange={e => set('type', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                {EVENT_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Záloha</label>
+              <div className="flex gap-2">
+                <input
+                  ref={depositRef}
+                  type="number"
+                  value={form.deposit}
+                  onChange={e => set('deposit', e.target.value)}
+                  readOnly={hasPayments}
+                  title={hasPayments ? 'Súčet zaplatených záloh — uprav ich tlačidlom vedľa' : undefined}
+                  placeholder=""
+                  min="0"
+                  step="1"
+                  className={`w-full min-w-0 border rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500
+                    ${hasPayments ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-gray-300'}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDepositsOpen(true)}
+                  title="Zaplatené zálohy"
+                  className="relative shrink-0 w-[38px] h-[38px] border border-gray-300 rounded-lg
+                    flex items-center justify-center text-gray-500 transition-colors
+                    hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50"
+                >
+                  <IconCoinEuro size={20} />
+                  {hasPayments && (
+                    <span
+                      className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full
+                        text-[10px] font-bold flex items-center justify-center"
+                      style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                    >
+                      {form.deposits.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Status */}
@@ -441,7 +510,7 @@ export default function BookingModal() {
             />
           </div>
 
-          {/* Expected guests + estimated price */}
+          {/* Expected guests + cena na osobu + spolu (vypočítané) */}
           <div className="flex gap-3">
             <div className="flex-1 min-w-0">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaných hostí</label>
@@ -457,7 +526,7 @@ export default function BookingModal() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Predbežná cena</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Cena na osobu</label>
               <input
                 type="number"
                 value={form.estimatedPrice}
@@ -470,29 +539,17 @@ export default function BookingModal() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Záloha</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Spolu</label>
               <input
-                ref={depositRef}
-                type="number"
-                value={form.deposit}
-                onChange={e => set('deposit', e.target.value)}
-                placeholder=""
-                min="0"
-                step="1"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                type="text"
+                value={estimatedTotal}
+                readOnly
+                tabIndex={-1}
+                className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm
+                  text-gray-700 focus:outline-none"
               />
             </div>
           </div>
-
-          {/* Živý predpoklad: hostia × predbežná cena (neukladá sa) */}
-          <p className="-mt-2 text-[11px] text-gray-500">
-            Predpoklad:{' '}
-            <span className="font-semibold text-gray-700">
-              {String(Math.round((Number(form.expectedGuests) || 0) * (Number(form.estimatedPrice) || 0) * 100) / 100)
-                .replace('.', ',')} €
-            </span>
-          </p>
 
           {/* Poznámky — jeden rolovateľný riadok */}
           <div>
@@ -588,6 +645,16 @@ export default function BookingModal() {
           </div>
         </form>
       </div>
+
+      {/* Evidencia zaplatených záloh */}
+      {depositsOpen && (
+        <DepositsModal
+          payments={form.deposits ?? []}
+          defaultAmount={form.deposit}
+          onChange={handleDepositsChange}
+          onClose={() => setDepositsOpen(false)}
+        />
+      )}
 
       {/* Potvrdenie vymazania */}
       {confirmDelete && (
