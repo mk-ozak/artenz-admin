@@ -54,7 +54,9 @@ const FIELD_LABEL = {
   deposit_payments: 'Zaplatené zálohy',
   settlement_document: 'Vyúčtovanie – doklad',
   settlement_method:   'Vyúčtovanie – spôsob',
-  notes:           'Poznámky',
+  // decoration = všeobecné poznámky z formulára; notes = požiadavky ku strave (Menu)
+  decoration:      'Poznámky',
+  notes:           'Požiadavky ku strave',
 }
 
 function formatValue(field, value) {
