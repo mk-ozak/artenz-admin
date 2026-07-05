@@ -171,19 +171,10 @@ export async function exportAllBookings() {
     { header: 'Očakávaný počet osôb',  key: 'expectedGuests', width: 12 },
     { header: 'Cena na osobu (€)',     key: 'estimatedPrice', width: 12 },
     { header: 'Počet hostí',           key: 'guestCount',     width: 12 },
-    { header: 'Dospelí',               key: 'guestsAdults',       width: 9 },
-    { header: 'Dospelí bez jedla',     key: 'guestsAdultsNoMeal', width: 9 },
-    { header: 'Deti s jedlom',         key: 'guestsKidsMeal',     width: 9 },
-    { header: 'Deti bez jedla',        key: 'guestsKidsNoMeal',   width: 9 },
-    { header: 'Špeciály',              key: 'guestsSpecials',     width: 9 },
-    { header: 'Požiadavky ku strave',  key: 'notes',          width: 30 },
-    { header: 'Raut – osoby navyše',   key: 'rautExtra',      width: 9  },
-    { header: 'Raut – g/osoba',        key: 'rautGrams',      width: 9  },
     { header: 'Záloha (€)',            key: 'deposit',        width: 12 },
     { header: 'Zaplatené zálohy',      key: 'depositPayments', width: 34 },
     { header: 'Vyúčtovanie – doklad',  key: 'settlementDoc',    width: 16 },
     { header: 'Vyúčtovanie – spôsob',  key: 'settlementMethod', width: 14 },
-    { header: 'Menu vytvorené',        key: 'menuCreated',    width: 10 },
     { header: 'Poznámky',              key: 'decoration',     width: 40 },
     { header: 'Vytvorené',             key: 'createdAt',      width: 18 },
   ]
@@ -199,9 +190,6 @@ export async function exportAllBookings() {
 
   for (const b of data ?? []) {
     const payments = Array.isArray(b.deposit_payments) ? b.deposit_payments : []
-    // Rozpis hostí a raut vlastní sekcia Menu — bez vytvoreného menu sa polia
-    // nedajú vyplniť (raut_grams má navyše DB default 200), tak ich neexportuj
-    const hasMenu = !!b.menu_created
     const row = ws.addRow({
       date:           b.date,
       time:           b.start_time ? b.start_time.slice(0, 5) : '',
@@ -217,13 +205,6 @@ export async function exportAllBookings() {
       // notes = špeciálne požiadavky ku strave (sekcia Menu)
       decoration:     b.decoration ?? '',
       guestCount:     b.guest_count ?? '',
-      guestsAdults:       hasMenu ? (b.guests_adults ?? '') : '',
-      guestsAdultsNoMeal: hasMenu ? (b.guests_adults_no_meal ?? '') : '',
-      guestsKidsMeal:     hasMenu ? (b.guests_kids_meal ?? '') : '',
-      guestsKidsNoMeal:   hasMenu ? (b.guests_kids_no_meal ?? '') : '',
-      guestsSpecials:     hasMenu ? (b.guests_specials ?? '') : '',
-      rautExtra:      hasMenu ? (b.raut_extra ?? '') : '',
-      rautGrams:      hasMenu ? (b.raut_grams ?? '') : '',
       // vedomá nulová záloha = „Bez zálohy" (rovnako ako v aplikácii)
       deposit:        b.deposit_amount == null ? ''
                         : Number(b.deposit_amount) === 0 ? 'Bez zálohy'
@@ -233,8 +214,6 @@ export async function exportAllBookings() {
         .join(' • '),
       settlementDoc:    SETTLEMENT_DOCUMENT_LABEL[b.settlement_document] ?? '',
       settlementMethod: SETTLEMENT_METHOD_LABEL[b.settlement_method] ?? '',
-      menuCreated:    b.menu_created ? 'Áno' : '',
-      notes:          b.notes ?? '',
       createdAt:      b.created_at ? b.created_at.slice(0, 16).replace('T', ' ') : '',
     })
     row.font = { size: 10 }
