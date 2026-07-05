@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/auth'
 import ActivityLogs from '../components/settings/ActivityLogs'
 import MenuSettings from '../components/settings/MenuSettings'
 import MenuTemplates from '../components/settings/MenuTemplates'
+import VersionInfo from '../components/settings/VersionInfo'
 
 const ROLES = [
   { value: 'admin',     label: 'Admin' },
@@ -174,7 +175,7 @@ export default function Settings() {
         {/* Tabs */}
         <div className="border-b border-[#dde8ec] mb-6">
           <div className="flex gap-1">
-            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy']].map(([key, label]) => (
+            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -189,8 +190,10 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Tab content */}
-        {!isAdmin ? (
+        {/* Tab content — verzia je dostupná aj pre ne-adminov */}
+        {tab === 'version' ? (
+          <VersionInfo />
+        ) : !isAdmin ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

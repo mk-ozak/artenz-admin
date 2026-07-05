@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
-// Kontrola novej verzie každých 10 minút
-const CHECK_INTERVAL = 10 * 60 * 1000
+// Kontrola novej verzie každých 5 minút
+const CHECK_INTERVAL = 5 * 60 * 1000
 
 // Lišta „K dispozícii je nová verzia" – zobrazí sa, keď je nasadený
 // nový build. Kontroluje sa periodicky a pri návrate do appky.
+// Pozor: visibilitychange v samostatnom PWA okne takmer nenastáva
+// (okno je stále „viditeľné"), preto kontrolujeme aj focus okna.
 export default function UpdatePrompt() {
   const {
     needRefresh: [needRefresh],
@@ -17,6 +19,7 @@ export default function UpdatePrompt() {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') registration.update()
       })
+      window.addEventListener('focus', () => registration.update())
     },
   })
 
