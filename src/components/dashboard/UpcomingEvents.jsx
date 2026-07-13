@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconCalendar, IconMessage, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
-import { formatDateSk } from '../../utils/format'
+import { formatDateSk, formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { toISO } from '../../utils/diaryWeeks'
 
@@ -21,8 +21,8 @@ const HALL_LABEL = {
 }
 
 // Predvyplnený text SMS (?body= funguje na Androide aj novšom iOS)
-function smsHref(phone, typeLabel, date) {
-  const text = `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${typeLabel}, ${formatDateSk(date)}). `
+function smsHref(phone, typeLabel, date, hallLabel) {
+  const text = `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v ${hallLabel} (${typeLabel}, ${formatDateSkYear(date)}). `
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
@@ -101,7 +101,7 @@ export default function UpcomingEvents() {
                       <IconPhone size={16} />
                     </a>
                     <a
-                      href={smsHref(phone, typeLabel, e.date)}
+                      href={smsHref(phone, typeLabel, e.date, HALL_LABEL[e.hall] ?? e.hall)}
                       onClick={ev => ev.stopPropagation()}
                       title={`SMS na ${e.customer_phone}`}
                       aria-label="Poslať SMS"

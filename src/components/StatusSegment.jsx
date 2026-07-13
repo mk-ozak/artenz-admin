@@ -11,10 +11,10 @@ const STATUSES = [
 const PAYMENT_ACCOUNT = 'MARTENZ, s.r.o., IBAN: SK0909000000005144434708'
 
 // Variabilný symbol: dátum akcie ako RRRRMMDD
-function paymentSms(phone, { typeLabel, dateISO, amount }) {
+function paymentSms(phone, { typeLabel, dateISO, amount, hallLabel }) {
   const vs   = (dateISO ?? '').replaceAll('-', '')
   const text =
-    `Dobrý deň, k Vašej rezervácii v Artenz (${typeLabel}, ${formatDateSkYear(dateISO)}) ` +
+    `Dobrý deň, k Vašej rezervácii v ${hallLabel || 'Artenz'} (${typeLabel}, ${formatDateSkYear(dateISO)}) ` +
     `prosíme o úhradu zálohy ${amount} €. ${PAYMENT_ACCOUNT}, VS: ${vs}. Ďakujeme.`
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
@@ -38,6 +38,7 @@ export default function StatusSegment({
   typeLabel = '',
   dateISO = '',
   amount = 0,
+  hallLabel = '',
 }) {
   const [unlockOpen, setUnlockOpen] = useState(false)
   const [unlockText, setUnlockText] = useState('')
@@ -196,7 +197,7 @@ export default function StatusSegment({
                 </button>
                 {smsPhone && (
                   <a
-                    href={paymentSms(smsPhone, { typeLabel, dateISO, amount })}
+                    href={paymentSms(smsPhone, { typeLabel, dateISO, amount, hallLabel })}
                     onClick={() => setSmsOpen(false)}
                     className="flex-1 px-4 py-2.5 text-sm font-bold rounded-lg text-center
                       transition-opacity hover:opacity-90"

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { IconArrowLeft, IconCalendar, IconCopy, IconKey, IconMessage, IconPencil, IconPhone } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
-import { formatDateSk } from '../utils/format'
+import { formatDateSk, formatDateSkYear } from '../utils/format'
 import { EVENT_LABEL } from '../lib/eventTypes'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
@@ -271,7 +271,7 @@ export default function BookingDetail() {
                     </a>
                     <a
                       href={`sms:${form.phone.replace(/\s+/g, '')}?body=${encodeURIComponent(
-                        `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v Artenz (${typeLabel}, ${formatDateSk(booking.date)}). `
+                        `Dobrý deň, kontaktujeme Vás ohľadom Vašej rezervácie v ${HALL_LABEL[booking.hall] ?? booking.hall} (${typeLabel}, ${formatDateSkYear(booking.date)}). `
                       )}`}
                       title={`SMS na ${form.phone}`}
                       aria-label="Poslať SMS"

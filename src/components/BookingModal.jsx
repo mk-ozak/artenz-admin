@@ -520,6 +520,7 @@ export default function BookingModal() {
               typeLabel={typeLabel}
               dateISO={form.date}
               amount={Number(form.deposit) > 0 ? Number(form.deposit) : (Number(form.estimatedPrice) || 0)}
+              hallLabel={venueName}
             />
           </div>
 
