@@ -6,6 +6,7 @@ import BottomNav from '../components/layout/BottomNav'
 import NavGrid from '../components/dashboard/NavGrid'
 import UpcomingEvents from '../components/dashboard/UpcomingEvents'
 import ExpectedDeposits from '../components/dashboard/ExpectedDeposits'
+import ReceivedDeposits from '../components/dashboard/ReceivedDeposits'
 import DeletedBookings from '../components/dashboard/DeletedBookings'
 import RecentlyAdded from '../components/dashboard/RecentlyAdded'
 
@@ -43,8 +44,9 @@ export default function Dashboard() {
             <UpcomingEvents />
           </div>
           <div className="min-w-0 flex flex-col gap-2">
-            <ExpectedDeposits />
+            <ReceivedDeposits />
             <RecentlyAdded />
+            <ExpectedDeposits />
             <DeletedBookings />
           </div>
         </div>

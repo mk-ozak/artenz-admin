@@ -32,12 +32,12 @@ export default function UpdatePrompt() {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3
                     rounded-lg shadow-2xl px-4 py-3 text-sm text-white"
-         style={{ background: '#354d5d' }}>
+         style={{ background: '#c0392b' }}>
       <span className="font-medium">K dispozícii je nová verzia aplikácie</span>
       <button
         onClick={() => updateServiceWorker(true)}
         className="font-bold px-3 py-1 rounded-md transition-opacity hover:opacity-90"
-        style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+        style={{ background: '#ffffff', color: '#c0392b' }}
       >
         Obnoviť
       </button>
