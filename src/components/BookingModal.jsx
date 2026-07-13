@@ -553,14 +553,7 @@ export default function BookingModal() {
             </div>
             <div className="flex-1 min-w-0">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Spolu</label>
-              <input
-                type="text"
-                value={estimatedTotal}
-                readOnly
-                tabIndex={-1}
-                className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm
-                  text-gray-700 focus:outline-none"
-              />
+              <div className="py-2 text-sm font-bold text-gray-700">{estimatedTotal}</div>
             </div>
           </div>
 
