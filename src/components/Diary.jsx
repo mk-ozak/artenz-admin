@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconHome, IconTable } from '@tabler/icons-react'
+import { IconHome, IconSearch, IconTable, IconX } from '@tabler/icons-react'
 import { exportDiaryYear, exportAllBookings } from '../utils/exportDiary'
 import { exportDiaryYearPdf } from '../utils/exportDiaryPdf'
 import { supabase } from '../lib/supabase'
@@ -9,6 +9,8 @@ import BookingModal from './BookingModal'
 import { useBookingsStore } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
+import { formatDateSkYear } from '../utils/format'
+import { EVENT_LABEL } from '../lib/eventTypes'
 
 const MIN_YEAR = 2024
 
@@ -19,7 +21,19 @@ const HALL_COLOR = {
   CATERING:    '#7aaaca',
 }
 
+const HALL_LABEL = {
+  ARTENZ_PLUS: 'ARTENZ PLUS',
+  ARTENZ:      'ARTENZ',
+  LUNA:        'LUNA',
+  CATERING:    'CATERING',
+}
+
 function pad(n) { return String(n).padStart(2, '0') }
+
+// Porovnávanie bez ohľadu na veľkosť písmen a diakritiku („kovac" nájde „Kováč")
+function norm(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
 
 export default function Diary() {
   const navigate = useNavigate()
@@ -65,6 +79,41 @@ export default function Diary() {
   const [loading,   setLoading]   = useState(true)
   const [exporting,     setExporting]     = useState(null)  // 'year' | 'pdf' | 'all' | null
   const [confirmExport, setConfirmExport] = useState(false)
+
+  // Fulltextové vyhľadávanie — načíta všetky rezervácie (všetky roky) raz pri otvorení
+  const [searchOpen,    setSearchOpen]    = useState(false)
+  const [searchQuery,   setSearchQuery]   = useState('')
+  const [searchPool,    setSearchPool]    = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+
+  function openSearch() {
+    setSearchOpen(true)
+    setSearchQuery('')
+    setSearchLoading(true)
+    supabase
+      .from('bookings')
+      .select('*')
+      .is('deleted_at', null)
+      .order('date', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) console.error('[Diary] search fetch error:', error.message)
+        setSearchPool(data ?? [])
+        setSearchLoading(false)
+      })
+  }
+
+  // Každé slovo dopytu sa musí nájsť v niektorom z polí rezervácie
+  const searchWords   = norm(searchQuery).split(/\s+/).filter(Boolean)
+  const searchReady   = norm(searchQuery).trim().length >= 2
+  const searchResults = !searchReady ? [] : searchPool.filter(b => {
+    const hay = norm([
+      b.customer_name, b.customer_phone, b.notes, b.decoration,
+      EVENT_LABEL[b.event_type] ?? b.event_type,
+      HALL_LABEL[b.hall] ?? b.hall,
+      b.date, formatDateSkYear(b.date),
+    ].join(' '))
+    return searchWords.every(w => hay.includes(w))
+  })
 
   async function handleExport(kind) {
     setExporting(kind)
@@ -221,6 +270,18 @@ export default function Diary() {
             </button>
           </div>
           <div className="flex items-center gap-2">
+          {/* Vyhľadávanie — len desktop a tablet na šírku (xl) */}
+          <button
+            type="button"
+            onClick={openSearch}
+            aria-label="Hľadať rezerváciu"
+            className="hidden xl:flex items-center gap-2 w-56 h-9 rounded-lg px-3 text-[13px]
+                       transition-opacity hover:opacity-90"
+            style={{ background: 'rgba(255,255,255,.12)', color: '#8aaabb' }}
+          >
+            <IconSearch size={15} stroke={2} />
+            Hľadať rezerváciu…
+          </button>
           <button
             onClick={() => setConfirmExport(true)}
             disabled={exporting}
@@ -311,6 +372,88 @@ export default function Diary() {
           </div>
         </div>
       </div>
+
+      {/* Fulltextové vyhľadávanie */}
+      {searchOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm pt-[8vh]"
+          onClick={() => setSearchOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[72vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 flex items-center gap-2.5 shrink-0" style={{ background: '#354d5d' }}>
+              <IconSearch size={18} stroke={2} style={{ color: '#8aaabb' }} />
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setSearchOpen(false) }}
+                placeholder="Meno, telefón, poznámka, typ akcie, sála…"
+                className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none
+                           placeholder:text-[#8aaabb]"
+                style={{ color: '#ddeef6' }}
+              />
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                aria-label="Zavrieť"
+                className="w-8 h-8 rounded flex items-center justify-center shrink-0
+                           transition-opacity opacity-60 hover:opacity-100"
+                style={{ color: '#ddeef6' }}
+              >
+                <IconX size={18} stroke={2} />
+              </button>
+            </div>
+            <div className="overflow-y-auto divide-y divide-gray-100">
+              {searchLoading ? (
+                <p className="px-4 py-6 text-sm text-gray-500 text-center">Načítavam…</p>
+              ) : !searchReady ? (
+                <p className="px-4 py-6 text-sm text-gray-400 text-center">Zadaj aspoň 2 znaky</p>
+              ) : searchResults.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-500 text-center">Nič sa nenašlo</p>
+              ) : (
+                <>
+                  {searchResults.slice(0, 50).map(b => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => { setSearchOpen(false); openEditModal(toFrontend(b)) }}
+                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors
+                                 flex items-center gap-3"
+                    >
+                      <span className="w-1.5 self-stretch rounded-full shrink-0"
+                            style={{ background: HALL_COLOR[b.hall] ?? '#4cbfb3' }} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-semibold text-gray-800 truncate">
+                          {b.customer_name}
+                          <span className="ml-2 font-normal text-gray-500">
+                            {EVENT_LABEL[b.event_type] ?? b.event_type ?? ''}
+                          </span>
+                        </span>
+                        <span className="block text-xs text-gray-500 mt-0.5">
+                          {formatDateSkYear(b.date)}
+                          {b.start_time && ` · ${b.start_time.slice(0, 5)}`}
+                          <span className="font-bold ml-2" style={{ color: HALL_COLOR[b.hall] ?? '#4cbfb3' }}>
+                            {HALL_LABEL[b.hall] ?? b.hall}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                  {searchResults.length > 50 && (
+                    <p className="px-4 py-3 text-xs text-gray-400 text-center">
+                      Zobrazených prvých 50 z {searchResults.length} výsledkov — spresni hľadanie
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Výber exportu */}
       {confirmExport && (
