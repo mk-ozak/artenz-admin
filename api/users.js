@@ -119,6 +119,26 @@ export default async function handler(req, res) {
       return res.json({ userId: data.user.id, email, password })
     }
 
+    // ── Reset hesla (admin vygeneruje nové) ──────────────────
+    if (action === 'reset_password') {
+      const { userId } = req.body
+      if (!userId) return res.status(400).json({ error: 'Chýba userId' })
+
+      const { data: target } = await sb
+        .from('profiles').select('email, role, full_name').eq('id', userId).single()
+      if (!target) return res.status(404).json({ error: 'Používateľ sa nenašiel' })
+
+      const password = generatePassword()
+      const { error } = await sb.auth.admin.updateUserById(userId, { password })
+      if (error) throw error
+
+      await logActivity('user_password_reset', userId, {
+        email: target.email,
+        full_name: target.full_name,
+      })
+      return res.json({ password })
+    }
+
     // ── Zmazanie používateľa / odobratie prístupu ────────────
     if (action === 'revoke') {
       const { userId } = req.body

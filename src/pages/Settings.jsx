@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconHome, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconCopy, IconHome, IconKey, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { useAuthStore } from '../store/auth'
 import ActivityLogs from '../components/settings/ActivityLogs'
+import ChangePassword from '../components/settings/ChangePassword'
 import MenuSettings from '../components/settings/MenuSettings'
 import MenuTemplates from '../components/settings/MenuTemplates'
 import VersionInfo from '../components/settings/VersionInfo'
@@ -45,6 +46,11 @@ export default function Settings() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const confirmTimer = useRef(null)
+
+  const [confirmResetId, setConfirmResetId] = useState(null)
+  const resetTimer = useRef(null)
+  const [newPassword, setNewPassword] = useState({})   // { [id]: string }
+  const [copiedId, setCopiedId] = useState(null)
 
   const [tab, setTab] = useState('users')   // 'users' | 'menu' | 'templates' | 'logs'
 
@@ -88,6 +94,31 @@ export default function Settings() {
     setSaving(s => ({ ...s, [id]: false }))
     if (error) { setRowError(s => ({ ...s, [id]: error })); return }
     setProfiles(ps => ps.filter(p => p.id !== id))
+  }
+
+  // Prvý klik = potvrdenie (~4 s), druhý = vygenerovanie nového hesla
+  async function handleResetPassword(id) {
+    if (confirmResetId !== id) {
+      setConfirmResetId(id)
+      clearTimeout(resetTimer.current)
+      resetTimer.current = setTimeout(() => setConfirmResetId(null), 4000)
+      return
+    }
+    clearTimeout(resetTimer.current)
+    setConfirmResetId(null)
+    setSaving(s => ({ ...s, [id]: true }))
+    setRowError(s => ({ ...s, [id]: null }))
+    const { data, error } = await usersApi({ action: 'reset_password', userId: id })
+    setSaving(s => ({ ...s, [id]: false }))
+    if (error) { setRowError(s => ({ ...s, [id]: error })); return }
+    setNewPassword(s => ({ ...s, [id]: data.password }))
+  }
+
+  function copyPassword(id) {
+    navigator.clipboard.writeText(newPassword[id]).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
   }
 
   useEffect(() => {
@@ -193,6 +224,8 @@ export default function Settings() {
         {/* Tab content — verzia je dostupná aj pre ne-adminov */}
         {tab === 'version' ? (
           <VersionInfo />
+        ) : !isAdmin && tab === 'users' && currentUserRole === 'read_only' ? (
+          <ChangePassword />
         ) : !isAdmin ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -334,7 +367,8 @@ export default function Settings() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {profiles.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                  <Fragment key={p.id}>
+                  <tr className="hover:bg-gray-50 transition-colors">
                     {/* Avatar + name + email */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -376,32 +410,91 @@ export default function Settings() {
                       </div>
                     </td>
 
-                    {/* Delete + saving indicator */}
+                    {/* Reset hesla + delete + saving indicator */}
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {saving[p.id] ? (
                         <div className="w-4 h-4 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin inline-block" />
-                      ) : p.id !== currentUser?.id && (
-                        <button
-                          onClick={() => handleDeleteUser(p.id)}
-                          title="Zmazať používateľa"
-                          aria-label="Zmazať používateľa"
-                          className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
-                                      inline-flex items-center gap-1
-                                      ${confirmDeleteId === p.id
-                                        ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
-                                        : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                        >
-                          <IconTrash size={14} />
-                          {confirmDeleteId === p.id && 'Naozaj?'}
-                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleResetPassword(p.id)}
+                            title="Resetovať heslo"
+                            aria-label="Resetovať heslo"
+                            className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
+                                        inline-flex items-center gap-1
+                                        ${confirmResetId === p.id
+                                          ? 'bg-[#4cbfb3] border-[#4cbfb3] text-[#0a2d2a] hover:opacity-90'
+                                          : 'border-gray-200 text-gray-400 hover:text-[#2a8d83] hover:border-[#9fdcd5] hover:bg-[#eaf7f5]'}`}
+                          >
+                            <IconKey size={14} />
+                            {confirmResetId === p.id && 'Nové heslo?'}
+                          </button>
+                          {p.id !== currentUser?.id && (
+                            <button
+                              onClick={() => handleDeleteUser(p.id)}
+                              title="Zmazať používateľa"
+                              aria-label="Zmazať používateľa"
+                              className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
+                                          inline-flex items-center gap-1
+                                          ${confirmDeleteId === p.id
+                                            ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
+                                            : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                            >
+                              <IconTrash size={14} />
+                              {confirmDeleteId === p.id && 'Naozaj?'}
+                            </button>
+                          )}
+                        </span>
                       )}
                     </td>
                   </tr>
+
+                  {/* Nové heslo — zobrazí sa len hneď po resete */}
+                  {newPassword[p.id] && (
+                    <tr className="bg-amber-50">
+                      <td colSpan={3} className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-amber-700 font-medium">Nové heslo:</span>
+                          <span className="bg-white border border-amber-200 rounded-lg px-3 py-1.5
+                                           text-sm font-mono font-bold tracking-widest text-amber-800">
+                            {newPassword[p.id]}
+                          </span>
+                          <button
+                            onClick={() => copyPassword(p.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300
+                                       text-gray-700 bg-white hover:bg-gray-50 transition-colors
+                                       inline-flex items-center gap-1"
+                          >
+                            <IconCopy size={14} />
+                            {copiedId === p.id ? 'Skopírované ✓' : 'Kopírovať'}
+                          </button>
+                          <span className="text-xs text-amber-600">
+                            Pošli ho používateľovi — po opustení stránky sa už nezobrazí.
+                          </span>
+                          <button
+                            onClick={() => setNewPassword(s => { const n = { ...s }; delete n[p.id]; return n })}
+                            title="Skryť"
+                            aria-label="Skryť"
+                            className="ml-auto p-1.5 rounded-md text-amber-500 hover:text-amber-700
+                                       hover:bg-amber-100 transition-colors"
+                          >
+                            <IconX size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
           )}
+
+          {/* Zmena vlastného hesla */}
+          <div className="mt-4">
+            <ChangePassword />
+          </div>
           </>
         )}
       </main>

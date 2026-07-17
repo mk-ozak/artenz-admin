@@ -12,6 +12,7 @@ const ACTION_LABEL = {
   user_create:            'Vytvoril používateľa',
   customer_access_create: 'Vytvoril zákaznícky prístup',
   user_delete:            'Zmazal používateľa',
+  user_password_reset:    'Resetoval heslo',
 }
 
 const ACTION_BADGE = {
@@ -23,6 +24,7 @@ const ACTION_BADGE = {
   user_create:            'bg-emerald-100 text-emerald-700',
   customer_access_create: 'bg-teal-100 text-teal-700',
   user_delete:            'bg-red-100 text-red-700',
+  user_password_reset:    'bg-amber-100 text-amber-700',
 }
 
 const HALL_LABEL = {

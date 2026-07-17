@@ -192,6 +192,16 @@ export default function BookingDetail() {
     setBooking(b => ({ ...b, user_id: null }))
   }
 
+  // Nové heslo pre zákazníka, ktorý to svoje stratil
+  async function handleResetPassword() {
+    setAccessBusy(true)
+    setAccessError('')
+    const { data, error } = await usersApi({ action: 'reset_password', userId: booking.user_id })
+    setAccessBusy(false)
+    if (error) { setAccessError(error); return }
+    setAccess(a => ({ ...a, password: data.password }))
+  }
+
   function copyText(text, key) {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key)
@@ -401,10 +411,22 @@ export default function BookingDetail() {
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400">
-                        Heslo bolo zobrazené pri vytvorení prístupu. Ak sa stratilo,
-                        odoberte prístup a vytvorte ho nanovo.
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-xs text-gray-400">
+                          Heslo bolo zobrazené pri vytvorení prístupu. Ak sa stratilo,
+                          vygeneruj nové.
+                        </p>
+                        <button
+                          onClick={handleResetPassword}
+                          disabled={accessBusy}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold
+                                     border border-gray-300 text-gray-700 bg-white hover:bg-gray-50
+                                     transition-colors disabled:opacity-50"
+                        >
+                          <IconKey size={16} />
+                          {accessBusy ? 'Generujem…' : 'Vygenerovať nové heslo'}
+                        </button>
+                      </div>
                     )}
                     {access?.password && (
                       <p className="text-xs text-amber-600">

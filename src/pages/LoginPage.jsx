@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword]   = useState('')
   const [error, setError]         = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
 
   if (isLoading) {
     return (
@@ -131,6 +132,30 @@ export default function LoginPage() {
           </button>
 
         </form>
+
+        {/* Zabudnuté heslo — heslá obnovuje administrátor */}
+        <div className="text-center" style={{ marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={() => setShowForgot(v => !v)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 13, color: 'rgba(221,238,246,.48)',
+              textDecoration: 'underline', textUnderlineOffset: 3,
+            }}
+          >
+            Zabudnuté heslo?
+          </button>
+          {showForgot && (
+            <p style={{
+              fontSize: 13, color: 'rgba(221,238,246,.7)', marginTop: 10,
+              lineHeight: 1.5, background: 'rgba(255,255,255,.06)',
+              borderRadius: 12, padding: '12px 14px',
+            }}>
+              Kontaktuj administrátora — nastaví ti nové heslo a pošle ti ho.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
