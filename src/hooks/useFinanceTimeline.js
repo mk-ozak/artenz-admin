@@ -16,20 +16,29 @@ const HALL_ORDER = Object.fromEntries(Object.keys(HALL_COLOR).map((k, i) => [k, 
 const MONTHS_NOM = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
                     'Júl', 'August', 'September', 'Október', 'November', 'December']
 
+// Suma zaplatených záloh rezervácie — len položky, ktoré majú dátum aj sumu
+function paidDeposit(deposit_payments) {
+  return (Array.isArray(deposit_payments) ? deposit_payments : [])
+    .filter(p => p && p.date && Number(p.amount) > 0)
+    .reduce((s, p) => s + Number(p.amount), 0)
+}
+
 // Očakávaná tržba akcie = očakávaní hostia × cena na osobu.
+// Čistá tržba = tržba − zaplatené zálohy.
 // Vracia budúce akcie (od dnešného dňa) zoskupené po dňoch a mesiacoch,
 // s dennými a mesačnými súčtami a s maximom dňa (na škálovanie grafu).
 export function useFinanceTimeline() {
-  const [months, setMonths]         = useState([])
-  const [maxDayTotal, setMaxDay]    = useState(0)
-  const [grandTotal, setGrandTotal] = useState(0)
-  const [missingCount, setMissing]  = useState(0)
-  const [loading, setLoading]       = useState(true)
+  const [months, setMonths]           = useState([])
+  const [maxDayTotal, setMaxDay]      = useState(0)
+  const [grandTotal, setGrandTotal]   = useState(0)
+  const [grandDeposit, setGrandDep]   = useState(0)
+  const [missingCount, setMissing]    = useState(0)
+  const [loading, setLoading]         = useState(true)
 
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('id, date, hall, event_type, expected_guests, estimated_price, start_time')
+      .select('id, date, hall, event_type, expected_guests, estimated_price, start_time, deposit_payments')
       .is('deleted_at', null)
       .gte('date', toISO(new Date()))
       .order('date')
@@ -42,6 +51,7 @@ export function useFinanceTimeline() {
           const guests  = Number(b.expected_guests) || 0
           const price   = Number(b.estimated_price) || 0
           const revenue = guests * price
+          const deposit = paidDeposit(b.deposit_payments)
           return {
             id: b.id,
             date: b.date,
@@ -50,7 +60,9 @@ export function useFinanceTimeline() {
             guests,
             price,
             revenue,
-            missing:       revenue === 0,   // niečo nevyplnené → tržba je nula
+            deposit,
+            net: revenue - deposit,          // čistá tržba (po odrátaní zálohy)
+            missing:       revenue === 0,    // niečo nevyplnené → tržba je nula
             missingGuests: guests === 0,
             missingPrice:  price === 0,
           }
@@ -62,17 +74,23 @@ export function useFinanceTimeline() {
           if (!byDay.has(ev.date)) byDay.set(ev.date, [])
           byDay.get(ev.date).push(ev)
         }
-        const days = [...byDay.entries()].map(([date, evs]) => ({
-          date,
-          // fixné poradie sál (plus → artenz → luna → catering),
-          // nulové (červené) vždy na koniec riadka
-          events: [...evs].sort((a, b) =>
-            a.missing !== b.missing
-              ? (a.missing ? 1 : -1)
-              : (HALL_ORDER[a.hall] ?? 99) - (HALL_ORDER[b.hall] ?? 99)
-          ),
-          total: evs.reduce((s, e) => s + e.revenue, 0),
-        }))
+        const days = [...byDay.entries()].map(([date, evs]) => {
+          const total   = evs.reduce((s, e) => s + e.revenue, 0)
+          const deposit = evs.reduce((s, e) => s + e.deposit, 0)
+          return {
+            date,
+            // fixné poradie sál (plus → artenz → luna → catering),
+            // nulové (červené) vždy na koniec riadka
+            events: [...evs].sort((a, b) =>
+              a.missing !== b.missing
+                ? (a.missing ? 1 : -1)
+                : (HALL_ORDER[a.hall] ?? 99) - (HALL_ORDER[b.hall] ?? 99)
+            ),
+            total,
+            deposit,
+            net: total - deposit,
+          }
+        })
 
         // Zoskupenie po mesiacoch — len mesiace, ktoré majú akcie
         const byMonth = new Map()
@@ -83,21 +101,26 @@ export function useFinanceTimeline() {
         }
         const monthList = [...byMonth.entries()].map(([key, ds]) => {
           const m = Number(key.slice(5, 7)) - 1
+          const total   = ds.reduce((s, d) => s + d.total, 0)
+          const deposit = ds.reduce((s, d) => s + d.deposit, 0)
           return {
             key,
             label: `${MONTHS_NOM[m]} ${key.slice(0, 4)}`,
             days: ds,
-            total: ds.reduce((s, d) => s + d.total, 0),
+            total,
+            deposit,
+            net: total - deposit,
           }
         })
 
         setMonths(monthList)
         setMaxDay(days.reduce((mx, d) => Math.max(mx, d.total), 0))
         setGrandTotal(days.reduce((s, d) => s + d.total, 0))
+        setGrandDep(days.reduce((s, d) => s + d.deposit, 0))
         setMissing(events.filter(e => e.missing).length)
         setLoading(false)
       })
   }, [])
 
-  return { months, maxDayTotal, grandTotal, missingCount, loading }
+  return { months, maxDayTotal, grandTotal, grandDeposit, missingCount, loading }
 }

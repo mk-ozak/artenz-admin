@@ -35,7 +35,9 @@ function FilledBlock({ ev }) {
     <div
       className="flex-1 min-w-[92px] rounded-lg px-2.5 py-1.5 flex flex-col justify-center"
       style={{ background: ev.color, flexGrow: ev.revenue }}
-      title={`${ev.guests} hostí × ${nf2.format(ev.price)} €`}
+      title={ev.deposit > 0
+        ? `${ev.guests} hostí × ${nf2.format(ev.price)} € = ${eur(ev.revenue)} · záloha ${eur(ev.deposit)} · po zálohe ${eur(ev.net)}`
+        : `${ev.guests} hostí × ${nf2.format(ev.price)} € = ${eur(ev.revenue)}`}
     >
       <span className="text-[11px] leading-none text-white/85"
             style={{ textShadow: '0 1px 1px rgba(0,0,0,.22)' }}>
@@ -45,6 +47,12 @@ function FilledBlock({ ev }) {
             style={{ textShadow: '0 1px 1px rgba(0,0,0,.22)' }}>
         {eur(ev.revenue)}
       </span>
+      {ev.deposit > 0 && (
+        <span className="text-[10px] leading-tight text-white/90 mt-0.5"
+              style={{ textShadow: '0 1px 1px rgba(0,0,0,.22)' }}>
+          −{eur(ev.deposit)} → {eur(ev.net)}
+        </span>
+      )}
     </div>
   )
 }
@@ -58,12 +66,15 @@ function MissingBlock({ ev }) {
     <div
       className="min-w-[86px] rounded-lg px-2.5 py-1.5 flex items-center gap-1.5
                  border border-[#e5484d] bg-[#fdecec]"
-      title={why}
+      title={ev.deposit > 0 ? `${why} · zaplatená záloha ${eur(ev.deposit)}` : why}
     >
       <IconAlertTriangle size={14} className="text-[#e5484d] shrink-0" />
       <div className="min-w-0 leading-none">
         <span className="block text-[11px] text-[#c53a3f]">{pxp(ev.guests, ev.price)}</span>
         <span className="block text-[12px] font-bold text-[#e5484d] mt-0.5">chýba</span>
+        {ev.deposit > 0 && (
+          <span className="block text-[10px] text-[#c53a3f] mt-0.5">záloha {eur(ev.deposit)}</span>
+        )}
       </div>
     </div>
   )
@@ -80,16 +91,23 @@ function DayRow({ day }) {
         className="absolute left-0 top-1.5 -translate-x-1/2 w-3 h-3 rounded-full border-2 border-white shadow-sm"
         style={{ background: empty ? '#e5484d' : '#3db8ad' }}
       />
-      {/* hlavička riadka: dátum + denný súčet */}
-      <div className="flex items-baseline justify-between gap-2">
+      {/* hlavička riadka: dátum + denný súčet (a čistá tržba pod ním) */}
+      <div className="flex items-start justify-between gap-2">
         <span className="flex items-baseline gap-1.5">
           <span className={`text-[15px] font-bold ${weekend ? 'text-[#c2410c]' : 'text-[#1a2830]'}`}>
             {num}.
           </span>
           <span className="text-[11px] uppercase tracking-wide text-[#8aaabb]">{dow}</span>
         </span>
-        <span className={`text-[15px] font-bold ${empty ? 'text-[#e5484d]' : 'text-[#1a2830]'}`}>
-          {eur(day.total)}
+        <span className="flex flex-col items-end shrink-0 leading-tight">
+          <span className={`text-[15px] font-bold ${empty ? 'text-[#e5484d]' : 'text-[#1a2830]'}`}>
+            {eur(day.total)}
+          </span>
+          {day.deposit > 0 && (
+            <span className="text-[10px] text-[#8aaabb]">
+              po odpočte záloh <span className="font-semibold text-[#5d7d8e]">{eur(day.net)}</span>
+            </span>
+          )}
         </span>
       </div>
       {/* graf dňa: farebné bloky akcií */}
@@ -105,9 +123,14 @@ function DayRow({ day }) {
 function MonthSection({ month }) {
   return (
     <section className="mb-7">
-      <div className="flex items-baseline justify-between mb-3 pb-1.5 border-b border-[#dde8ec]">
+      <div className="flex items-start justify-between mb-3 pb-1.5 border-b border-[#dde8ec]">
         <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#5d7d8e]">{month.label}</h2>
-        <span className="text-sm font-bold text-[#3a5160]">{eur(month.total)}</span>
+        <span className="flex flex-col items-end leading-tight">
+          <span className="text-sm font-bold text-[#3a5160]">{eur(month.total)}</span>
+          {month.deposit > 0 && (
+            <span className="text-[10px] text-[#8aaabb]">po odpočte záloh {eur(month.net)}</span>
+          )}
+        </span>
       </div>
       <ol className="relative border-l-2 border-[#e0e8ec] ml-1.5">
         {month.days.map(d => <DayRow key={d.date} day={d} />)}
@@ -120,7 +143,8 @@ const headerLink = 'px-3 py-1.5 text-sm font-medium rounded-md transition-colors
 
 export default function Finance() {
   const navigate = useNavigate()
-  const { months, grandTotal, missingCount, loading } = useFinanceTimeline()
+  const { months, grandTotal, grandDeposit, missingCount, loading } = useFinanceTimeline()
+  const grandNet = grandTotal - grandDeposit
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -158,21 +182,32 @@ export default function Finance() {
       </header>
 
       <main className="max-w-3xl xl:max-w-5xl mx-auto px-3 sm:px-4 py-5 pb-16">
-        {/* Súhrn: očakávaná tržba + počet nevyplnených */}
-        <div className="rounded-card bg-white border border-[#e0e8ec] px-4 py-3 mb-4
-                        flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Očakávaná tržba · od dnes</p>
-            <p className="text-2xl font-bold text-[#1a2830]">{eur(grandTotal)}</p>
-          </div>
-          {missingCount > 0 && (
-            <div className="text-right shrink-0">
-              <p className="text-[11px] uppercase tracking-wider text-[#e5484d]">Nevyplnené</p>
-              <p className="text-sm font-bold text-[#e5484d]">
-                {missingCount} {akciePlural(missingCount)}
-              </p>
+        {/* Súhrn: očakávaná tržba, vyzbierané zálohy, tržby mínus zálohy */}
+        <div className="rounded-card bg-white border border-[#e0e8ec] px-4 py-3.5 mb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Očakávaná tržba · od dnes</p>
+              <p className="text-2xl font-bold text-[#1a2830]">{eur(grandTotal)}</p>
             </div>
-          )}
+            {missingCount > 0 && (
+              <div className="text-right shrink-0">
+                <p className="text-[11px] uppercase tracking-wider text-[#e5484d]">Nevyplnené</p>
+                <p className="text-sm font-bold text-[#e5484d]">
+                  {missingCount} {akciePlural(missingCount)}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#eef3f6] grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Vyzbierané zálohy</p>
+              <p className="text-base font-bold text-[#2a8d83]">{eur(grandDeposit)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Tržby mínus zálohy</p>
+              <p className="text-base font-bold text-[#1a2830]">{eur(grandNet)}</p>
+            </div>
+          </div>
         </div>
 
         {/* Legenda sál */}
