@@ -10,6 +10,9 @@ export const HALL_COLOR = {
   CATERING:    '#7aaaca',
 }
 
+// Fixné poradie sál v grafe zľava doprava — odvodené z poradia kľúčov HALL_COLOR
+const HALL_ORDER = Object.fromEntries(Object.keys(HALL_COLOR).map((k, i) => [k, i]))
+
 const MONTHS_NOM = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
                     'Júl', 'August', 'September', 'Október', 'November', 'December']
 
@@ -61,8 +64,13 @@ export function useFinanceTimeline() {
         }
         const days = [...byDay.entries()].map(([date, evs]) => ({
           date,
-          // vyplnené najprv, nulové (červené) na koniec riadku
-          events: [...evs].sort((a, b) => (a.missing === b.missing ? 0 : a.missing ? 1 : -1)),
+          // fixné poradie sál (plus → artenz → luna → catering),
+          // nulové (červené) vždy na koniec riadka
+          events: [...evs].sort((a, b) =>
+            a.missing !== b.missing
+              ? (a.missing ? 1 : -1)
+              : (HALL_ORDER[a.hall] ?? 99) - (HALL_ORDER[b.hall] ?? 99)
+          ),
           total: evs.reduce((s, e) => s + e.revenue, 0),
         }))
 
