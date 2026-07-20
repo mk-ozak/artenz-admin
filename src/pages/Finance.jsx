@@ -2,8 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconAlertTriangle } from '@tabler/icons-react'
 import { useFinanceTimeline, HALL_COLOR } from '../hooks/useFinanceTimeline'
-import { useBookingsStore, toFrontend } from '../store/bookings'
-import { supabase } from '../lib/supabase'
+import { useBookingsStore } from '../store/bookings'
 import { pressToAdd } from '../utils/longPress'
 import BookingModal from '../components/BookingModal'
 
@@ -184,15 +183,9 @@ export default function Finance() {
   const { months, grandTotal, grandDeposit, missingCount, loading, reload } = useFinanceTimeline(view)
   const grandNet = grandTotal - grandDeposit
 
-  const openEditModal = useBookingsStore(s => s.openEditModal)
-  const modalState    = useBookingsStore(s => s.modalState)
-
   // Dlhé podržanie (dotyk) / klik (desktop) na akcii → modál „Upraviť rezerváciu"
-  async function openEdit(id) {
-    const { data, error } = await supabase.from('bookings').select('*').eq('id', id).single()
-    if (error || !data) { console.error('[Finance] booking fetch error:', error?.message); return }
-    openEditModal(toFrontend(data))
-  }
+  const openEditById = useBookingsStore(s => s.openEditById)
+  const modalState   = useBookingsStore(s => s.modalState)
 
   // Po zatvorení modálu (uloženie / zmazanie) prepočítaj graf — rovnako ako Diár
   const prevModal = useRef(modalState)
@@ -341,7 +334,7 @@ export default function Finance() {
                     showDeposits={showDeposits}
                   />
                 )}
-                <MonthSection month={m} onEdit={openEdit} showDeposits={showDeposits} />
+                <MonthSection month={m} onEdit={openEditById} showDeposits={showDeposits} />
               </Fragment>
             )
           })
