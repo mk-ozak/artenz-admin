@@ -133,6 +133,10 @@ export default function BookingModal() {
   // Read-only: polia zamknuté (minulá/vyúčtovaná rezervácia). Tlačidlo zaplatených
   // záloh (ikona €) ostáva funkčné aj tak — otvorí zoznam len na prezeranie.
   const ro            = !canEdit
+  // Očakávaných hostí a Cena na osobu sa smú upravovať aj po realizovaní akcie
+  // (dopočítanie finálnej tržby) — preto majú vlastný, miernejší zámok.
+  const canEditFinancials = isAdmin
+  const roFin             = !canEditFinancials
   const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
   const nameMatches = (text) =>
@@ -548,7 +552,7 @@ export default function BookingModal() {
               <input
                 type="number"
                 value={form.expectedGuests}
-                disabled={ro}
+                disabled={roFin}
                 onChange={e => set('expectedGuests', e.target.value)}
                 placeholder=""
                 min="0"
@@ -563,7 +567,7 @@ export default function BookingModal() {
               <input
                 type="number"
                 value={form.estimatedPrice}
-                disabled={ro}
+                disabled={roFin}
                 onChange={e => set('estimatedPrice', e.target.value)}
                 placeholder=""
                 min="0"
@@ -598,7 +602,7 @@ export default function BookingModal() {
           {isPastBooking && (
             <>
               <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
-                Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
+                Rezervácia sa už uskutočnila — meniť sa dá už len Očakávaných hostí a Cena na osobu.
               </p>
               {/* Panel vyúčtovania — vždy editovateľný (mimo zamknutých polí) */}
               {isAdmin && <SettlementPanel bookingId={modalState.booking.id} />}
@@ -660,7 +664,7 @@ export default function BookingModal() {
               >
                 Zrušiť
               </button>
-              {canEdit && (
+              {(canEdit || canEditFinancials) && (
               <button
                 type="submit"
                 disabled={saving}
