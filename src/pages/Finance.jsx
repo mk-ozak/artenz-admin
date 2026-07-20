@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconAlertTriangle } from '@tabler/icons-react'
 import { useFinanceTimeline, HALL_COLOR } from '../hooks/useFinanceTimeline'
@@ -139,12 +140,43 @@ function MonthSection({ month }) {
   )
 }
 
+// Sumár za obdobie (zvyšok tohto roka / celý budúci rok).
+// prominent = výraznejší (silnejšie pozadie, väčšie tmavé čísla) — pre „do konca roka".
+function YearSummary({ label, totals, className = '', prominent = false }) {
+  const box     = prominent ? 'bg-[#eaf1f4] border-[#d5e2e9] px-4 py-3' : 'bg-[#f4f7f9] border-[#e6edf1] px-4 py-2.5'
+  const size    = prominent ? 'text-[13px]' : 'text-[12px]'
+  const valSize = prominent ? 'text-[15px]' : 'text-[12px]'
+  const valDark = prominent ? 'text-[#1a2830]' : ''
+  return (
+    <div className={`rounded-xl border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 ${box} ${className}`}>
+      <span className={`font-bold uppercase tracking-wider text-[#5d7d8e] ${size}`}>{label}</span>
+      <span className={`flex flex-wrap gap-x-4 gap-y-0.5 ${size}`}>
+        <span className="text-[#3a5160]">tržba <span className={`font-bold ${valSize} ${valDark}`}>{eur(totals.total)}</span></span>
+        <span className="text-[#2a8d83]">zálohy <span className={`font-bold ${valSize}`}>{eur(totals.deposit)}</span></span>
+        <span className="text-[#3a5160]">po odpočte <span className={`font-bold ${valSize} ${valDark}`}>{eur(totals.net)}</span></span>
+      </span>
+    </div>
+  )
+}
+
 const headerLink = 'px-3 py-1.5 text-sm font-medium rounded-md transition-colors hover:bg-white/10'
 
 export default function Finance() {
   const navigate = useNavigate()
   const { months, grandTotal, grandDeposit, missingCount, loading } = useFinanceTimeline()
   const grandNet = grandTotal - grandDeposit
+
+  // Súčty po rokoch (z mesiacov) — na sumáre „do konca roka" a za budúce roky
+  const currentYear = new Date().getFullYear()
+  const yearTotals = {}
+  for (const m of months) {
+    const y = m.key.slice(0, 4)
+    if (!yearTotals[y]) yearTotals[y] = { total: 0, deposit: 0, net: 0 }
+    yearTotals[y].total   += m.total
+    yearTotals[y].deposit += m.deposit
+    yearTotals[y].net     += m.net
+  }
+  const hasFutureYears = Object.keys(yearTotals).some(y => Number(y) > currentYear)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -210,6 +242,16 @@ export default function Finance() {
           </div>
         </div>
 
+        {/* Menej výrazný sumár pre zvyšok tohto roka — hneď pod hlavným */}
+        {hasFutureYears && yearTotals[currentYear] && (
+          <YearSummary
+            label={`Od dnes do konca ${currentYear}`}
+            totals={yearTotals[currentYear]}
+            className="mb-4"
+            prominent
+          />
+        )}
+
         {/* Legenda sál */}
         <div className="flex flex-wrap gap-x-4 gap-y-1 mb-5 px-1">
           {HALLS.map(([k, label]) => (
@@ -225,7 +267,19 @@ export default function Finance() {
         ) : months.length === 0 ? (
           <p className="px-1 py-10 text-sm text-[#8aaabb] italic">Žiadne budúce akcie.</p>
         ) : (
-          months.map(m => <MonthSection key={m.key} month={m} />)
+          months.map((m, i) => {
+            const year = m.key.slice(0, 4)
+            const prevYear = i > 0 ? months[i - 1].key.slice(0, 4) : null
+            const newFutureYear = Number(year) > currentYear && year !== prevYear
+            return (
+              <Fragment key={m.key}>
+                {newFutureYear && (
+                  <YearSummary label={`Rok ${year}`} totals={yearTotals[year]} className="mt-2 mb-4" prominent />
+                )}
+                <MonthSection month={m} />
+              </Fragment>
+            )
+          })
         )}
       </main>
     </div>
