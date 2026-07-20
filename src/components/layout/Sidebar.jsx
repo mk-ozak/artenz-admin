@@ -5,7 +5,7 @@ const ITEMS = [
   { path: '/',          label: 'Dashboard',  Icon: IconHome },
   { path: '/diary',     label: 'Diár',       Icon: IconCalendar },
   { path: '/customers', label: 'Zákazníci',  Icon: IconUsers,    disabled: true },
-  { path: '/finance',   label: 'Financie',   Icon: IconChartBar, disabled: true },
+  { path: '/finance',   label: 'Financie',   Icon: IconChartBar },
   { path: '/settings',  label: 'Nastavenia', Icon: IconSettings },
 ]
 

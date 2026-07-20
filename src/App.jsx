@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import BookingDetail from './pages/BookingDetail'
 import MyBooking from './pages/MyBooking'
 import Diary from './components/Diary'
+import Finance from './pages/Finance'
 import LoginPage from './pages/LoginPage'
 import Settings from './pages/Settings'
 import MenuLunaHome from './pages/menuLuna/MenuLunaHome'
@@ -33,6 +34,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/diary" element={<Diary />} />
+          <Route path="/finance" element={<Finance />} />
           <Route path="/booking/:id" element={<BookingDetail />} />
           <Route path="/moja" element={<MyBooking />} />
           <Route path="/settings" element={<Settings />} />

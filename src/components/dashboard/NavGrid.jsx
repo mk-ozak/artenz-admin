@@ -25,9 +25,9 @@ export default function NavGrid({ stats }) {
       <NavButton
         icon={<IconChartBar size={28} />}
         label="Financie"
-        sub="Prehľad platieb"
+        sub="Očakávaná tržba"
         bgColor="#d4a036"
-        disabled
+        onClick={() => navigate('/finance')}
       />
       <NavButton
         icon={<IconSettings size={28} />}
