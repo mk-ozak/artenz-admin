@@ -130,6 +130,9 @@ export default function BookingModal() {
   // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
   const isPastBooking = isEdit && form.date < toISO(new Date())
   const canEdit       = isAdmin && !isPastBooking
+  // Read-only: polia zamknuté (minulá/vyúčtovaná rezervácia). Tlačidlo zaplatených
+  // záloh (ikona €) ostáva funkčné aj tak — otvorí zoznam len na prezeranie.
+  const ro            = !canEdit
   const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
   const nameMatches = (text) =>
@@ -201,6 +204,7 @@ export default function BookingModal() {
   // existujúcej rezervácii sa uloží okamžite (ako stav/záloha). Po zmazaní
   // poslednej platby suma v poli ostáva (dohodnutá záloha sa nestráca).
   async function handleDepositsChange(next) {
+    if (ro) return   // minulá/vyúčtovaná rezervácia: zálohy sú len na prezeranie
     const sum = next.reduce((s, p) => s + Number(p.amount || 0), 0)
     setForm(f => ({ ...f, deposits: next, deposit: next.length > 0 ? sum : f.deposit }))
     if (isEdit) {
@@ -327,8 +331,10 @@ export default function BookingModal() {
               {voice.error}
             </p>
           )}
-          {/* read_only: všetky polia sú len na čítanie */}
-          <fieldset disabled={!canEdit} className="space-y-4 min-w-0">
+          {/* read_only: všetky polia sú zamknuté (disabled na každom prvku),
+              okrem tlačidla € (zaplatené zálohy), ktoré ostáva funkčné aj pri
+              minulej/vyúčtovanej rezervácii — otvorí zoznam len na prezeranie. */}
+          <div className="space-y-4 min-w-0">
 
           {/* Context chips: Čas | Dátum | Sála */}
           <div className="flex gap-3">
@@ -337,9 +343,11 @@ export default function BookingModal() {
               <div className="flex items-center gap-1 mt-0.5">
                 <select
                   value={timeHH}
+                  disabled={ro}
                   onChange={e => setHour(e.target.value)}
                   className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
-                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                    disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="">–</option>
                   {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
@@ -348,10 +356,10 @@ export default function BookingModal() {
                 <select
                   value={timeMM}
                   onChange={e => setMinute(e.target.value)}
-                  disabled={!timeHH}
+                  disabled={ro || !timeHH}
                   className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
                     font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                    disabled:opacity-40"
+                    disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -406,10 +414,12 @@ export default function BookingModal() {
                 autoFocus={!isEdit}
                 type="text"
                 value={form.customerName}
+                disabled={ro}
                 onChange={e => { setNameMissing(false); set('customerName', e.target.value) }}
                 placeholder="Meno zákazníka / firmy"
                 className={`w-full border rounded-lg px-3 py-2 text-sm
                   focus:outline-none focus:ring-2 focus:border-transparent
+                  disabled:opacity-60 disabled:cursor-not-allowed
                   ${nameMissing
                     ? 'border-red-400 ring-2 ring-red-200 focus:ring-red-400'
                     : 'border-gray-300 focus:ring-indigo-500'}`}
@@ -435,10 +445,12 @@ export default function BookingModal() {
               <input
                 type="tel"
                 value={form.phone}
+                disabled={ro}
                 onChange={e => set('phone', e.target.value)}
                 placeholder="+421 905 123 456"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+                  disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -449,9 +461,11 @@ export default function BookingModal() {
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Typ akcie</label>
               <select
                 value={form.type}
+                disabled={ro}
                 onChange={e => set('type', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white
+                  disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {EVENT_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -477,10 +491,12 @@ export default function BookingModal() {
                   }}
                   onBlur={() => setDepositFocused(false)}
                   readOnly={hasPayments}
+                  disabled={ro}
                   title={hasPayments ? 'Súčet zaplatených záloh — uprav ich tlačidlom vedľa' : undefined}
                   placeholder=""
                   className={`w-full min-w-0 border rounded-lg px-3 py-2 text-sm
                     focus:outline-none focus:ring-2 focus:ring-indigo-500
+                    disabled:opacity-60 disabled:cursor-not-allowed
                     ${hasPayments ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-gray-300'}`}
                 />
                 <button
@@ -511,6 +527,7 @@ export default function BookingModal() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
             <StatusSegment
               value={form.status}
+              disabled={ro}
               onChange={handleStatusChange}
               deposit={form.deposit}
               onSetDeposit={handleDepositSet}
@@ -531,12 +548,14 @@ export default function BookingModal() {
               <input
                 type="number"
                 value={form.expectedGuests}
+                disabled={ro}
                 onChange={e => set('expectedGuests', e.target.value)}
                 placeholder=""
                 min="0"
                 step="1"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500
+                  disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -544,12 +563,14 @@ export default function BookingModal() {
               <input
                 type="number"
                 value={form.estimatedPrice}
+                disabled={ro}
                 onChange={e => set('estimatedPrice', e.target.value)}
                 placeholder=""
                 min="0"
                 step="0.01"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500
+                  disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -563,21 +584,23 @@ export default function BookingModal() {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Poznámky</label>
             <textarea
               value={form.decoration}
+              disabled={ro}
               onChange={e => set('decoration', e.target.value)}
               placeholder="Výzdoba, dohody, špecifiká…"
               rows={1}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none
-                focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                focus:outline-none focus:ring-2 focus:ring-indigo-500
+                disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
-          </fieldset>
+          </div>
 
           {isPastBooking && (
             <>
               <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
                 Rezervácia sa už uskutočnila — nedá sa upravovať ani vymazať.
               </p>
-              {/* Panel vyúčtovania — vždy editovateľný (mimo zamknutého fieldsetu) */}
+              {/* Panel vyúčtovania — vždy editovateľný (mimo zamknutých polí) */}
               {isAdmin && <SettlementPanel bookingId={modalState.booking.id} />}
             </>
           )}
@@ -660,6 +683,7 @@ export default function BookingModal() {
           defaultAmount={form.deposit}
           onChange={handleDepositsChange}
           onClose={() => setDepositsOpen(false)}
+          readOnly={ro}
         />
       )}
 

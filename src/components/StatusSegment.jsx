@@ -39,6 +39,7 @@ export default function StatusSegment({
   dateISO = '',
   amount = 0,
   hallLabel = '',
+  disabled = false,
 }) {
   const [unlockOpen, setUnlockOpen] = useState(false)
   const [unlockText, setUnlockText] = useState('')
@@ -95,10 +96,11 @@ export default function StatusSegment({
         // Potvrdená rezervácia: jediné tlačidlo, zmena len cez ochranu
         <button
           type="button"
+          disabled={disabled}
           onClick={() => { setUnlockText(''); setUnlockOpen(true) }}
           className="w-full px-4 py-2 rounded-lg text-xs font-semibold
                      shadow-[0_2px_10px_rgba(53,77,93,.10)] transition-opacity hover:opacity-90
-                     disabled:opacity-60"
+                     disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ background: '#4cbfb3', color: '#0a2d2a' }}
         >
           Potvrdené
@@ -112,9 +114,10 @@ export default function StatusSegment({
               <button
                 key={s.value}
                 type="button"
+                disabled={disabled}
                 onClick={() => select(s.value)}
                 className={`px-1 py-2 rounded-md text-xs font-semibold truncate transition-colors
-                            disabled:opacity-60
+                            disabled:opacity-60 disabled:cursor-not-allowed
                             ${active ? '' : 'text-gray-600 hover:text-gray-900'}`}
                 style={active ? { background: '#4cbfb3', color: '#0a2d2a' } : undefined}
               >

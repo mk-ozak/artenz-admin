@@ -7,7 +7,8 @@ import { toISO } from '../utils/diaryWeeks'
 // Zoznam vlastní rodič (BookingModal) — onChange(next) dostane celé nové pole;
 // súčet do poľa Záloha a uloženie rieši rodič. Suma prvej platby sa
 // predvyplní z poľa Záloha, pri ďalších ju treba zadať.
-export default function DepositsModal({ payments = [], defaultAmount = '', onChange, onClose }) {
+// readOnly = len prehľad (minulá/vyúčtovaná rezervácia): bez pridávania a mazania.
+export default function DepositsModal({ payments = [], defaultAmount = '', onChange, onClose, readOnly = false }) {
   const [adding, setAdding] = useState(false)
   const [date, setDate]     = useState(toISO(new Date()))
   const [amount, setAmount] = useState('')
@@ -57,15 +58,17 @@ export default function DepositsModal({ payments = [], defaultAmount = '', onCha
                 <li key={`${p.date}-${i}`} className="flex items-center gap-2 px-3 py-2">
                   <span className="flex-1 text-sm text-gray-700">{formatDateSkYear(p.date)}</span>
                   <span className="text-sm font-semibold text-gray-900">{Number(p.amount)} €</span>
-                  <button
-                    type="button"
-                    onClick={() => remove(i)}
-                    title="Odstrániť zálohu"
-                    className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50
-                      transition-colors"
-                  >
-                    <IconX size={16} />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => remove(i)}
+                      title="Odstrániť zálohu"
+                      className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50
+                        transition-colors"
+                    >
+                      <IconX size={16} />
+                    </button>
+                  )}
                 </li>
               ))}
               <li className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-lg">
@@ -75,7 +78,7 @@ export default function DepositsModal({ payments = [], defaultAmount = '', onCha
             </ul>
           )}
 
-          {adding ? (
+          {readOnly ? null : adding ? (
             <div className="border border-gray-200 rounded-lg p-3 space-y-3 bg-gray-50">
               <div className="flex gap-2">
                 <div className="flex-1 min-w-0">
