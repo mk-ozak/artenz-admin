@@ -1,7 +1,11 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconAlertTriangle } from '@tabler/icons-react'
 import { useFinanceTimeline, HALL_COLOR } from '../hooks/useFinanceTimeline'
+import { useBookingsStore, toFrontend } from '../store/bookings'
+import { supabase } from '../lib/supabase'
+import { pressToAdd } from '../utils/longPress'
+import BookingModal from '../components/BookingModal'
 
 // Formátovanie čísel po slovensky (medzera ako oddeľovač tisícov)
 const nf0 = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 0 })
@@ -31,10 +35,12 @@ const HALLS = [
 ]
 
 // Farebný blok akcie s vypočítanou tržbou — šírka úmerná tržbe (flexGrow)
-function FilledBlock({ ev }) {
+function FilledBlock({ ev, onEdit }) {
   return (
     <div
-      className="flex-1 min-w-[92px] rounded-lg px-2.5 py-1.5 flex flex-col justify-center"
+      {...pressToAdd(() => onEdit(ev.id))}
+      className="flex-1 min-w-[92px] rounded-lg px-2.5 py-1.5 flex flex-col justify-center
+                 cursor-pointer select-none"
       style={{ background: ev.color, flexGrow: ev.revenue }}
       title={ev.deposit > 0
         ? `${ev.guests} hostí × ${nf2.format(ev.price)} € = ${eur(ev.revenue)} · záloha ${eur(ev.deposit)} · po zálohe ${eur(ev.net)}`
@@ -59,14 +65,15 @@ function FilledBlock({ ev }) {
 }
 
 // Nevyplnená akcia (nulová tržba) — červené, na konci riadku
-function MissingBlock({ ev }) {
+function MissingBlock({ ev, onEdit }) {
   const why = ev.missingGuests && ev.missingPrice
     ? 'Chýba počet hostí aj cena na osobu'
     : ev.missingGuests ? 'Chýba počet hostí' : 'Chýba cena na osobu'
   return (
     <div
+      {...pressToAdd(() => onEdit(ev.id))}
       className="min-w-[86px] rounded-lg px-2.5 py-1.5 flex items-center gap-1.5
-                 border border-[#e5484d] bg-[#fdecec]"
+                 border border-[#e5484d] bg-[#fdecec] cursor-pointer select-none"
       title={ev.deposit > 0 ? `${why} · zaplatená záloha ${eur(ev.deposit)}` : why}
     >
       <IconAlertTriangle size={14} className="text-[#e5484d] shrink-0" />
@@ -82,7 +89,7 @@ function MissingBlock({ ev }) {
 }
 
 // Jeden deň na časovej osi = uzol + dátum + rad farebných blokov
-function DayRow({ day }) {
+function DayRow({ day, onEdit }) {
   const { dow, num, weekend } = dayParts(day.date)
   const empty = day.total === 0
   return (
@@ -114,14 +121,16 @@ function DayRow({ day }) {
       {/* graf dňa: farebné bloky akcií */}
       <div className="mt-1.5 flex flex-wrap gap-1">
         {day.events.map(ev =>
-          ev.missing ? <MissingBlock key={ev.id} ev={ev} /> : <FilledBlock key={ev.id} ev={ev} />
+          ev.missing
+            ? <MissingBlock key={ev.id} ev={ev} onEdit={onEdit} />
+            : <FilledBlock key={ev.id} ev={ev} onEdit={onEdit} />
         )}
       </div>
     </li>
   )
 }
 
-function MonthSection({ month }) {
+function MonthSection({ month, onEdit }) {
   return (
     <section className="mb-7">
       <div className="flex items-start justify-between mb-3 pb-1.5 border-b border-[#dde8ec]">
@@ -134,7 +143,7 @@ function MonthSection({ month }) {
         </span>
       </div>
       <ol className="relative border-l-2 border-[#e0e8ec] ml-1.5">
-        {month.days.map(d => <DayRow key={d.date} day={d} />)}
+        {month.days.map(d => <DayRow key={d.date} day={d} onEdit={onEdit} />)}
       </ol>
     </section>
   )
@@ -163,8 +172,25 @@ const headerLink = 'px-3 py-1.5 text-sm font-medium rounded-md transition-colors
 
 export default function Finance() {
   const navigate = useNavigate()
-  const { months, grandTotal, grandDeposit, missingCount, loading } = useFinanceTimeline()
+  const { months, grandTotal, grandDeposit, missingCount, loading, reload } = useFinanceTimeline()
   const grandNet = grandTotal - grandDeposit
+
+  const openEditModal = useBookingsStore(s => s.openEditModal)
+  const modalState    = useBookingsStore(s => s.modalState)
+
+  // Dlhé podržanie (dotyk) / klik (desktop) na akcii → modál „Upraviť rezerváciu"
+  async function openEdit(id) {
+    const { data, error } = await supabase.from('bookings').select('*').eq('id', id).single()
+    if (error || !data) { console.error('[Finance] booking fetch error:', error?.message); return }
+    openEditModal(toFrontend(data))
+  }
+
+  // Po zatvorení modálu (uloženie / zmazanie) prepočítaj graf — rovnako ako Diár
+  const prevModal = useRef(modalState)
+  useEffect(() => {
+    if (prevModal.current !== null && modalState === null) reload()
+    prevModal.current = modalState
+  }, [modalState, reload])
 
   // Súčty po rokoch (z mesiacov) — na sumáre „do konca roka" a za budúce roky
   const currentYear = new Date().getFullYear()
@@ -276,12 +302,14 @@ export default function Finance() {
                 {newFutureYear && (
                   <YearSummary label={`Rok ${year}`} totals={yearTotals[year]} className="mt-2 mb-4" prominent />
                 )}
-                <MonthSection month={m} />
+                <MonthSection month={m} onEdit={openEdit} />
               </Fragment>
             )
           })
         )}
       </main>
+
+      <BookingModal />
     </div>
   )
 }

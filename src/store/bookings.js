@@ -12,7 +12,7 @@ const HALL_REVERSE = Object.fromEntries(Object.entries(HALL_MAP).map(([k, v]) =>
 
 function pad(n) { return String(n).padStart(2, '0') }
 
-function toFrontend(row) {
+export function toFrontend(row) {
   return {
     id:             row.id,
     customerName:   row.customer_name,

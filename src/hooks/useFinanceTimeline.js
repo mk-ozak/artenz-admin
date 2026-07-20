@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toISO } from '../utils/diaryWeeks'
 
@@ -35,7 +35,7 @@ export function useFinanceTimeline() {
   const [missingCount, setMissing]    = useState(0)
   const [loading, setLoading]         = useState(true)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     supabase
       .from('bookings')
       .select('id, date, hall, event_type, expected_guests, estimated_price, start_time, deposit_payments')
@@ -122,5 +122,7 @@ export function useFinanceTimeline() {
       })
   }, [])
 
-  return { months, maxDayTotal, grandTotal, grandDeposit, missingCount, loading }
+  useEffect(() => { load() }, [load])
+
+  return { months, maxDayTotal, grandTotal, grandDeposit, missingCount, loading, reload: load }
 }
