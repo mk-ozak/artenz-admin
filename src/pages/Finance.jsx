@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconHome, IconAlertTriangle } from '@tabler/icons-react'
 import { useFinanceTimeline, HALL_COLOR } from '../hooks/useFinanceTimeline'
@@ -35,14 +35,15 @@ const HALLS = [
 ]
 
 // Farebný blok akcie s vypočítanou tržbou — šírka úmerná tržbe (flexGrow)
-function FilledBlock({ ev, onEdit }) {
+function FilledBlock({ ev, onEdit, showDeposits = true }) {
+  const withDeposit = showDeposits && ev.deposit > 0
   return (
     <div
       {...pressToAdd(() => onEdit(ev.id))}
       className="flex-1 min-w-[92px] rounded-lg px-2.5 py-1.5 flex flex-col justify-center
                  cursor-pointer select-none"
       style={{ background: ev.color, flexGrow: ev.revenue }}
-      title={ev.deposit > 0
+      title={withDeposit
         ? `${ev.guests} hostí × ${nf2.format(ev.price)} € = ${eur(ev.revenue)} · záloha ${eur(ev.deposit)} · po zálohe ${eur(ev.net)}`
         : `${ev.guests} hostí × ${nf2.format(ev.price)} € = ${eur(ev.revenue)}`}
     >
@@ -54,7 +55,7 @@ function FilledBlock({ ev, onEdit }) {
             style={{ textShadow: '0 1px 1px rgba(0,0,0,.22)' }}>
         {eur(ev.revenue)}
       </span>
-      {ev.deposit > 0 && (
+      {withDeposit && (
         <span className="text-[10px] leading-tight text-white/90 mt-0.5"
               style={{ textShadow: '0 1px 1px rgba(0,0,0,.22)' }}>
           −{eur(ev.deposit)} → {eur(ev.net)}
@@ -65,7 +66,8 @@ function FilledBlock({ ev, onEdit }) {
 }
 
 // Nevyplnená akcia (nulová tržba) — červené, na konci riadku
-function MissingBlock({ ev, onEdit }) {
+function MissingBlock({ ev, onEdit, showDeposits = true }) {
+  const withDeposit = showDeposits && ev.deposit > 0
   const why = ev.missingGuests && ev.missingPrice
     ? 'Chýba počet hostí aj cena na osobu'
     : ev.missingGuests ? 'Chýba počet hostí' : 'Chýba cena na osobu'
@@ -74,13 +76,13 @@ function MissingBlock({ ev, onEdit }) {
       {...pressToAdd(() => onEdit(ev.id))}
       className="min-w-[86px] rounded-lg px-2.5 py-1.5 flex items-center gap-1.5
                  border border-[#e5484d] bg-[#fdecec] cursor-pointer select-none"
-      title={ev.deposit > 0 ? `${why} · zaplatená záloha ${eur(ev.deposit)}` : why}
+      title={withDeposit ? `${why} · zaplatená záloha ${eur(ev.deposit)}` : why}
     >
       <IconAlertTriangle size={14} className="text-[#e5484d] shrink-0" />
       <div className="min-w-0 leading-none">
         <span className="block text-[11px] text-[#c53a3f]">{pxp(ev.guests, ev.price)}</span>
         <span className="block text-[12px] font-bold text-[#e5484d] mt-0.5">chýba</span>
-        {ev.deposit > 0 && (
+        {withDeposit && (
           <span className="block text-[10px] text-[#c53a3f] mt-0.5">záloha {eur(ev.deposit)}</span>
         )}
       </div>
@@ -89,7 +91,7 @@ function MissingBlock({ ev, onEdit }) {
 }
 
 // Jeden deň na časovej osi = uzol + dátum + rad farebných blokov
-function DayRow({ day, onEdit }) {
+function DayRow({ day, onEdit, showDeposits = true }) {
   const { dow, num, weekend } = dayParts(day.date)
   const empty = day.total === 0
   return (
@@ -111,7 +113,7 @@ function DayRow({ day, onEdit }) {
           <span className={`text-[15px] font-bold ${empty ? 'text-[#e5484d]' : 'text-[#1a2830]'}`}>
             {eur(day.total)}
           </span>
-          {day.deposit > 0 && (
+          {showDeposits && day.deposit > 0 && (
             <span className="text-[10px] text-[#8aaabb]">
               po odpočte záloh <span className="font-semibold text-[#5d7d8e]">{eur(day.net)}</span>
             </span>
@@ -122,28 +124,28 @@ function DayRow({ day, onEdit }) {
       <div className="mt-1.5 flex flex-wrap gap-1">
         {day.events.map(ev =>
           ev.missing
-            ? <MissingBlock key={ev.id} ev={ev} onEdit={onEdit} />
-            : <FilledBlock key={ev.id} ev={ev} onEdit={onEdit} />
+            ? <MissingBlock key={ev.id} ev={ev} onEdit={onEdit} showDeposits={showDeposits} />
+            : <FilledBlock key={ev.id} ev={ev} onEdit={onEdit} showDeposits={showDeposits} />
         )}
       </div>
     </li>
   )
 }
 
-function MonthSection({ month, onEdit }) {
+function MonthSection({ month, onEdit, showDeposits = true }) {
   return (
     <section className="mb-7">
       <div className="flex items-start justify-between mb-3 pb-1.5 border-b border-[#dde8ec]">
         <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#5d7d8e]">{month.label}</h2>
         <span className="flex flex-col items-end leading-tight">
           <span className="text-sm font-bold text-[#3a5160]">{eur(month.total)}</span>
-          {month.deposit > 0 && (
+          {showDeposits && month.deposit > 0 && (
             <span className="text-[10px] text-[#8aaabb]">po odpočte záloh {eur(month.net)}</span>
           )}
         </span>
       </div>
       <ol className="relative border-l-2 border-[#e0e8ec] ml-1.5">
-        {month.days.map(d => <DayRow key={d.date} day={d} onEdit={onEdit} />)}
+        {month.days.map(d => <DayRow key={d.date} day={d} onEdit={onEdit} showDeposits={showDeposits} />)}
       </ol>
     </section>
   )
@@ -151,7 +153,7 @@ function MonthSection({ month, onEdit }) {
 
 // Sumár za obdobie (zvyšok tohto roka / celý budúci rok).
 // prominent = výraznejší (silnejšie pozadie, väčšie tmavé čísla) — pre „do konca roka".
-function YearSummary({ label, totals, className = '', prominent = false }) {
+function YearSummary({ label, totals, className = '', prominent = false, showDeposits = true }) {
   const box     = prominent ? 'bg-[#eaf1f4] border-[#d5e2e9] px-4 py-3' : 'bg-[#f4f7f9] border-[#e6edf1] px-4 py-2.5'
   const size    = prominent ? 'text-[13px]' : 'text-[12px]'
   const valSize = prominent ? 'text-[15px]' : 'text-[12px]'
@@ -161,8 +163,12 @@ function YearSummary({ label, totals, className = '', prominent = false }) {
       <span className={`font-bold uppercase tracking-wider text-[#5d7d8e] ${size}`}>{label}</span>
       <span className={`flex flex-wrap gap-x-4 gap-y-0.5 ${size}`}>
         <span className="text-[#3a5160]">tržba <span className={`font-bold ${valSize} ${valDark}`}>{eur(totals.total)}</span></span>
-        <span className="text-[#2a8d83]">zálohy <span className={`font-bold ${valSize}`}>{eur(totals.deposit)}</span></span>
-        <span className="text-[#3a5160]">po odpočte <span className={`font-bold ${valSize} ${valDark}`}>{eur(totals.net)}</span></span>
+        {showDeposits && (
+          <>
+            <span className="text-[#2a8d83]">zálohy <span className={`font-bold ${valSize}`}>{eur(totals.deposit)}</span></span>
+            <span className="text-[#3a5160]">po odpočte <span className={`font-bold ${valSize} ${valDark}`}>{eur(totals.net)}</span></span>
+          </>
+        )}
       </span>
     </div>
   )
@@ -172,7 +178,10 @@ const headerLink = 'px-3 py-1.5 text-sm font-medium rounded-md transition-colors
 
 export default function Finance() {
   const navigate = useNavigate()
-  const { months, grandTotal, grandDeposit, missingCount, loading, reload } = useFinanceTimeline()
+  const [view, setView] = useState('future')     // 'future' = od dnes, 'past' = minulé tržby
+  const isPast = view === 'past'
+  const showDeposits = !isPast                    // v minulom pohľade zálohy nesledujeme
+  const { months, grandTotal, grandDeposit, missingCount, loading, reload } = useFinanceTimeline(view)
   const grandNet = grandTotal - grandDeposit
 
   const openEditModal = useBookingsStore(s => s.openEditModal)
@@ -202,7 +211,8 @@ export default function Finance() {
     yearTotals[y].deposit += m.deposit
     yearTotals[y].net     += m.net
   }
-  const hasFutureYears = Object.keys(yearTotals).some(y => Number(y) > currentYear)
+  const hasOtherYears = Object.keys(yearTotals).some(y =>
+    isPast ? Number(y) < currentYear : Number(y) > currentYear)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -240,11 +250,28 @@ export default function Finance() {
       </header>
 
       <main className="max-w-3xl xl:max-w-5xl mx-auto px-3 sm:px-4 py-5 pb-16">
-        {/* Súhrn: očakávaná tržba, vyzbierané zálohy, tržby mínus zálohy */}
+        {/* Prepínač: budúce (od dnes) / minulé tržby */}
+        <div className="grid grid-cols-2 rounded-lg bg-white border border-[#e0e8ec] p-1 mb-4">
+          {[['future', 'Od dnes'], ['past', 'Minulé tržby']].map(([val, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setView(val)}
+              className="px-2 py-2 rounded-md text-xs font-semibold transition-colors"
+              style={view === val ? { background: '#4cbfb3', color: '#0a2d2a' } : { color: '#6a8898' }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Súhrn: tržba (+ zálohy v budúcom pohľade) */}
         <div className="rounded-card bg-white border border-[#e0e8ec] px-4 py-3.5 mb-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Očakávaná tržba · od dnes</p>
+              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">
+                {isPast ? 'Realizovaná tržba · do včera' : 'Očakávaná tržba · od dnes'}
+              </p>
               <p className="text-2xl font-bold text-[#1a2830]">{eur(grandTotal)}</p>
             </div>
             {missingCount > 0 && (
@@ -256,25 +283,28 @@ export default function Finance() {
               </div>
             )}
           </div>
-          <div className="mt-3 pt-3 border-t border-[#eef3f6] grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Vyzbierané zálohy</p>
-              <p className="text-base font-bold text-[#2a8d83]">{eur(grandDeposit)}</p>
+          {showDeposits && (
+            <div className="mt-3 pt-3 border-t border-[#eef3f6] grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Vyzbierané zálohy</p>
+                <p className="text-base font-bold text-[#2a8d83]">{eur(grandDeposit)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Tržby mínus zálohy</p>
+                <p className="text-base font-bold text-[#1a2830]">{eur(grandNet)}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-[#8aaabb]">Tržby mínus zálohy</p>
-              <p className="text-base font-bold text-[#1a2830]">{eur(grandNet)}</p>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Menej výrazný sumár pre zvyšok tohto roka — hneď pod hlavným */}
-        {hasFutureYears && yearTotals[currentYear] && (
+        {/* Výrazný sumár pre tento rok — hneď pod hlavným */}
+        {hasOtherYears && yearTotals[currentYear] && (
           <YearSummary
-            label={`Od dnes do konca ${currentYear}`}
+            label={isPast ? `Od začiatku ${currentYear} do včera` : `Od dnes do konca ${currentYear}`}
             totals={yearTotals[currentYear]}
             className="mb-4"
             prominent
+            showDeposits={showDeposits}
           />
         )}
 
@@ -291,18 +321,27 @@ export default function Finance() {
         {loading ? (
           <p className="px-1 py-10 text-sm text-[#8aaabb] italic">Načítavam…</p>
         ) : months.length === 0 ? (
-          <p className="px-1 py-10 text-sm text-[#8aaabb] italic">Žiadne budúce akcie.</p>
+          <p className="px-1 py-10 text-sm text-[#8aaabb] italic">
+            {isPast ? 'Žiadne minulé akcie.' : 'Žiadne budúce akcie.'}
+          </p>
         ) : (
           months.map((m, i) => {
             const year = m.key.slice(0, 4)
             const prevYear = i > 0 ? months[i - 1].key.slice(0, 4) : null
-            const newFutureYear = Number(year) > currentYear && year !== prevYear
+            const boundaryYear = isPast ? Number(year) < currentYear : Number(year) > currentYear
+            const newYear = boundaryYear && year !== prevYear
             return (
               <Fragment key={m.key}>
-                {newFutureYear && (
-                  <YearSummary label={`Rok ${year}`} totals={yearTotals[year]} className="mt-2 mb-4" prominent />
+                {newYear && (
+                  <YearSummary
+                    label={`Rok ${year}`}
+                    totals={yearTotals[year]}
+                    className="mt-2 mb-4"
+                    prominent
+                    showDeposits={showDeposits}
+                  />
                 )}
-                <MonthSection month={m} onEdit={openEdit} />
+                <MonthSection month={m} onEdit={openEdit} showDeposits={showDeposits} />
               </Fragment>
             )
           })
