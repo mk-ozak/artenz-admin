@@ -170,6 +170,16 @@ export const useBookingsStore = create((set, get) => ({
     console.log('[bookings] openEditModal', booking.id)
     set({ modalState: { mode: 'edit', booking }, selectedBooking: null })
   },
+  // Otvorenie edit modálu podľa ID — načíta si celý riadok z DB
+  // (pre volajúcich, ktorí majú len časť stĺpcov, napr. dashboardové bloky)
+  openEditById: async (id) => {
+    const { data, error } = await supabase.from('bookings').select('*').eq('id', id).single()
+    if (error || !data) {
+      console.error('[bookings] openEditById fetch error:', error?.message)
+      return
+    }
+    set({ modalState: { mode: 'edit', booking: toFrontend(data) }, selectedBooking: null })
+  },
   closeModal: () => set({ modalState: null }),
 
   addBooking: async (formData) => {

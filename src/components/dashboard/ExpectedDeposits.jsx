@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { IconCoins } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
+import { useBookingsStore } from '../../store/bookings'
 import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Očakávané zálohy" – všetky rezervácie v stave „Čakajúca záloha".
 // Rovnaké rozloženie ako „Posledné vymazané", ale šedé.
-export default function ExpectedDeposits() {
-  const navigate = useNavigate()
+export default function ExpectedDeposits({ refreshKey }) {
+  const openEditById = useBookingsStore(s => s.openEditById)
   const [rows, setRows] = useState([])
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function ExpectedDeposits() {
         if (error) console.error('[ExpectedDeposits] fetch error:', error.message)
         setRows(data ?? [])
       })
-  }, [])
+  }, [refreshKey])
 
   if (rows.length === 0) return null
 
@@ -36,7 +36,7 @@ export default function ExpectedDeposits() {
       <ul className="divide-y divide-gray-100">
         {rows.map(r => (
           <li key={r.id}
-              onClick={() => navigate(`/booking/${r.id}`)}
+              onClick={() => openEditById(r.id)}
               className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-700 truncate">

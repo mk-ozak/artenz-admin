@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { IconCoins } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
+import { useBookingsStore } from '../../store/bookings'
 import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Prijaté zálohy" – 10 naposledy prijatých platieb záloh
 // (z deposit_payments naprieč rezerváciami). Vizuál ako „Očakávané zálohy",
 // navyše dátum prijatia platby.
-export default function ReceivedDeposits() {
-  const navigate = useNavigate()
+export default function ReceivedDeposits({ refreshKey }) {
+  const openEditById = useBookingsStore(s => s.openEditById)
   const [rows, setRows] = useState([])
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function ReceivedDeposits() {
         payments.sort((a, b) => (a.paidDate < b.paidDate ? 1 : a.paidDate > b.paidDate ? -1 : 0))
         setRows(payments.slice(0, 10))
       })
-  }, [])
+  }, [refreshKey])
 
   if (rows.length === 0) return null
 
@@ -46,7 +46,7 @@ export default function ReceivedDeposits() {
       <ul className="divide-y divide-gray-100">
         {rows.map(r => (
           <li key={r.key}
-              onClick={() => navigate(`/booking/${r.booking.id}`)}
+              onClick={() => openEditById(r.booking.id)}
               className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-700 truncate">

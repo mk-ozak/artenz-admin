@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { IconPlus } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
+import { useBookingsStore } from '../../store/bookings'
 import { formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Posledné pridané" – 5 naposledy vytvorených rezervácií.
-export default function RecentlyAdded() {
-  const navigate = useNavigate()
+export default function RecentlyAdded({ refreshKey }) {
+  const openEditById = useBookingsStore(s => s.openEditById)
   const [rows, setRows] = useState([])
 
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function RecentlyAdded() {
         if (error) console.error('[RecentlyAdded] fetch error:', error.message)
         setRows(data ?? [])
       })
-  }, [])
+  }, [refreshKey])
 
   if (rows.length === 0) return null
 
@@ -35,7 +35,7 @@ export default function RecentlyAdded() {
       <ul className="divide-y divide-[#e0f2ee]">
         {rows.map(r => (
           <li key={r.id}
-              onClick={() => navigate(`/booking/${r.id}`)}
+              onClick={() => openEditById(r.id)}
               className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-[#e9f6f3] transition-colors">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-[#1f4a45] truncate">

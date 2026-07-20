@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconMessage, IconPhone } from '@tabler/icons-react'
+import { IconCalendar, IconMessage, IconPhone, IconToolsKitchen2 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
+import { useBookingsStore } from '../../store/bookings'
 import { formatDateSk, formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { toISO } from '../../utils/diaryWeeks'
@@ -26,16 +27,18 @@ function smsHref(phone, typeLabel, date, hallLabel) {
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
-// Všetky akcie na najbližších 14 dní (vrátane dneška),
-// zoradené podľa dátumu a v rámci dňa podľa času (bez času na konci dňa)
-export default function UpcomingEvents() {
+// Všetky akcie na najbližších 30 dní (vrátane dneška),
+// zoradené podľa dátumu a v rámci dňa podľa času (bez času na konci dňa).
+// Klik na položku otvorí modál „Upraviť rezerváciu", ikona menu detail s tvorbou menu.
+export default function UpcomingEvents({ refreshKey }) {
   const navigate = useNavigate()
+  const openEditById = useBookingsStore(s => s.openEditById)
   const [events, setEvents] = useState([])
 
   useEffect(() => {
     const today = new Date()
     const end   = new Date(today)
-    end.setDate(today.getDate() + 13)
+    end.setDate(today.getDate() + 29)
     supabase
       .from('bookings')
       .select('id, date, hall, customer_name, event_type, customer_phone, start_time')
@@ -45,17 +48,17 @@ export default function UpcomingEvents() {
       .order('date')
       .order('start_time', { ascending: true, nullsFirst: false })
       .then(({ data }) => setEvents(data ?? []))
-  }, [])
+  }, [refreshKey])
 
   return (
     <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
       <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
-        Najbližšie akcie — 14 dní
+        Najbližšie akcie
       </p>
 
       {events.length === 0 ? (
         <p className="px-4 pb-3 text-sm text-[#8aaabb] italic">
-          Žiadne akcie v najbližších 14 dňoch
+          Žiadne akcie v najbližších 30 dňoch
         </p>
       ) : (
         <ul className="divide-y divide-[#eef3f6]">
@@ -65,7 +68,7 @@ export default function UpcomingEvents() {
             const phone     = e.customer_phone?.replace(/\s+/g, '')
             return (
               <li key={e.id}
-                  onClick={() => navigate(`/booking/${e.id}`)}
+                  onClick={() => openEditById(e.id)}
                   className="relative px-4 py-2.5 pl-5 cursor-pointer hover:bg-[#f6f9fb] transition-colors
                              flex items-center gap-3">
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
@@ -87,32 +90,45 @@ export default function UpcomingEvents() {
                     </span>
                   </div>
                 </div>
-                {phone && (
-                  <div className="flex gap-2 shrink-0">
-                    <a
-                      href={`tel:${phone}`}
-                      onClick={ev => ev.stopPropagation()}
-                      title={`Zavolať ${e.customer_phone}`}
-                      aria-label="Zavolať"
-                      className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
-                                 justify-center text-[#3a5160] hover:bg-[#eaf4f2] hover:text-[#2a8d83]
-                                 transition-colors"
-                    >
-                      <IconPhone size={16} />
-                    </a>
-                    <a
-                      href={smsHref(phone, typeLabel, e.date, HALL_LABEL[e.hall] ?? e.hall)}
-                      onClick={ev => ev.stopPropagation()}
-                      title={`SMS na ${e.customer_phone}`}
-                      aria-label="Poslať SMS"
-                      className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
-                                 justify-center text-[#3a5160] hover:bg-[#eef2fa] hover:text-[#4a6bb8]
-                                 transition-colors"
-                    >
-                      <IconMessage size={16} />
-                    </a>
-                  </div>
-                )}
+                <div className="flex gap-2 shrink-0">
+                  {phone && (
+                    <>
+                      <a
+                        href={`tel:${phone}`}
+                        onClick={ev => ev.stopPropagation()}
+                        title={`Zavolať ${e.customer_phone}`}
+                        aria-label="Zavolať"
+                        className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
+                                   justify-center text-[#3a5160] hover:bg-[#eaf4f2] hover:text-[#2a8d83]
+                                   transition-colors"
+                      >
+                        <IconPhone size={16} />
+                      </a>
+                      <a
+                        href={smsHref(phone, typeLabel, e.date, HALL_LABEL[e.hall] ?? e.hall)}
+                        onClick={ev => ev.stopPropagation()}
+                        title={`SMS na ${e.customer_phone}`}
+                        aria-label="Poslať SMS"
+                        className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
+                                   justify-center text-[#3a5160] hover:bg-[#eef2fa] hover:text-[#4a6bb8]
+                                   transition-colors"
+                      >
+                        <IconMessage size={16} />
+                      </a>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={ev => { ev.stopPropagation(); navigate(`/booking/${e.id}`) }}
+                    title="Detail rezervácie a menu"
+                    aria-label="Detail rezervácie a menu"
+                    className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
+                               justify-center text-[#3a5160] hover:bg-[#f6efe2] hover:text-[#b3862a]
+                               transition-colors"
+                  >
+                    <IconToolsKitchen2 size={16} />
+                  </button>
+                </div>
               </li>
             )
           })}

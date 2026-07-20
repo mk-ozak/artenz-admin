@@ -9,7 +9,7 @@ import { EVENT_LABEL } from '../../lib/eventTypes'
 // Sekcia „Posledné vymazané" – posledných 10 soft-deleted rezervácií.
 // Obnoviť nastaví deleted_at = null → rezervácia sa vráti do diára.
 // Kôš maže natrvalo (druhý klik potvrdí).
-export default function DeletedBookings() {
+export default function DeletedBookings({ refreshKey }) {
   const restoreBooking = useBookingsStore(s => s.restoreBooking)
   const isAdmin = useAuthStore(s => s.role) === 'admin'
   const [rows, setRows] = useState([])
@@ -29,7 +29,7 @@ export default function DeletedBookings() {
         setRows(data ?? [])
       })
     return () => clearTimeout(confirmTimer.current)
-  }, [])
+  }, [refreshKey])
 
   async function handleRestore(id) {
     setBusyId(id)
