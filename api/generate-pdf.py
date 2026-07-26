@@ -436,83 +436,211 @@ def build_overview(menu) -> bytes:
 
 
 # ============================================================
-# 4) Celotýždňový prehľad na A3 naležato – mriežka 3×2:
-#    pondelok–streda hore, štvrtok–piatok + trvalé menu dole.
+# 4) Celotýždňový prehľad na A3 naležato:
+#    dni v dvoch stĺpcoch × 3 riadkoch vľavo, trvalá ponuka ako
+#    samostatný blok vpravo, vo voľnej bunke info s alergénmi.
+#    Písmo sa iteratívne nastaví tak, aby dni presne vyplnili výšku
+#    strany (plakátová veľkosť), zvyšné miesto sa rozdelí v bunkách.
 #    Výška A3 naležato = 842 bodov (ako A4 na výšku), takže y() platí.
 # ============================================================
+ALERGENY_TXT = (
+    "1. Obilniny obsahujúce lepok. 2. Kôrovce. 3. Vajcia. 4. Ryby. 5. Arašidy. 6. Sójové zrná. "
+    "7. Mlieko. 8. Orechy. 9. Zeler. 10. Horčica. 11. Sezamové semená. 12. Oxid siričitý a siričitany. "
+    "13. Vlčí bôb. 14. Mäkkýše – a výrobky z nich."
+)
+
+
 def build_overview_a3(menu) -> bytes:
     global c
     _setup()
     buf = io.BytesIO()
     PW, PH = 1191, 842
     c = canvas.Canvas(buf, pagesize=(PW, PH), enforceColorSpace="CMYK")
+
     L, R = 45, PW - 45
-    GAP = 36
-    COLW = (R - L - 2 * GAP) / 3.0
+    TOP, BOTTOM = 152, 812                 # zvislý rozsah obsahu pod hlavičkou
+    GAP, RGAP = 36, 18                     # medzera medzi stĺpcami / riadkami
+    BLOCK_W = 340                          # blok trvalej ponuky vpravo
+    BLOCK_X = R - BLOCK_W
+    COLW = (BLOCK_X - GAP - L - GAP) / 2.0
 
     # hlavička: názov vľavo, vedľa neho rozsah týždňa (dátumy z pondelka a piatka)
     c.setFillColor(my_dblue)
-    c.setFont("MyriadBlck", 34)
-    c.drawString(L, y(80), "Reštaurácia LUNA")
-    w = stringWidth("Reštaurácia LUNA", "MyriadBlck", 34)
-    c.setFont("MyriadB", 16)
-    c.drawString(L + w + 28, y(80), f"Denné menu pre týždeň od {menu[0][1]} do {menu[4][1]}")
-    c.roundRect(L, y(102), R - L, 1, 0.5, stroke=0, fill=1)
+    c.setFont("MyriadBlck", 48)
+    c.drawString(L, y(97), "Reštaurácia LUNA")
+    hw = stringWidth("Reštaurácia LUNA", "MyriadBlck", 48)
+    c.setFont("MyriadB", 23)
+    c.drawString(L + hw + 34, y(97), f"Denné menu pre týždeň od {menu[0][1]} do {menu[4][1]}")
+    c.roundRect(L, y(118), R - L, 3, 1.5, stroke=0, fill=1)
 
-    def meal(x, top, num, name, al, portion, price):
-        """Jedno jedlo: číslo + zalomený názov + riadok porcia/alergény/cena. Vráti novú zvislú pozíciu."""
-        c.setFillColor(my_black)
-        c.setFont("MyriadB", 12.5)
-        c.drawString(x + 12, y(top), num)
-        lines = [ln for ln in wrap_lines(name, "MyriadSB", 12.5, COLW - 32, 2) if ln != ""] or [""]
-        c.setFont("MyriadSB", 12.5)
-        for ln in lines:
-            c.drawString(x + 32, y(top), ln)
-            top += 15
-        c.setFillColor(my_dblue)
-        c.setFont("MyriadBolCon", 11.5)
-        c.drawString(x + 32, y(top), f"{portion}   ·   AL: {al}   ·   {price}")
-        return top + 19
+    def wrap_all(text, font, size, maxw):
+        """Zalomenie bez limitu riadkov (wrap_lines má strop a zvyšok napchá do posledného)."""
+        out, cur = [], ""
+        for word in (text or "").split():
+            test = (cur + " " + word).strip()
+            if cur and stringWidth(test, font, size) > maxw:
+                out.append(cur)
+                cur = word
+            else:
+                cur = test
+        out.append(cur)
+        return out
 
-    def day_cell(x, top, d):
-        c.setFillColor(my_dblue)
-        c.setFont("MyriadB", 16)
-        c.drawString(x, y(top), f"{d[0].upper()}  {d[1]}")
-        top += 22
-        if d[2] == "sviatok":
+    def meal(x, top, num, name, al, portion, price, w, s, draw):
+        """Jedno jedlo: číslo + zalomený názov + riadok porcia/alergény/cena.
+        Vráti novú zvislú pozíciu; pri draw=False iba počíta výšku."""
+        size = 18.5 * s
+        lines = wrap_all(name, "MyriadSB", size, w - 32 * s)    # bez stropu riadkov, nech nič nepreteká
+        if draw:
             c.setFillColor(my_black)
-            c.setFont("MyriadSB", 12.5)
-            c.drawString(x + 12, y(top), "Zatvorené")
-            return
-        for label, name, al in (("P1", d[2], d[3]), ("P2", d[6], d[7])):
-            prefix = f"{label}   {name}"
-            c.setFillColor(my_black)
-            c.setFont("MyriadSB", 12.5)
-            c.drawString(x + 12, y(top), prefix)
-            pw = stringWidth(prefix, "MyriadSB", 12.5)
+            c.setFont("MyriadB", size)
+            c.drawString(x, y(top), num)
+            c.setFont("MyriadSB", size)
+            for k, ln in enumerate(lines):
+                c.drawString(x + 32 * s, y(top + k * 21 * s), ln)
+        top += len(lines) * 21 * s
+        if draw:
             c.setFillColor(my_dblue)
-            c.setFont("MyriadBolCon", 11.5)
-            c.drawString(x + 12 + pw + 8, y(top), f"0,33L   ·   AL: {al}")
-            top += 17
-        top += 4
-        top = meal(x, top, "1.", d[10], d[11], d[12], d[13])
-        meal(x, top, "2.", d[14], d[15], d[16], d[17])
+            c.setFont("MyriadBolCon", 15 * s)
+            c.drawString(x + 32 * s, y(top), f"{portion}   ·   AL: {al}   ·   {price}")
+        return top + 21 * s
 
-    def trvale_cell(x, top):
+    def day_cell(x, top, d, s, draw, pad=0.0):
+        """Deň = modrá lišta s názvom + polievky + 2 jedlá. Vráti výšku bunky.
+        `pad` = extra rozostup medzi skupinami, ktorým sa bunka dorovná na výšku riadka."""
+        y0, bar = top, 32 * s
+        if draw:
+            c.setFillColor(my_dblue)
+            c.roundRect(x, y(top + bar), COLW, bar, 5, stroke=0, fill=1)
+            c.setFillColor(my_white)
+            c.setFont("MyriadB", 20 * s)
+            c.drawString(x + 12 * s, y(top + bar - 9.5 * s), f"{d[0].upper()}   {d[1]}")
+        top += bar + 26 * s + pad
+
+        if d[2] == "sviatok":
+            if draw:
+                c.setFillColor(my_black)
+                c.setFont("MyriadSB", 18.5 * s)
+                c.drawString(x + 4 * s, y(top), "Zatvorené")
+            return top + 21 * s - y0
+
+        for label, name, al in (("P1", d[2], d[3]), ("P2", d[6], d[7])):
+            size, mw = 18.5 * s, COLW - 8 * s
+            prefix, meta = f"{label}   {name}", f"0,33L   ·   AL: {al}"
+            need_w = stringWidth(prefix, "MyriadSB", size) + 10 * s + stringWidth(meta, "MyriadBolCon", 15 * s)
+            f = 1.0 if need_w <= mw else mw / need_w          # mierne dlhší riadok radšej stlačíme
+            if f >= 0.82:                                     # názov + objem/alergény na jednom riadku
+                if draw:
+                    c.setFillColor(my_black)
+                    c.setFont("MyriadSB", size * f)
+                    c.drawString(x + 4 * s, y(top), prefix)
+                    c.setFillColor(my_dblue)
+                    c.setFont("MyriadBolCon", 15 * s * f)
+                    c.drawString(x + 4 * s + stringWidth(prefix, "MyriadSB", size * f) + 10 * s, y(top), meta)
+                top += 23 * s
+            else:                                             # veľmi dlhý názov – zalomiť, meta pod názov
+                lines = wrap_all(prefix, "MyriadSB", size, mw)
+                if draw:
+                    c.setFillColor(my_black)
+                    c.setFont("MyriadSB", size)
+                    for k, ln in enumerate(lines):
+                        c.drawString(x + 4 * s, y(top + k * 23 * s), ln)
+                    c.setFillColor(my_dblue)
+                    c.setFont("MyriadBolCon", 15 * s)
+                    c.drawString(x + 4 * s, y(top + len(lines) * 23 * s), meta)
+                top += (len(lines) + 1) * 23 * s
+        top += 6 * s + pad
+
+        top = meal(x, top, "1.", d[10], d[11], d[12], d[13], COLW, s, draw) + pad
+        top = meal(x, top, "2.", d[14], d[15], d[16], d[17], COLW, s, draw)
+        return top - y0
+
+    def block_frame(x, top, w, h, title, s):
+        """Rámik so zaoblenými rohmi + modrá hlavička s bielym nadpisom. Vráti spodok hlavičky."""
+        bar = 34 * s
         c.setFillColor(my_dblue)
-        c.setFont("MyriadB", 16)
-        c.drawString(x, y(top), "TRVALÉ MENU – MINÚTKY")
-        top += 22
-        tr = menu[5]
-        for k in range(5):
-            name = (tr[5 + k * 4] or "").replace("\n", ", ")
-            top = meal(x, top, f"{k + 3}.", name, tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4])
+        c.setStrokeColor(my_dblue)
+        c.setLineWidth(1.5)
+        c.roundRect(x, y(top + h), w, h, 8, stroke=1, fill=0)
+        c.roundRect(x, y(top + bar), w, bar, 8, stroke=0, fill=1)
+        c.setFillColor(my_white)
+        c.setFont("MyriadB", 20 * s)
+        c.drawCentredString(x + w / 2, y(top + bar - 11 * s), title)
+        return top + bar
 
-    ROW_TOPS = (145, 480)
+    def trvale_block(s):
+        """Blok vpravo cez celú výšku obsahu; má vlastnú mierku, aby stĺpec vyplnil."""
+        head = block_frame(BLOCK_X, TOP, BLOCK_W, BOTTOM - TOP, "TRVALÁ PONUKA – MINÚTKY", s)
+        tr = menu[5]
+        items = [((tr[5 + k * 4] or "").replace("\n", ", "), tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4])
+                 for k in range(5)]
+        x, w = BLOCK_X + 18, BLOCK_W - 36
+        start = head + 30 * s
+        room = (BOTTOM - 24) - start
+
+        def need(sb):
+            t = 0.0
+            for name, al, portion, price in items:              # nasucho: koľko miesta treba
+                t = meal(x, t, "", name, al, portion, price, w, sb, False)
+            return t
+
+        sb = s
+        for _ in range(5):                                      # + rezerva na rozostupy medzi položkami
+            sb = min(1.2 * s, sb * room / (need(sb) + len(items) * 13 * sb))
+        pad = max(0.0, (room - need(sb)) / len(items))
+        top = start
+        for i, (name, al, portion, price) in enumerate(items):
+            top = meal(x, top, f"{i + 3}.", name, al, portion, price, w, sb, True) + pad
+
+    def info_block(x, top, h, s):
+        """Voľná bunka mriežky: poznámky k cenám/rozvozu + zoznam alergénov."""
+        top = block_frame(x, top, COLW, h, "INFORMÁCIE", s) + 26 * s
+        c.setFillColor(my_black)
+        for note in (
+            "Cena polovičnej porcie je 70 %. Pri niektorých jedlách nie je polovičná porcia možná.",
+            "Rozvoz cez BOLT FOOD – nájdete na food.bolt.eu alebo v aplikácii.",
+            "Palárikova ulica 89 · otváracia doba 9:00 – 13:30 · 0907 048 780",
+        ):
+            for ln in wrap_all(note, "MyriadSB", 14 * s, COLW - 36):
+                c.setFont("MyriadSB", 14 * s)
+                c.drawString(x + 18, y(top), ln)
+                top += 17 * s
+            top += 5 * s
+        c.setFillColor(my_dblue)
+        c.setFont("MyriadB", 12.5 * s)
+        c.drawString(x + 18, y(top), "Zoznam alergénov:")
+        top += 15 * s
+        c.setFillColor(my_black)
+        c.setFont("MyriadCond", 11 * s)
+        for ln in wrap_all(ALERGENY_TXT, "MyriadCond", 11 * s, COLW - 36):
+            c.drawString(x + 18, y(top), ln)
+            top += 12.5 * s
+
+    # --- mierka: dni musia zaplniť výšku strany; iterujeme, lebo veľkosť mení zalomenie ---
+    def rows_need(s):
+        h = [day_cell(0, 0, menu[i], s, False) for i in range(5)]
+        return [max(h[0], h[1]), max(h[2], h[3]), h[4]]
+
+    avail = BOTTOM - TOP - 2 * RGAP
+    s = 1.0
+    for _ in range(4):
+        s = min(1.35, s * avail / sum(rows_need(s)))
+    for _ in range(8):                                           # poistka: mierka už len klesá, kým sa obsah nezmestí
+        if sum(rows_need(s)) <= avail:
+            break
+        s *= 0.97
+    need = rows_need(s)
+    extra = (avail - sum(need)) / 3.0                            # zvyšok rovnomerne do riadkov
+    row_h = [n + extra for n in need]
+    row_top = [TOP, TOP + row_h[0] + RGAP, TOP + row_h[0] + row_h[1] + 2 * RGAP]
+
     for i in range(5):
-        row, col = divmod(i, 3)
-        day_cell(L + col * (COLW + GAP), ROW_TOPS[row], menu[i])
-    trvale_cell(L + 2 * (COLW + GAP), ROW_TOPS[1])
+        row, col = divmod(i, 2)
+        x = L + col * (COLW + GAP)
+        pad = min(18 * s, max(0.0, (row_h[row] - day_cell(0, 0, menu[i], s, False)) / 4))
+        day_cell(x, row_top[row], menu[i], s, True, pad)
+    info_block(L + COLW + GAP, row_top[2], row_h[2], s)          # voľná bunka vedľa piatka
+    trvale_block(s)
 
     c.save()
     return buf.getvalue()
