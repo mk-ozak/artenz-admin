@@ -435,10 +435,94 @@ def build_overview(menu) -> bytes:
     return buf.getvalue()
 
 
+# ============================================================
+# 4) Celotýždňový prehľad na A3 naležato – mriežka 3×2:
+#    pondelok–streda hore, štvrtok–piatok + trvalé menu dole.
+#    Výška A3 naležato = 842 bodov (ako A4 na výšku), takže y() platí.
+# ============================================================
+def build_overview_a3(menu) -> bytes:
+    global c
+    _setup()
+    buf = io.BytesIO()
+    PW, PH = 1191, 842
+    c = canvas.Canvas(buf, pagesize=(PW, PH), enforceColorSpace="CMYK")
+    L, R = 45, PW - 45
+    GAP = 36
+    COLW = (R - L - 2 * GAP) / 3.0
+
+    # hlavička: názov vľavo, vedľa neho rozsah týždňa (dátumy z pondelka a piatka)
+    c.setFillColor(my_dblue)
+    c.setFont("MyriadBlck", 34)
+    c.drawString(L, y(80), "Reštaurácia LUNA")
+    w = stringWidth("Reštaurácia LUNA", "MyriadBlck", 34)
+    c.setFont("MyriadB", 16)
+    c.drawString(L + w + 28, y(80), f"Denné menu pre týždeň od {menu[0][1]} do {menu[4][1]}")
+    c.roundRect(L, y(102), R - L, 1, 0.5, stroke=0, fill=1)
+
+    def meal(x, top, num, name, al, portion, price):
+        """Jedno jedlo: číslo + zalomený názov + riadok porcia/alergény/cena. Vráti novú zvislú pozíciu."""
+        c.setFillColor(my_black)
+        c.setFont("MyriadB", 12.5)
+        c.drawString(x + 12, y(top), num)
+        lines = [ln for ln in wrap_lines(name, "MyriadSB", 12.5, COLW - 32, 2) if ln != ""] or [""]
+        c.setFont("MyriadSB", 12.5)
+        for ln in lines:
+            c.drawString(x + 32, y(top), ln)
+            top += 15
+        c.setFillColor(my_dblue)
+        c.setFont("MyriadBolCon", 11.5)
+        c.drawString(x + 32, y(top), f"{portion}   ·   AL: {al}   ·   {price}")
+        return top + 19
+
+    def day_cell(x, top, d):
+        c.setFillColor(my_dblue)
+        c.setFont("MyriadB", 16)
+        c.drawString(x, y(top), f"{d[0].upper()}  {d[1]}")
+        top += 22
+        if d[2] == "sviatok":
+            c.setFillColor(my_black)
+            c.setFont("MyriadSB", 12.5)
+            c.drawString(x + 12, y(top), "Zatvorené")
+            return
+        for label, name, al in (("P1", d[2], d[3]), ("P2", d[6], d[7])):
+            prefix = f"{label}   {name}"
+            c.setFillColor(my_black)
+            c.setFont("MyriadSB", 12.5)
+            c.drawString(x + 12, y(top), prefix)
+            pw = stringWidth(prefix, "MyriadSB", 12.5)
+            c.setFillColor(my_dblue)
+            c.setFont("MyriadBolCon", 11.5)
+            c.drawString(x + 12 + pw + 8, y(top), f"0,33L   ·   AL: {al}")
+            top += 17
+        top += 4
+        top = meal(x, top, "1.", d[10], d[11], d[12], d[13])
+        meal(x, top, "2.", d[14], d[15], d[16], d[17])
+
+    def trvale_cell(x, top):
+        c.setFillColor(my_dblue)
+        c.setFont("MyriadB", 16)
+        c.drawString(x, y(top), "TRVALÉ MENU – MINÚTKY")
+        top += 22
+        tr = menu[5]
+        for k in range(5):
+            name = (tr[5 + k * 4] or "").replace("\n", ", ")
+            top = meal(x, top, f"{k + 3}.", name, tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4])
+
+    ROW_TOPS = (145, 480)
+    for i in range(5):
+        row, col = divmod(i, 3)
+        day_cell(L + col * (COLW + GAP), ROW_TOPS[row], menu[i])
+    trvale_cell(L + 2 * (COLW + GAP), ROW_TOPS[1])
+
+    c.save()
+    return buf.getvalue()
+
+
 _BUILDERS = {
     "menu": (build_pdf, "Luna_menu.pdf"),
     "stoly": (build_2up, "Luna_stoly.pdf"),
     "prehlad": (build_overview, "Luna_prehlad.pdf"),
+    "prehlad_a3": (build_overview_a3, "Luna_prehlad_A3.pdf"),
 }
 
 # Verejný Supabase Storage bucket + fixný názov súboru pre web lunacadca.sk.

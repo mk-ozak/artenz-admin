@@ -17,11 +17,12 @@ export default function DownloadPdfButton({ monday }) {
     offset: i - 1,
   }))
 
-  // 3 dokumenty na jedno kliknutie: denné menu, stolové 2× a celotýždňový prehľad.
+  // 4 dokumenty na jedno kliknutie: denné menu, stolové 2×, celotýždňový prehľad a prehľad na A3.
   const DOCS = [
     { doc: 'menu', name: 'LUNA_menu' },
     { doc: 'stoly', name: 'LUNA_stoly' },
     { doc: 'prehlad', name: 'LUNA_prehlad' },
+    { doc: 'prehlad_a3', name: 'LUNA_prehlad_A3' },
   ]
 
   async function stiahni(m) {
