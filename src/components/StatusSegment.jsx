@@ -7,6 +7,9 @@ const STATUSES = [
   { value: 'potvrdene', label: 'Potvrdené' },
 ]
 
+// Rýchla voľba výšky zálohy (prepnutie na „Čakajúca záloha" bez zadanej zálohy)
+const DEPOSIT_PRESETS = [50, 100, 200]
+
 // Platobné údaje do SMS — IBAN bez medzier (ľahšie kopírovanie do bankovej appky)
 const PAYMENT_ACCOUNT = 'MARTENZ, s.r.o., IBAN: SK0909000000005144434708'
 
@@ -22,7 +25,9 @@ function paymentSms(phone, { typeLabel, dateISO, amount, hallLabel }) {
 // Prepínač stavu rezervácie s ochranou potvrdeného stavu a logikou zálohy:
 //  - potvrdene → zobrazené len jedno tlačidlo; zmena stavu vyžaduje prepis mena
 //  - dopyt/zaloha → kliknutie na „Čakajúca záloha" vyhodnotí pole Záloha:
-//      prázdne → dialóg „Nechať bez zálohy?" (Áno = záloha 0 + Potvrdené, Nie = focus)
+//      prázdne → ponuka výšky zálohy: Bez zálohy (0 € + Potvrdené, bez SMS),
+//                50/100/200 € (zapíše sumu, Čakajúca záloha + SMS),
+//                Iná suma (zmena stavu sa ruší, bez SMS, focus na pole Záloha)
 //      0       → bez SMS, rovno Potvrdené
 //      > 0     → ponuka SMS s platobnými údajmi, stav ostáva Čakajúca záloha
 //  - priame „Potvrdené" → len nastaví stav (žiadna SMS, žiadny dialóg)
@@ -44,9 +49,13 @@ export default function StatusSegment({
   const [unlockOpen, setUnlockOpen] = useState(false)
   const [unlockText, setUnlockText] = useState('')
   const [smsOpen, setSmsOpen]       = useState(false)
-  // Dialóg prázdnej zálohy — drží otázku (null = zatvorený). Áno = záloha 0
-  // + Potvrdené; Nie = vráti na zadanie sumy (focus). Cieľový stav po Áno
-  // je vždy „Potvrdené" (priame potvrdenie aj prepnutie na čakajúcu zálohu).
+  // Suma do SMS zvolená v ponuke zálohy — prekryje prop `amount`, ktorý sa
+  // z rodiča vráti až po prepočte formulára
+  const [smsAmount, setSmsAmount]   = useState(null)
+  // Ponuka výšky zálohy (dopyt → čakajúca záloha bez zadanej zálohy)
+  const [askDeposit, setAskDeposit] = useState(false)
+  // Dialóg prázdnej zálohy pri priamom potvrdení — drží otázku (null = zatvorený).
+  // Áno = záloha 0 + Potvrdené; Nie = vráti na zadanie sumy (focus).
   const [askZero, setAskZero] = useState(null)
 
   const smsPhone  = phone?.replace(/\s+/g, '') ?? ''
@@ -58,9 +67,10 @@ export default function StatusSegment({
     if (next === value) return
     const empty = deposit === '' || deposit == null
     if (next === 'zaloha') {
-      if (empty) { setAskZero('Nechať bez zálohy?'); return }      // spýtaj sa
+      if (empty) { setAskDeposit(true); return }                   // ponúkni výšku zálohy
       if (Number(deposit) === 0) { onChange('potvrdene'); return } // vedome bez zálohy → Potvrdené
       onChange('zaloha')                                          // > 0 → SMS, stav Čakajúca záloha
+      setSmsAmount(null)
       setSmsOpen(true)
       return
     }
@@ -70,6 +80,26 @@ export default function StatusSegment({
       return
     }
     onChange(next)   // „Nezáväzný dopyt"
+  }
+
+  // „Bez zálohy" = záloha 0 a rovno Potvrdené (SMS sa nepripravuje)
+  function pickNoDeposit() {
+    setAskDeposit(false)
+    onSetDeposit(0)
+    onChange('potvrdene')
+  }
+  // Preset sumy = zapíš zálohu, stav Čakajúca záloha a ponúkni SMS
+  function pickDeposit(v) {
+    setAskDeposit(false)
+    onSetDeposit(v)
+    onChange('zaloha')
+    setSmsAmount(v)
+    setSmsOpen(true)
+  }
+  // „Iná suma" = zmena stavu sa ruší, len focus na pole Záloha (bez SMS)
+  function pickCustomDeposit() {
+    setAskDeposit(false)
+    onFocusDeposit()
   }
 
   // Áno = záloha 0 + Potvrdené
@@ -200,7 +230,7 @@ export default function StatusSegment({
                 </button>
                 {smsPhone && (
                   <a
-                    href={paymentSms(smsPhone, { typeLabel, dateISO, amount, hallLabel })}
+                    href={paymentSms(smsPhone, { typeLabel, dateISO, amount: smsAmount ?? amount, hallLabel })}
                     onClick={() => setSmsOpen(false)}
                     className="flex-1 px-4 py-2.5 text-sm font-bold rounded-lg text-center
                       transition-opacity hover:opacity-90"
@@ -210,6 +240,52 @@ export default function StatusSegment({
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ponuka výšky zálohy (prepnutie na „Čakajúca záloha" bez zadanej zálohy) */}
+      {askDeposit && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-5 py-4" style={{ background: '#354d5d' }}>
+              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>Výška zálohy</h2>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-700">Akú zálohu dohodneš?</p>
+
+              <button
+                type="button"
+                onClick={pickNoDeposit}
+                className="w-full px-4 py-2.5 border border-gray-300 text-gray-700 text-sm
+                  font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Bez zálohy
+              </button>
+
+              <div className="grid grid-cols-3 gap-3">
+                {DEPOSIT_PRESETS.map(v => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => pickDeposit(v)}
+                    className="px-2 py-2.5 text-sm font-bold rounded-lg transition-opacity hover:opacity-90"
+                    style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                  >
+                    {v} €
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={pickCustomDeposit}
+                className="w-full px-4 py-2.5 border border-red-300 text-red-600 text-sm
+                  font-medium rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Iná suma
+              </button>
             </div>
           </div>
         </div>
