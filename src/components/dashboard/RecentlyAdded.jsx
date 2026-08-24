@@ -6,7 +6,7 @@ import { formatDateSkYear, formatTimestampSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
 // Sekcia „Posledné pridané" – 15 naposledy vytvorených rezervácií,
-// vpravo dátum vzniku (ako dátum prijatia pri „Prijaté zálohy").
+// vpravo autor a dátum vzniku (ako dátum prijatia pri „Prijaté zálohy").
 export default function RecentlyAdded({ refreshKey }) {
   const openEditById = useBookingsStore(s => s.openEditById)
   const [rows, setRows] = useState([])
@@ -14,7 +14,7 @@ export default function RecentlyAdded({ refreshKey }) {
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, created_at')
+      .select('id, date, hall, customer_name, event_type, created_at, created_by_name')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(15)
@@ -50,7 +50,9 @@ export default function RecentlyAdded({ refreshKey }) {
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-xs text-[#5f9a92]">pridané</p>
+              <p className="text-xs text-[#5f9a92]">
+                pridané{r.created_by_name ? ` · ${r.created_by_name}` : ''}
+              </p>
               <p className="text-xs text-[#5f9a92]">{formatTimestampSkYear(r.created_at)}</p>
             </div>
           </li>
