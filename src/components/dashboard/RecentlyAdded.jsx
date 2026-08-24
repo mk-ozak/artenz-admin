@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { IconPlus } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { useBookingsStore } from '../../store/bookings'
-import { formatDateSkYear } from '../../utils/format'
+import { formatDateSkYear, formatTimestampSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 
-// Sekcia „Posledné pridané" – 5 naposledy vytvorených rezervácií.
+// Sekcia „Posledné pridané" – 15 naposledy vytvorených rezervácií,
+// vpravo dátum vzniku (ako dátum prijatia pri „Prijaté zálohy").
 export default function RecentlyAdded({ refreshKey }) {
   const openEditById = useBookingsStore(s => s.openEditById)
   const [rows, setRows] = useState([])
@@ -16,7 +17,7 @@ export default function RecentlyAdded({ refreshKey }) {
       .select('id, date, hall, customer_name, event_type, created_at')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(15)
       .then(({ data, error }) => {
         if (error) console.error('[RecentlyAdded] fetch error:', error.message)
         setRows(data ?? [])
@@ -47,6 +48,10 @@ export default function RecentlyAdded({ refreshKey }) {
               <p className="text-xs text-[#5f9a92]">
                 {formatDateSkYear(r.date)} · {r.hall.replace('_', ' ')}
               </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-[#5f9a92]">pridané</p>
+              <p className="text-xs text-[#5f9a92]">{formatTimestampSkYear(r.created_at)}</p>
             </div>
           </li>
         ))}

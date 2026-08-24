@@ -15,6 +15,13 @@ export function formatDateSkYear(dateStr) {
   return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
 }
 
+// Timestamp z DB (created_at a pod.) → dátum v lokálnom čase, formát ako formatDateSkYear
+export function formatTimestampSkYear(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+}
+
 export function formatTodaySk() {
   const d = new Date()
   return `${DAYS_LONG[d.getDay()]}, ${d.getDate()}. ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}`
