@@ -145,7 +145,7 @@ async function notify(row) {
   if (!key) return
   const to       = Deno.env.get('NOTIFY_EMAIL') ?? 'info@artenz.sk'
   const from     = Deno.env.get('RESEND_FROM')  ?? 'ARTENZ dopyty <onboarding@resend.dev>'
-  const adminUrl = Deno.env.get('ADMIN_URL')    ?? 'https://artenz-admin.vercel.app'
+  const adminUrl = Deno.env.get('ADMIN_URL')    ?? 'https://admin.artenz.sk'
   const typeLabel = EVENT_LABEL[row.event_type] ?? 'Iné'
   const link = `${adminUrl.replace(/\/+$/, '')}/dopyty`
 
