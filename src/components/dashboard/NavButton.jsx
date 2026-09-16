@@ -1,4 +1,4 @@
-export default function NavButton({ icon, label, sub, bgColor, textDark = true, onClick, disabled }) {
+export default function NavButton({ icon, label, sub, bgColor, textDark = true, onClick, disabled, badge = 0 }) {
   const textCls = textDark ? 'text-[#1a2830]' : 'text-white'
   const subCls  = textDark ? 'text-[#1a2830]/70' : 'text-white/70'
 
@@ -14,6 +14,13 @@ export default function NavButton({ icon, label, sub, bgColor, textDark = true, 
       <span className={textCls}>{icon}</span>
       <span className={`text-[15px] font-bold mt-1 ${textCls}`}>{label}</span>
       {sub && <span className={`text-[11px] ${subCls}`}>{sub}</span>}
+      {badge > 0 && (
+        <span className="absolute top-2 right-2 min-w-[22px] h-[22px] px-1.5 rounded-full
+                         bg-white/90 text-[#1a2830] text-[12px] font-bold
+                         flex items-center justify-center">
+          {badge}
+        </span>
+      )}
       {disabled && (
         <span className="absolute top-2 right-2 text-[9px] font-semibold
                          bg-black/10 text-black/40 px-1.5 py-0.5 rounded-full

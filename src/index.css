@@ -18,6 +18,18 @@
   --color-month-even:      #ffffff;
   --color-month-odd:       #f4f7f9;
   --color-month-odd-date:  #ebeff3;
+
+  /* Dopyty z webu — stavy (nesúvisia so stavmi rezervácií) */
+  --color-inq-new:          #e6f1fb;
+  --color-inq-new-ink:      #1f6ba8;
+  --color-inq-read:         #f0f2f4;
+  --color-inq-read-ink:     #5a6b76;
+  --color-inq-answered:     #eaf7f0;
+  --color-inq-answered-ink: #2a8d6b;
+  --color-inq-archived:     #f3f0ea;
+  --color-inq-archived-ink: #8a7a58;
+  --color-inq-spam:         #fdecec;
+  --color-inq-spam-ink:     #c0393d;
 }
 
 /* Diary table row heights */
