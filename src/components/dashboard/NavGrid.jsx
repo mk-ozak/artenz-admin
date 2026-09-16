@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconMail, IconUsers, IconChartBar, IconSettings } from '@tabler/icons-react'
+import { IconCalendar, IconMail, IconChartBar, IconSettings } from '@tabler/icons-react'
 import { useNewInquiriesCount } from '../../hooks/useNewInquiriesCount'
 import NavButton from './NavButton'
 
@@ -16,7 +16,7 @@ export default function NavGrid({ stats }) {
   const newCount = useNewInquiriesCount()
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-5 gap-2.5 px-4 py-3.5">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 px-4 py-3.5">
       <NavButton
         icon={<IconCalendar size={28} />}
         label="Diár"
@@ -33,29 +33,20 @@ export default function NavGrid({ stats }) {
         onClick={() => navigate('/dopyty')}
       />
       <NavButton
-        icon={<IconUsers size={28} />}
-        label="Zákazníci"
-        sub="Kontakty"
-        bgColor="#b55db8"
-        disabled
-      />
-      <NavButton
         icon={<IconChartBar size={28} />}
         label="Financie"
         sub="Očakávaná tržba"
         bgColor="#d4a036"
         onClick={() => navigate('/finance')}
       />
-      <div className="col-span-2 xl:col-span-1">
-        <NavButton
-          icon={<IconSettings size={28} />}
-          label="Nastavenia"
-          sub="Profil a sály"
-          bgColor="#f0f4f7"
-          textDark
-          onClick={() => navigate('/settings')}
-        />
-      </div>
+      <NavButton
+        icon={<IconSettings size={28} />}
+        label="Nastavenia"
+        sub="Profil a sály"
+        bgColor="#f0f4f7"
+        textDark
+        onClick={() => navigate('/settings')}
+      />
     </div>
   )
 }

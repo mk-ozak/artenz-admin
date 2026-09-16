@@ -1,12 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { IconHome, IconCalendar, IconMail, IconUsers, IconSettings } from '@tabler/icons-react'
+import { IconHome, IconCalendar, IconMail, IconSettings } from '@tabler/icons-react'
 import { useNewInquiriesCount } from '../../hooks/useNewInquiriesCount'
 
 const ITEMS = [
   { path: '/',          label: 'Domov',     Icon: IconHome },
   { path: '/diary',     label: 'Diár',      Icon: IconCalendar },
   { path: '/dopyty',    label: 'Dopyty',    Icon: IconMail, badge: true },
-  { path: '/customers', label: 'Zákazníci', Icon: IconUsers, disabled: true },
   { path: '/settings',  label: 'Nastavenia',Icon: IconSettings },
 ]
 
