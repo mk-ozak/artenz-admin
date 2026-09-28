@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { IconEraser, IconPlus, IconPrinter, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
+import {
+  groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel,
+} from '../../lib/menuVariants'
 
 const fmtQty = q => String(Number(q)).replace('.', ',')
 const esc = s => String(s ?? '')
@@ -261,11 +264,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
 
     if (tplItems.length > 0) {
       const rows = tplItems.map(t => ({
-        booking_id:  bookingId,
-        category_id: t.category_id,
-        item_id:     t.item_id,
-        item_name:   t.item_name,
-        quantity:    t.quantity,
+        booking_id:   bookingId,
+        category_id:  t.category_id,
+        item_id:      t.item_id,
+        item_name:    t.item_name,
+        quantity:     t.quantity,
+        variant_id:   t.variant_id ?? null,
+        variant_name: t.variant_name ?? null,
       }))
       const { error: insErr } = await supabase.from('booking_menu_items').insert(rows)
       if (insErr) setError(insErr.message)
@@ -301,29 +306,39 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
   async function handlePrint() {
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const [c, s] = await Promise.all([
+    const [c, v, s] = await Promise.all([
       supabase.from('menu_categories').select('*').order('block').order('position'),
+      supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
       supabase.from('booking_menu_items')
-        .select('*, menu_items(name, category_id)')
+        .select('*, menu_items(name, category_id, has_variants, variant_group_name), variant:menu_item_variants(name)')
         .eq('booking_id', bookingId)
         .order('created_at'),
     ])
-    if (c.error || s.error) {
+    if (c.error || v.error || s.error) {
       win.close()
-      setError((c.error || s.error).message)
+      setError((c.error || v.error || s.error).message)
       return
     }
     const cats = c.data ?? []
     const sels = s.data ?? []
 
+    // Položka s variantmi bez zvoleného variantu = nedokončený lístok
+    const variantsByItem = groupVariantsByItem(v.data ?? [])
+    const incomplete = sels.filter(x => needsVariant(x, variantsByItem))
+    if (incomplete.length > 0) {
+      win.close()
+      setError(incompleteMessage(incomplete))
+      return
+    }
+
     // Zoskupenie podľa aktuálnej kategórie z katalógu (po prípadnom presune),
     // fallback na uložené category_id (keď položka už v katalógu neexistuje)
     const sections = cats.map(cat => {
-      const catSels = sels.filter(x => (x.menu_items?.category_id ?? x.category_id) === cat.id)
+      const catSels = sels.filter(x => selCatId(x) === cat.id)
       if (catSels.length === 0) return ''
       const split = cat.split_portions && catSels.length > 1 ? ` (1/${catSels.length})` : ''
       const lis = catSels.map(x => {
-        const name = x.menu_items?.name ?? x.item_name
+        const name = selLabel(x)
         const qty = cat.qty_step != null
           ? ` — ${fmtQty(x.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
           : split

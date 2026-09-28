@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash, IconX,
-  IconFileSpreadsheet, IconLoader2,
+  IconFileSpreadsheet, IconListCheck, IconLoader2,
 } from '@tabler/icons-react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -122,15 +122,18 @@ function ColorPicker({ value, onChange }) {
 export default function MenuSettings() {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])
+  const [variants, setVariants]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState(null)
 
   const [expandedId, setExpandedId] = useState(null)
   const [newCatName, setNewCatName]   = useState('')
   const [newItemName, setNewItemName] = useState('')
+  // Rozpísaná nová možnosť variantu — zvlášť pre každú položku
+  const [newVariantName, setNewVariantName] = useState({})
 
   // Prvý klik = potvrdenie (~4 s), druhý = archivácia
-  const [confirmDelete, setConfirmDelete] = useState(null) // 'cat:<id>' | 'item:<id>'
+  const [confirmDelete, setConfirmDelete] = useState(null) // 'cat:<id>' | 'item:<id>' | 'variant:<id>'
   const confirmTimer = useRef(null)
 
   // Export katalógu menu do Excelu
@@ -157,14 +160,16 @@ export default function MenuSettings() {
   async function fetchAll() {
     setLoading(true)
     setError(null)
-    const [c, i] = await Promise.all([
+    const [c, i, v] = await Promise.all([
       supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+      supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
     ])
-    if (c.error || i.error) setError((c.error || i.error).message)
+    if (c.error || i.error || v.error) setError((c.error || i.error || v.error).message)
     else {
       setCategories(c.data ?? [])
       setItems(i.data ?? [])
+      setVariants(v.data ?? [])
     }
     setLoading(false)
   }
@@ -304,6 +309,58 @@ export default function MenuSettings() {
     setConfirmDelete(null)
     await patch('menu_items', item.id, { archived_at: new Date().toISOString() }, () =>
       setItems(is => is.filter(i => i.id !== item.id)))
+  }
+
+  // ---- varianty položiek (podkategórie — napr. Náplň / Obal) ----
+
+  // Zaklikávatko „má varianty". Vypnutie možnosti nemaže, len prestanú
+  // byť povinné — dá sa to kedykoľvek vrátiť.
+  function toggleVariants(item) {
+    const has_variants = !item.has_variants
+    patch('menu_items', item.id, { has_variants }, () =>
+      setItems(is => is.map(i => i.id === item.id ? { ...i, has_variants } : i)))
+  }
+
+  async function addVariant(e, item) {
+    e.preventDefault()
+    const name = (newVariantName[item.id] ?? '').trim()
+    if (!name) return
+    const opts = variants.filter(v => v.item_id === item.id)
+    const position = Math.max(0, ...opts.map(v => v.position)) + 1
+    const { data, error } = await supabase
+      .from('menu_item_variants')
+      .insert({ item_id: item.id, name, position })
+      .select()
+      .single()
+    if (error) { setError(error.message); return }
+    setVariants(vs => [...vs, data])
+    setNewVariantName(d => ({ ...d, [item.id]: '' }))
+  }
+
+  function onVariantDragEnd(item, { active, over }) {
+    if (!over || active.id === over.id) return
+    const opts = variants.filter(v => v.item_id === item.id)
+    const oldIdx = opts.findIndex(v => v.id === active.id)
+    const newIdx = opts.findIndex(v => v.id === over.id)
+    const reordered = arrayMove(opts, oldIdx, newIdx).map((v, i) => ({ ...v, position: i + 1 }))
+    const prev = variants
+    setVariants(vs => vs
+      .map(v => reordered.find(r => r.id === v.id) ?? v)
+      .sort((a, b) => a.position - b.position))
+    persistOrder('menu_item_variants', prev, reordered, fetchAll)
+  }
+
+  async function deleteVariant(v) {
+    if (confirmDelete !== `variant:${v.id}`) {
+      setConfirmDelete(`variant:${v.id}`)
+      clearTimeout(confirmTimer.current)
+      confirmTimer.current = setTimeout(() => setConfirmDelete(null), 4000)
+      return
+    }
+    clearTimeout(confirmTimer.current)
+    setConfirmDelete(null)
+    await patch('menu_item_variants', v.id, { archived_at: new Date().toISOString() }, () =>
+      setVariants(vs => vs.filter(x => x.id !== v.id)))
   }
 
   if (loading) {
@@ -488,14 +545,17 @@ export default function MenuSettings() {
                             onDragEnd={e => onItemDragEnd(cat, e)}
                           >
                             <SortableContext items={catItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                              {catItems.map(item => (
+                              {catItems.map(item => {
+                                const itemVariants = variants.filter(v => v.item_id === item.id)
+                                return (
                                 <SortableRow
                                   key={item.id}
                                   id={item.id}
-                                  className="px-3 py-1.5 flex items-center gap-1.5 flex-wrap border-b border-gray-50 bg-white"
+                                  className="border-b border-gray-50 bg-white"
                                 >
                                   {itemHandleProps => (
                                     <>
+                                      <div className="px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
                                       <DragHandle {...itemHandleProps} />
 
                                       <BlurInput
@@ -507,6 +567,25 @@ export default function MenuSettings() {
                                         }}
                                         className="flex-1 min-w-[160px] text-gray-800"
                                       />
+
+                                      <button
+                                        onClick={() => toggleVariants(item)}
+                                        title="Varianty položky — podkategória s možnosťami (napr. Náplň, Obal)"
+                                        aria-pressed={!!item.has_variants}
+                                        className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
+                                                    inline-flex items-center gap-1 shrink-0
+                                                    ${item.has_variants
+                                                      ? 'border-[#4cbfb3] bg-[#eaf7f5] text-[#1a6e66]'
+                                                      : 'border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'}`}
+                                      >
+                                        <IconListCheck size={14} />
+                                        {item.has_variants
+                                          ? (item.variant_group_name?.trim() || 'Varianty')
+                                          : 'Varianty'}
+                                        {item.has_variants && (
+                                          <span className="font-normal opacity-60">{itemVariants.length}</span>
+                                        )}
+                                      </button>
 
                                       <ColorPicker
                                         value={item.color ?? null}
@@ -541,10 +620,120 @@ export default function MenuSettings() {
                                         <IconTrash size={14} />
                                         {confirmDelete === `item:${item.id}` && 'Naozaj?'}
                                       </button>
+                                      </div>
+
+                                      {/* Varianty položky — názov skupiny + možnosti
+                                          (poradie ťahaním, mazanie = archivácia) */}
+                                      {item.has_variants && (
+                                        <div className="px-3 pb-2.5 pl-10 bg-[#f7fbfc] border-t border-gray-50">
+                                          <div className="flex items-center gap-2 pt-2 pb-1.5 flex-wrap">
+                                            <span className="text-[11px] font-bold uppercase tracking-wider
+                                                             text-[#5d7d8e] shrink-0">
+                                              Názov skupiny
+                                            </span>
+                                            <BlurInput
+                                              value={item.variant_group_name ?? ''}
+                                              placeholder="Náplň"
+                                              onSave={v => {
+                                                const variant_group_name = v.trim() || null
+                                                patch('menu_items', item.id, { variant_group_name }, () =>
+                                                  setItems(is => is.map(i =>
+                                                    i.id === item.id ? { ...i, variant_group_name } : i)))
+                                              }}
+                                              className="w-40 border-gray-200 bg-white"
+                                            />
+                                            <span className="text-[11px] text-gray-400">
+                                              vo výbere povinné, vždy práve jedna možnosť
+                                            </span>
+                                          </div>
+
+                                          <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={e => onVariantDragEnd(item, e)}
+                                          >
+                                            <SortableContext
+                                              items={itemVariants.map(v => v.id)}
+                                              strategy={verticalListSortingStrategy}
+                                            >
+                                              <div className="space-y-1">
+                                                {itemVariants.map(v => (
+                                                  <SortableRow
+                                                    key={v.id}
+                                                    id={v.id}
+                                                    className="flex items-center gap-1 bg-white rounded-lg
+                                                               border border-gray-100 pr-1"
+                                                  >
+                                                    {vHandleProps => (
+                                                      <>
+                                                        <DragHandle {...vHandleProps} />
+                                                        <BlurInput
+                                                          value={v.name}
+                                                          onSave={name => {
+                                                            if (!name.trim()) return
+                                                            patch('menu_item_variants', v.id, { name: name.trim() }, () =>
+                                                              setVariants(vs => vs.map(x =>
+                                                                x.id === v.id ? { ...x, name: name.trim() } : x)))
+                                                          }}
+                                                          className="flex-1 min-w-[120px] text-gray-800"
+                                                        />
+                                                        <button
+                                                          onClick={() => deleteVariant(v)}
+                                                          title="Vymazať možnosť (archivuje sa — staré menu ostanú)"
+                                                          aria-label="Vymazať možnosť"
+                                                          className={`px-2 py-1 rounded-md text-xs font-bold border
+                                                                      transition-colors inline-flex items-center gap-1 shrink-0
+                                                                      ${confirmDelete === `variant:${v.id}`
+                                                                        ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
+                                                                        : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                                                        >
+                                                          <IconTrash size={13} />
+                                                          {confirmDelete === `variant:${v.id}` && 'Naozaj?'}
+                                                        </button>
+                                                      </>
+                                                    )}
+                                                  </SortableRow>
+                                                ))}
+                                              </div>
+                                            </SortableContext>
+                                          </DndContext>
+
+                                          {itemVariants.length === 0 && (
+                                            <p className="text-[11px] text-[#a87d20] py-1">
+                                              Zatiaľ žiadna možnosť — kým tu nič nie je, variant sa vo výbere nevyžaduje.
+                                            </p>
+                                          )}
+
+                                          <form
+                                            onSubmit={e => addVariant(e, item)}
+                                            className="flex gap-2 pt-1.5"
+                                          >
+                                            <input
+                                              value={newVariantName[item.id] ?? ''}
+                                              onChange={e => setNewVariantName(d => ({ ...d, [item.id]: e.target.value }))}
+                                              placeholder="Nová možnosť (napr. oštiepok)"
+                                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5
+                                                         text-sm bg-white focus:outline-none focus:ring-2
+                                                         focus:ring-indigo-500"
+                                            />
+                                            <button
+                                              type="submit"
+                                              disabled={!(newVariantName[item.id] ?? '').trim()}
+                                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold
+                                                         transition-opacity hover:opacity-90 disabled:opacity-50"
+                                              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+                                            >
+                                              <IconPlus size={14} stroke={2.5} />
+                                              Pridať
+                                            </button>
+                                          </form>
+                                        </div>
+                                      )}
                                     </>
                                   )}
                                 </SortableRow>
-                              ))}
+                                )
+                              })}
                             </SortableContext>
                           </DndContext>
 

@@ -56,24 +56,31 @@ function denSk(iso) {
 // ── Export katalógu menu (kategórie + položky) do Excelu ──
 // Riadok = jedna položka, zoradené podľa bloku, kategórie a poradia.
 // Prázdne kategórie majú vlastný riadok (bez položky). Len nearchivované.
+// Varianty položky (napr. Náplň) idú do dvoch posledných stĺpcov.
 export async function exportMenuCatalog() {
-  const [c, i] = await Promise.all([
+  const [c, i, v] = await Promise.all([
     supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
     supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+    supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
   ])
   if (c.error) throw new Error(c.error.message)
   if (i.error) throw new Error(i.error.message)
+  if (v.error) throw new Error(v.error.message)
   const cats  = c.data ?? []
   const items = i.data ?? []
+  const variantsByItem = {}
+  for (const row of v.data ?? []) (variantsByItem[row.item_id] ??= []).push(row)
 
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Menu katalóg', { views: [{ state: 'frozen', ySplit: 1 }] })
 
   ws.columns = [
-    { header: 'Blok',      key: 'block', width: 7 },
-    { header: 'Kategória', key: 'cat',   width: 26 },
-    { header: 'Položka',   key: 'item',  width: 64 },
-    { header: 'Farba',     key: 'color', width: 12 },
+    { header: 'Blok',             key: 'block', width: 7 },
+    { header: 'Kategória',        key: 'cat',   width: 26 },
+    { header: 'Položka',          key: 'item',  width: 64 },
+    { header: 'Farba',            key: 'color', width: 12 },
+    { header: 'Skupina variantov', key: 'vgrp', width: 18 },
+    { header: 'Možnosti',         key: 'vopts', width: 64 },
   ]
 
   const head = ws.getRow(1)
@@ -92,7 +99,15 @@ export async function exportMenuCatalog() {
       continue
     }
     for (const it of catItems) {
-      const row = ws.addRow({ block: cat.block, cat: cat.name, item: it.name, color: it.color ?? '' })
+      const opts = it.has_variants ? (variantsByItem[it.id] ?? []) : []
+      const row = ws.addRow({
+        block: cat.block,
+        cat:   cat.name,
+        item:  it.name,
+        color: it.color ?? '',
+        vgrp:  it.has_variants ? (it.variant_group_name ?? '') : '',
+        vopts: opts.map(o => o.name).join(', '),
+      })
       row.font = { size: 10 }
       if (it.color) {
         row.getCell('color').fill = solid('FF' + String(it.color).replace('#', '').toUpperCase())

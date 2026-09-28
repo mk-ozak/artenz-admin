@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
-import { IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconX } from '@tabler/icons-react'
+import {
+  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconX,
+} from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
+import {
+  groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel, variantGroupLabel,
+} from '../../lib/menuVariants'
 
 // Množstvo: 0.5 → „0,5"
 const fmtQty = q => String(Number(q)).replace('.', ',')
@@ -14,11 +19,10 @@ function defaultQty(cat) {
   return Math.min(Math.max(1, Number(cat.qty_min)), Number(cat.qty_max))
 }
 
-// Názov vybratej položky: aktuálny názov z katalógu, fallback na snapshot
-const selName = sel => sel.menu_items?.name ?? sel.item_name
-// Kategória vybratej položky: aktuálna z katalógu (po prípadnom presune),
-// fallback na uložené category_id (keď položka v katalógu už neexistuje)
-const selCatId = sel => sel.menu_items?.category_id ?? sel.category_id
+// Stĺpce výberu: k riadku sa doťahuje živý názov položky (+ nastavenie
+// variantov) a názov zvoleného variantu
+const SEL_COLS =
+  '*, menu_items(name, category_id, has_variants, variant_group_name), variant:menu_item_variants(name)'
 
 // Stmavenie hex farby (×factor) — pásik vo výbere nech je výraznejší
 function darken(hex, f = 0.6) {
@@ -41,6 +45,7 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 export default function MenuEditor({ table, ownerColumn, ownerId, editable, extraBeforeBlock, summary }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
+  const [variants, setVariants]     = useState([])   // aktívne možnosti variantov
   const [selections, setSelections] = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
@@ -53,15 +58,17 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     Promise.all([
       supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+      supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
       supabase.from(table)
-        .select('*, menu_items(name, category_id)')
+        .select(SEL_COLS)
         .eq(ownerColumn, ownerId)
         .order('created_at'),
-    ]).then(([c, i, s]) => {
-      const err = c.error || i.error || s.error
+    ]).then(([c, i, v, s]) => {
+      const err = c.error || i.error || v.error || s.error
       if (err) { setError(err.message); setLoading(false); return }
       setCategories(c.data ?? [])
       setItems(i.data ?? [])
+      setVariants(v.data ?? [])
       setSelections(s.data ?? [])
       setLoading(false)
     })
@@ -74,6 +81,11 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
   for (const sel of selections) {
     (selsByCat[selCatId(sel)] ??= []).push(sel)
   }
+
+  // Možnosti variantov podľa položky + nedokončené výbery (zaškrtnutá
+  // položka s variantmi, ktorá zatiaľ nemá zvolený variant)
+  const variantsByItem = groupVariantsByItem(variants)
+  const incomplete = selections.filter(sel => needsVariant(sel, variantsByItem))
 
   // Archivovaná kategória sa zobrazí, len ak v nej výber už niečo má
   const visibleCats = categories.filter(c =>
@@ -96,7 +108,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         item_name:     item.name,
         quantity:      defaultQty(cat),
       })
-      .select('*, menu_items(name, category_id)')
+      .select(SEL_COLS)
       .single()
     if (error) { setError(error.message); return }
     setSelections(s => [...s, data])
@@ -124,6 +136,28 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
       (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
     if (!limitFull) await addItem(pickerCat, data)
     setAddingItem(false)
+  }
+
+  // Zvolený variant — vždy práve jeden (radio), ukladá sa okamžite
+  // so snapshotom názvu. Optimisticky + rollback pri chybe.
+  async function setVariant(sel, variant) {
+    if (sel.variant_id === variant.id) return
+    const prev = {
+      variant_id:   sel.variant_id ?? null,
+      variant_name: sel.variant_name ?? null,
+      variant:      sel.variant ?? null,
+    }
+    setSelections(s => s.map(x => x.id === sel.id
+      ? { ...x, variant_id: variant.id, variant_name: variant.name, variant: { name: variant.name } }
+      : x))
+    const { error } = await supabase
+      .from(table)
+      .update({ variant_id: variant.id, variant_name: variant.name })
+      .eq('id', sel.id)
+    if (error) {
+      setError(error.message)
+      setSelections(s => s.map(x => x.id === sel.id ? { ...x, ...prev } : x))
+    }
   }
 
   async function removeSelection(sel) {
@@ -254,7 +288,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                 </span>
               )}
               <span>
-                {selName(sel)}
+                {selLabel(sel)}
                 {showQty && (
                   <span className="font-medium text-[#9ab0ba]">
                     {' '}— {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
@@ -309,7 +343,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                     {splitBadge}
                   </span>
                 )}
-                <span className="truncate">{selName(sel)}</span>
+                <span className="truncate">{selLabel(sel)}</span>
               </span>
               {jedn && <span className="w-14 text-right text-[#5d7d8e] shrink-0">{jedn}</span>}
               <span className="w-20 text-right font-semibold text-[#1a2830] shrink-0">{mnozstvo}</span>
@@ -320,8 +354,13 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     )
   }
 
-  // Tlač zhrnutia / kalkulácie — systémový print dialóg
+  // Tlač zhrnutia / kalkulácie — systémový print dialóg.
+  // Nedokončený výber (chýbajúci variant) tlač neprepustí.
   function printView(mode) {
+    if (incomplete.length > 0) {
+      setError(incompleteMessage(incomplete))
+      return
+    }
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
     const titleText = mode === 'calc' ? 'Kalkulácia pre kuchyňu' : 'Zhrnutie'
@@ -339,7 +378,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         const splitDiv = (cat.split_portions && catSels.length > 1) ? catSels.length : 1
         const badge = cat.split_portions && catSels.length > 1
           ? `<span class="b">1/${catSels.length}</span> ` : ''
-        const name = esc(selName(sel))
+        const name = esc(selLabel(sel))
         if (mode === 'calc') {
           const isCalc = count != null
           const unit = cat.default_unit ? ` ${esc(cat.default_unit)}` : ''
@@ -418,6 +457,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         {sels.length > 0 && (
         <div className="px-4 py-1.5">
         {sels.map(sel => {
+          const missingVariant = needsVariant(sel, variantsByItem)
           const nameContent = (
             <>
               {splitBadge && (
@@ -426,11 +466,14 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                   {splitBadge}
                 </span>
               )}
-              <span className="text-sm font-medium text-[#1a2830]">{selName(sel)}</span>
+              <span className={`text-sm font-medium ${missingVariant ? 'text-[#c0393d]' : 'text-[#1a2830]'}`}>
+                {selLabel(sel)}
+              </span>
             </>
           )
           return (
-          <div key={sel.id} className="flex items-center justify-between gap-3 py-2">
+          <div key={sel.id} className="py-2">
+          <div className="flex items-center justify-between gap-3">
             {/* Klik na položku otvorí výber jej kategórie */}
             {clickable ? (
               <button
@@ -515,6 +558,27 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
               </button>
             ) : null}
           </div>
+
+          {/* Chýbajúci povinný variant — klik otvorí výber kategórie */}
+          {missingVariant && (
+            clickable ? (
+              <button
+                type="button"
+                onClick={() => setPickerCatId(cat.id)}
+                className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-[#c0393d]
+                           hover:underline text-left"
+              >
+                <IconAlertTriangle size={13} className="shrink-0" />
+                Chýba {variantGroupLabel(sel)} — doplň kliknutím
+              </button>
+            ) : (
+              <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-[#c0393d]">
+                <IconAlertTriangle size={13} className="shrink-0" />
+                Chýba {variantGroupLabel(sel)}
+              </p>
+            )
+          )}
+          </div>
           )
         })}
         </div>
@@ -535,6 +599,27 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
 
       {!loading && (
         <div className="py-3 space-y-3">
+          {/* Nedokončený výber — položka s variantmi bez zvoleného variantu */}
+          {incomplete.length > 0 && (
+            <div className="rounded-card border border-red-200 bg-red-50 px-4 py-2.5">
+              <p className="text-sm font-bold text-red-700 flex items-center gap-1.5">
+                <IconAlertTriangle size={16} className="shrink-0" />
+                {incomplete.length === 1
+                  ? 'Nedokončená položka'
+                  : `Nedokončené položky (${incomplete.length})`}
+              </p>
+              {incomplete.map(sel => (
+                <p key={sel.id} className="mt-0.5 text-[13px] text-red-700">
+                  {selLabel(sel)} — chýba {variantGroupLabel(sel)}
+                </p>
+              ))}
+              <p className="mt-1 text-[11px] text-red-600">
+                {editable
+                  ? 'Klikni na položku, vyber variant — alebo ju odškrtni. Kým to nedoplníš, lístok sa nedá vytlačiť.'
+                  : 'Kým sa variant nedoplní, lístok sa nedá vytlačiť.'}
+              </p>
+            </div>
+          )}
           {blockNums.map(block => {
             // Kontrola súčtu množstiev v bloku — pod jedlami bloku
             let check = null
@@ -574,7 +659,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
             if (summary?.mirror?.toBlock === block) {
               const soupNames = categories
                 .filter(c => c.name === summary.mirror.fromCategory)
-                .flatMap(c => (selsByCat[c.id] ?? []).map(selName))
+                .flatMap(c => (selsByCat[c.id] ?? []).map(selLabel))
               if (soupNames.length) {
                 mirrorNote = (
                   <p className="px-4 pb-2 text-[11px] text-[#5d7d8e]">
@@ -636,7 +721,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                       <div key={cat.id}>
                         {sels.map(sel => (
                           <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
-                            {selName(sel)}
+                            {selLabel(sel)}
                             {cat.qty_step != null &&
                               ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
                             {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
@@ -725,27 +810,68 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                 const sel = selections.find(s => s.item_id === item.id)
                 const limitFull = pickerCat.max_items != null &&
                   (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
+                // Možnosti variantu — rozbalia sa až po zaškrtnutí položky
+                const opts = item.has_variants ? (variantsByItem[item.id] ?? []) : []
+                const group = item.variant_group_name?.trim() || 'Variant'
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => sel ? removeSelection(sel) : addItem(pickerCat, item)}
-                    disabled={!sel && limitFull}
                     style={{ borderLeft: `6px solid ${(item.color && !sel) ? darken(item.color) : 'transparent'}` }}
-                    className={`w-full flex items-center justify-between gap-3 px-5 py-3 text-left
-                                text-sm transition-colors disabled:opacity-40
-                                ${sel ? 'bg-[#eaf7f5]' : 'hover:bg-gray-50'}`}
+                    className={sel ? 'bg-[#eaf7f5]' : ''}
                   >
-                    <span className={sel ? 'text-[#1a6e66] font-medium' : 'text-gray-700'}>
-                      {item.name}
-                    </span>
-                    <span className={`w-7 h-7 shrink-0 rounded-full border flex items-center justify-center
-                                      ${sel
-                                        ? 'bg-[#4cbfb3] border-[#4cbfb3] text-white'
-                                        : 'border-[#d5e2e9] text-[#2a8d83]'}`}>
-                      {sel ? <IconCheck size={15} stroke={2.5} /> : <IconPlus size={15} stroke={2.5} />}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => sel ? removeSelection(sel) : addItem(pickerCat, item)}
+                      disabled={!sel && limitFull}
+                      className={`w-full flex items-center justify-between gap-3 px-5 py-3 text-left
+                                  text-sm transition-colors disabled:opacity-40
+                                  ${sel ? '' : 'hover:bg-gray-50'}`}
+                    >
+                      <span className={sel ? 'text-[#1a6e66] font-medium' : 'text-gray-700'}>
+                        {item.name}
+                      </span>
+                      <span className={`w-7 h-7 shrink-0 rounded-full border flex items-center justify-center
+                                        ${sel
+                                          ? 'bg-[#4cbfb3] border-[#4cbfb3] text-white'
+                                          : 'border-[#d5e2e9] text-[#2a8d83]'}`}>
+                        {sel ? <IconCheck size={15} stroke={2.5} /> : <IconPlus size={15} stroke={2.5} />}
+                      </span>
+                    </button>
+
+                    {/* Výber variantu — vždy práve jeden, povinný */}
+                    {sel && opts.length > 0 && (
+                      <div className="px-5 pb-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1.5">
+                          {group} <span className="text-[#c0393d]">*</span>
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {opts.map(v => {
+                            const active = sel.variant_id === v.id
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => setVariant(sel, v)}
+                                aria-pressed={active}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs border transition-colors
+                                            ${active
+                                              ? 'bg-[#4cbfb3] border-[#4cbfb3] text-[#0a2d2a] font-bold'
+                                              : 'bg-white border-[#d5e2e9] text-gray-700 hover:border-[#4cbfb3]'}`}
+                              >
+                                {v.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {!sel.variant_id && (
+                          <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#c0393d]">
+                            <IconAlertTriangle size={13} className="shrink-0" />
+                            Vyber {group.toLowerCase()} — inak je položka nedokončená.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
               {items.filter(i => i.category_id === pickerCat.id).length === 0 && (
