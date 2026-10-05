@@ -40,7 +40,7 @@ export default function TicketPreview({ title, ticket, render, file, onClose }) 
   }
 
   // Lístky pod sebou do jedného PNG (s naznačeným rezom) — test bez tlačiarne
-  function downloadPng() {
+  function downloadAll() {
     const { previews } = out
     const canvas = document.createElement('canvas')
     canvas.width = previews[0].width
@@ -116,7 +116,7 @@ export default function TicketPreview({ title, ticket, render, file, onClose }) 
         <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex gap-2">
           <button
             type="button"
-            onClick={downloadPng}
+            onClick={downloadAll}
             disabled={!out}
             className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-300
                        text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors
