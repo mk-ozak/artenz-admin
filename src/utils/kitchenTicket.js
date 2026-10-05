@@ -564,7 +564,6 @@ export async function renderKitchenTickets(model) {
   drawTitle(s, model, THERMAL)
   s.y += 4
   for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30, THERMAL)
-  if (model.hall) drawLabeled(s, 'Sála', model.hall, 26, THERMAL)
   s.y += 16
   drawCounts(s, model.counts, model.hasRaut, THERMAL)
   s.y += 24
@@ -624,23 +623,6 @@ const A5_GAP    = 24                     // medzera medzi stĺpcami (body termo 
 // naspodu, len s 2 riadkami na dopisovanie.
 const A5_PAIRS = [[1, 2], [SPECIAL_BLOCK, COLD_BLOCK], [4, 5]]
 
-// Názov akcie a na tom istom riadku vpravo sála (A5)
-function drawTitleHall(s, model, b) {
-  s.y += 14
-  const top = s.y
-  const space = s.width(' ', 26, 400)
-  const valueW = model.hall ? s.width(model.hall, 26, 700) : 0
-  const hallW = model.hall ? s.width('Sála:', 26, 400) + space + valueW : 0
-  if (model.title) s.para([{ text: model.title, weight: 700 }], b.x, b.w - (hallW ? hallW + 24 : 0), 46)
-  if (model.hall) {
-    const bl = s.base(top, lineH(46), 46, 700)
-    const right = b.x + b.w
-    s.text(model.hall, right, bl, 26, 700, { align: 'right' })
-    s.text('Sála:', right - valueW - space, bl, 26, 400, { align: 'right' })
-    if (!model.title) s.y = top + lineH(46)
-  }
-}
-
 // Rozloženie pri šírke stĺpca cw (v bodoch termo lístka) → hárok + rozmery strany
 function layoutA5(family, model, cw) {
   const content = 2 * cw + A5_GAP
@@ -662,7 +644,7 @@ function layoutA5(family, model, cw) {
   }
 
   drawHeader(s, model, full, { hall: model.hallShort, inline: true })
-  drawTitleHall(s, model, full)
+  drawTitle(s, model, full)
   s.y += 4
   for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30, full)
   s.y += 16
