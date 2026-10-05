@@ -29,7 +29,8 @@ function smsHref(phone, typeLabel, date, hallLabel) {
 
 // Všetky akcie na najbližších 30 dní (vrátane dneška),
 // zoradené podľa dátumu a v rámci dňa podľa času (bez času na konci dňa).
-// Klik na položku otvorí modál „Upraviť rezerváciu", ikona menu detail s tvorbou menu.
+// Klik na položku otvorí modál „Upraviť rezerváciu", ikona menu detail s tvorbou menu
+// (zelené tlačidlo = menu je už vytvorené; zelená ako tlačidlá +/− v menu).
 export default function UpcomingEvents({ refreshKey }) {
   const navigate = useNavigate()
   const openEditById = useBookingsStore(s => s.openEditById)
@@ -41,7 +42,7 @@ export default function UpcomingEvents({ refreshKey }) {
     end.setDate(today.getDate() + 29)
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, customer_phone, start_time')
+      .select('id, date, hall, customer_name, event_type, customer_phone, start_time, menu_created')
       .is('deleted_at', null)
       .gte('date', toISO(today))
       .lte('date', toISO(end))
@@ -120,11 +121,12 @@ export default function UpcomingEvents({ refreshKey }) {
                   <button
                     type="button"
                     onClick={ev => { ev.stopPropagation(); navigate(`/booking/${e.id}`) }}
-                    title="Detail rezervácie a menu"
+                    title={e.menu_created ? 'Detail rezervácie a menu (menu je vytvorené)' : 'Detail rezervácie a menu'}
                     aria-label="Detail rezervácie a menu"
-                    className="w-9 h-9 rounded-lg border border-[#d5e2e9] bg-white flex items-center
-                               justify-center text-[#3a5160] hover:bg-[#f6efe2] hover:text-[#b3862a]
-                               transition-colors"
+                    className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-colors
+                                ${e.menu_created
+                                  ? 'border-[#a8d9d3] bg-[#cdeae6] text-[#1a2830] hover:bg-[#b9e2dd]'
+                                  : 'border-[#d5e2e9] bg-white text-[#3a5160] hover:bg-[#f6efe2] hover:text-[#b3862a]'}`}
                   >
                     <IconToolsKitchen2 size={16} />
                   </button>
