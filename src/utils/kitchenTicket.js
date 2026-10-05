@@ -531,8 +531,8 @@ function drawPrinted(s, at, b) {
 
 // Box POZNÁMKY — vždy na konci lístka 1: poznámky k akcii + bodkované riadky
 // na ručné dopisovanie (bodky 3 px s medzerou 6 px, riadky po 64 px = 8 mm;
-// termo 4 riadky, A5 2)
-function drawNotes(s, notes, b, lines = 4) {
+// termo 1 riadok, A5 2)
+function drawNotes(s, notes, b, lines) {
   const top = s.y
   const L = b.x + 16
   const R = b.x + b.w - 16
@@ -573,7 +573,7 @@ export async function renderKitchenTickets(model) {
   }
   drawPrinted(s, model.printedAt, THERMAL)
   s.y += 12
-  drawNotes(s, model.notes, THERMAL)
+  drawNotes(s, model.notes, THERMAL, 1)
   s.y += 40
   const tickets = [s.paint()]
 
