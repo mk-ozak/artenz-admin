@@ -423,17 +423,21 @@ export default function MenuEditor({
     win.print()
   }
 
-  // Riadok tlače v karte kalkulácie: popis + tlačidlá [{ icon, text, title, onClick }];
-  // keď sa tlačidlá vedľa popisu nezmestia (mobil), zalomia sa pod neho
+  // Riadok tlače v karte kalkulácie: popis + tlačidlá [{ icon, text, title, onClick, accent }];
+  // accent = zelené (hlavná akcia, ako tlačidlo menu v Najbližších akciách).
+  // Keď sa tlačidlá vedľa popisu nezmestia (mobil), zalomia sa pod neho.
   function printRow(label, actions) {
-    const btn = `h-7 px-2 rounded-lg border border-[#d5e2e9] bg-white flex items-center gap-1
-      whitespace-nowrap text-[11px] font-bold text-[#3a5160] hover:bg-[#eaf4f2] transition-colors`
+    const btn = `h-7 px-2 rounded-lg border flex items-center gap-1 whitespace-nowrap
+      text-[11px] font-bold transition-colors`
+    const plain  = 'border-[#d5e2e9] bg-white text-[#3a5160] hover:bg-[#eaf4f2]'
+    const accent = 'border-[#a8d9d3] bg-[#cdeae6] text-[#1a2830] hover:bg-[#b9e2dd]'
     return (
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
         <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
-        <div className="flex items-center gap-1.5 ml-auto">
-          {actions.map(({ icon: Icon, text, title, onClick }) => (
-            <button key={text} type="button" onClick={onClick} title={title} className={btn}>
+        <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
+          {actions.map(({ icon: Icon, text, title, onClick, accent: isAccent }) => (
+            <button key={text} type="button" onClick={onClick} title={title}
+                    className={`${btn} ${isAccent ? accent : plain}`}>
               <Icon size={14} />
               {text}
             </button>
@@ -750,7 +754,7 @@ export default function MenuEditor({
               {/* Tlač: do kuchyne (s množstvami) a zhrnutie pre zákazníka (bez nich) */}
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
                 {summary.ticket && printRow('Tlač do kuchyne', [
-                  { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen') },
+                  { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen'), accent: true },
                   { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
                   { icon: IconPrinter, text: 'A4', title: 'Tlač na A4 (grafika A5)', onClick: printKitchenA4 },
                   // Štítky na plechy — len keď je v raute niečo vybraté
