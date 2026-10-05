@@ -343,6 +343,13 @@ export default function BookingDetail() {
               bookingId={id}
               editable={editable}
               printSubtitle={`${form.customerName} — ${typeLabel}, ${formatDateSk(booking.date)}`}
+              ticketInfo={{
+                title: `${typeLabel} – ${form.customerName}`,
+                date:  booking.date,
+                time:  form.time,  // '' = čas nevybratý („–" v okne Upraviť)
+                hall:  HALL_LABEL[booking.hall] ?? booking.hall,
+                notes: form.decoration,
+              }}
             />
 
             {/* Prístup zákazníka – len admin */}

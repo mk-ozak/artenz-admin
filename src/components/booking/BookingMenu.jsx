@@ -29,7 +29,8 @@ const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-
 
 // MENU rezervácie: hlavička s akciami (načítať šablónu, reset, tlač)
 // + spoločný editor menu. Zmeny sa ukladajú okamžite.
-export default function BookingMenu({ bookingId, editable, printSubtitle = '' }) {
+// ticketInfo: údaje akcie pre lístok do kuchyne { title, date, time, hall, notes }
+export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo }) {
   // Po hromadnej zmene (šablóna / reset) editor remountneme — načíta sa nanovo
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -232,6 +233,28 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '' })
       blocks: [4, 5],
       perPerson: ((Number(details.rautGrams) > 0 ? Number(details.rautGrams) : 200) / 1000),
       people: rautTotal,
+    },
+    // Tlač do kuchyne (termotlačiareň) — údaje akcie + počty osôb presne tak,
+    // ako s nimi admin počíta
+    ticket: ticketInfo && {
+      ...ticketInfo,
+      counts: {
+        adults:       Number(details.guestsAdults) || 0,
+        adultsNoMeal: Number(details.guestsAdultsNoMeal) || 0,
+        kidsMeal:     Number(details.guestsKidsMeal) || 0,
+        kidsNoMeal:   Number(details.guestsKidsNoMeal) || 0,
+        specials:     Number(details.guestsSpecials) || 0,
+        raut:         rautTotal,
+        rautExtra:    Number(details.rautExtra) || 0,
+      },
+      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 a 6 bez počtu
+      sectionCount: {
+        1: Number(details.guestsAdults) || 0,
+        2: Number(details.guestsKidsMeal) || 0,
+        3: Number(details.guestsSpecials) || 0,
+        4: rautTotal,
+      },
+      specialNotes: details.notes,
     },
   } : undefined
 

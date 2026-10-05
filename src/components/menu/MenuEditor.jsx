@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
-  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconX,
+  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconReceipt, IconX,
 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import {
   groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel, variantGroupLabel,
 } from '../../lib/menuVariants'
-
-// Množstvo: 0.5 → „0,5"
-const fmtQty = q => String(Number(q)).replace('.', ',')
+import { calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
+import {
+  buildKitchenTicket, buildSummaryTicket, renderKitchenTickets, renderSummaryTicket,
+} from '../../utils/kitchenTicket'
+import TicketPreview from './TicketPreview'
 
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -53,6 +55,8 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
   // Pridanie novej položky do katalógu priamo z výberu
   const [newItemName, setNewItemName] = useState('')
   const [addingItem, setAddingItem]   = useState(false)
+  // Náhľad lístka pre termotlačiareň { title, ticket, render, file }, null = zavretý
+  const [ticketPreview, setTicketPreview] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -261,79 +265,28 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     return rows
   }
 
-  // Obsah jednej sekcie zhrnutia (nadpis + položky)
-  function renderSummarySectionInner(sec) {
-    const title = summary.titles?.[sec.block]
-    const count = sec.block === summary.checkBlock ? summary.checkTarget : summary.fixedQty?.[sec.block]
-    return (
-      <>
-        {title && (
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
-            {sec.block}. {title}
-            {count != null && (
-              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
-            )}
-          </p>
-        )}
-        {sec.items.map(({ sel, cat }) => {
-          const catSels = selsByCat[cat.id] ?? []
-          const splitBadge = cat.split_portions && catSels.length > 1 ? `1/${catSels.length}` : null
-          const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
-          return (
-            <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px flex items-center gap-2">
-              {splitBadge && (
-                <span className="shrink-0 text-[10px] font-semibold text-[#5d7d8e]
-                                 bg-[#eef3f6] rounded px-1 py-px">
-                  {splitBadge}
-                </span>
-              )}
-              <span>
-                {selLabel(sel)}
-                {showQty && (
-                  <span className="font-medium text-[#9ab0ba]">
-                    {' '}— {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
-                  </span>
-                )}
-              </span>
-            </p>
-          )
-        })}
-      </>
-    )
-  }
-
   // Obsah jednej sekcie kalkulácie (nadpis + položky so stĺpcami)
   function renderCalcSectionInner(sec) {
     const title = summary.titles?.[sec.block]
-    const count = summary.calc.countByBlock?.[sec.block]
+    const count = summary.calc.countByBlock?.[sec.block]  // ním sa násobí porcia
+    const head = sectionHeadCount(summary, sec.block)     // počet osôb v nadpise
     return (
       <>
         {title && (
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e] mb-1">
             {sec.block}. {title}
-            {count != null && (
-              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {count} osôb</span>
+            {head != null && (
+              <span className="normal-case font-medium text-[#9ab0ba]"> — pre {head} osôb</span>
             )}
           </p>
         )}
         {sec.items.map(({ sel, cat }) => {
-          const catSels = selsByCat[cat.id] ?? []
-          const splitBadge = cat.split_portions && catSels.length > 1 ? `1/${catSels.length}` : null
-          const splitDiv = (cat.split_portions && catSels.length > 1) ? catSels.length : 1
-          const isCalc = count != null
-          const dash = isCalc ? '—' : ''
-          const unitSuffix = cat.default_unit ? ` ${cat.default_unit}` : ''
-          const jednAmount = cat.default_amount != null
-            ? Math.round((Number(cat.default_amount) / splitDiv) * 1000) / 1000
-            : null
-          const jedn = jednAmount != null ? `${fmtQty(jednAmount)}${unitSuffix}` : dash
-          let mnozstvo = dash
-          if (isCalc && jednAmount != null) {
-            const amt = Math.round(jednAmount * count * 100) / 100
-            mnozstvo = `${fmtQty(amt)}${unitSuffix}`
-          } else if (!isCalc && cat.qty_step != null) {
-            mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
-          }
+          // Výpočet zdieľa s lístkom do kuchyne (lib/menuCalc)
+          const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], count)
+          const splitBadge = line.split ? `1/${line.split}` : null
+          const dash = count != null ? '—' : ''
+          const jedn = line.jedn ? `${line.jedn}${line.jednNote ? ` (${line.jednNote})` : ''}` : dash
+          const mnozstvo = line.mnozstvo ?? dash
           return (
             <div key={sel.id} className="flex items-center gap-2 text-[13px] text-[#3a5160] py-px">
               <span className="flex-1 min-w-0 flex items-center gap-2">
@@ -345,7 +298,7 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
                 )}
                 <span className="truncate">{selLabel(sel)}</span>
               </span>
-              {jedn && <span className="w-14 text-right text-[#5d7d8e] shrink-0">{jedn}</span>}
+              {jedn && <span className="min-w-14 text-right whitespace-nowrap text-[#5d7d8e] shrink-0">{jedn}</span>}
               <span className="w-20 text-right font-semibold text-[#1a2830] shrink-0">{mnozstvo}</span>
             </div>
           )
@@ -367,27 +320,22 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     const sub = summary?.printSubtitle ? `<p class="sub">${esc(summary.printSubtitle)}</p>` : ''
     const sections = summarySections.map(sec => {
       const title = summary.titles?.[sec.block]
-      const count = mode === 'calc'
-        ? summary.calc?.countByBlock?.[sec.block]
-        : (sec.block === summary.checkBlock ? summary.checkTarget : summary.fixedQty?.[sec.block])
+      const count = summary.calc?.countByBlock?.[sec.block]  // násobenie v kalkulácii
+      const head = sectionHeadCount(summary, sec.block)
       const heading = title
-        ? `<h2>${sec.block}. ${esc(title)}${count != null ? ` <span class="cnt">— pre ${count} osôb</span>` : ''}</h2>`
+        ? `<h2>${sec.block}. ${esc(title)}${head != null ? ` <span class="cnt">— pre ${head} osôb</span>` : ''}</h2>`
         : ''
       const lines = sec.items.map(({ sel, cat }) => {
         const catSels = selsByCat[cat.id] ?? []
-        const splitDiv = (cat.split_portions && catSels.length > 1) ? catSels.length : 1
         const badge = cat.split_portions && catSels.length > 1
           ? `<span class="b">1/${catSels.length}</span> ` : ''
         const name = esc(selLabel(sel))
         if (mode === 'calc') {
-          const isCalc = count != null
-          const unit = cat.default_unit ? ` ${esc(cat.default_unit)}` : ''
-          const jednAmount = cat.default_amount != null
-            ? Math.round((Number(cat.default_amount) / splitDiv) * 1000) / 1000 : null
-          const jedn = jednAmount != null ? `${fmtQty(jednAmount)}${unit}` : (isCalc ? '—' : '')
-          let mnozstvo = isCalc ? '—' : ''
-          if (isCalc && jednAmount != null) mnozstvo = `${fmtQty(Math.round(jednAmount * count * 100) / 100)}${unit}`
-          else if (!isCalc && cat.qty_step != null) mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${esc(cat.qty_unit)}` : ''}`
+          // Rovnaký výpočet ako obrazovka (lib/menuCalc) — aj s výnimkou pre ryžu
+          const line = calcLine(sel, cat, catSels, count)
+          const dash = count != null ? '—' : ''
+          const jedn = line.jedn ? esc(`${line.jedn}${line.jednNote ? ` (${line.jednNote})` : ''}`) : dash
+          const mnozstvo = line.mnozstvo != null ? esc(line.mnozstvo) : dash
           return `<tr><td>${badge}${name}</td><td class="r">${jedn}</td><td class="r b2">${mnozstvo}</td></tr>`
         }
         const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
@@ -417,6 +365,43 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     win.document.close()
     win.focus()
     win.print()
+  }
+
+  // Termotlačiareň (RawBT) — náhľad lístka do kuchyne alebo zhrnutia pre
+  // zákazníka. Lístky berú tie isté sekcie ako kalkulácia; nedokončený výber
+  // neprepustí ako A4 tlač.
+  function openThermal(kind) {
+    if (incomplete.length > 0) {
+      setError(incompleteMessage(incomplete))
+      return
+    }
+    const data = { sections: summarySections, selsByCat, summary }
+    setTicketPreview(kind === 'kitchen'
+      ? { title: 'Tlač do kuchyne', ticket: buildKitchenTicket(data), render: renderKitchenTickets, file: 'kuchyna' }
+      : { title: 'Zhrnutie pre zákazníka', ticket: buildSummaryTicket(data), render: renderSummaryTicket, file: 'zhrnutie' })
+  }
+
+  // Riadok tlače v karte kalkulácie: popis + termotlačiareň + A4
+  function printRow(label, onThermal, onA4) {
+    const btn = `h-7 px-2.5 rounded-lg border border-[#d5e2e9] bg-white flex items-center gap-1
+      text-[11px] font-bold text-[#3a5160] hover:bg-[#eaf4f2] transition-colors`
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {summary.ticket && (
+            <button type="button" onClick={onThermal} title="Termotlačiareň (RawBT)" className={btn}>
+              <IconReceipt size={14} />
+              Termo
+            </button>
+          )}
+          <button type="button" onClick={onA4} title="Tlač na A4" className={btn}>
+            <IconPrinter size={14} />
+            A4
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // Jedna kategória (pásik + vybraté položky)
@@ -681,82 +666,54 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
             )
           })}
 
-          {/* Zhrnutie — živý sumár všetkých vybratých položiek s množstvami */}
-          {hasAnySelection && (
+          {/* Zhrnutie — živý sumár vybratých položiek; len v šablónach menu
+              (v rezervácii všetko ukazuje kalkulácia nižšie) */}
+          {hasAnySelection && !summary && (
             <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
-              <div className="flex items-center justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
+              <div className="px-4 py-2 bg-[#8fa6b2]">
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
                   Zhrnutie
                 </p>
-                {summary && (
-                  <button
-                    type="button"
-                    onClick={() => printView('summary')}
-                    title="Vytlačiť zhrnutie"
-                    aria-label="Vytlačiť zhrnutie"
-                    className="w-7 h-7 rounded flex items-center justify-center text-white
-                               hover:bg-white/15 transition-colors"
-                  >
-                    <IconPrinter size={15} />
-                  </button>
-                )}
               </div>
               <div className="px-4 py-2.5 space-y-3">
-                {summary ? (
-                  buildRows(summarySections).map((row, i) =>
-                    row.length === 2 ? (
-                      <div key={`r${i}`} className="grid grid-cols-2 gap-4">
-                        <div>{renderSummarySectionInner(row[0])}</div>
-                        <div>{renderSummarySectionInner(row[1])}</div>
-                      </div>
-                    ) : (
-                      <div key={row[0].block}>{renderSummarySectionInner(row[0])}</div>
-                    )
+                {visibleCats.map(cat => {
+                  const sels = selsByCat[cat.id] ?? []
+                  if (sels.length === 0) return null
+                  return (
+                    <div key={cat.id}>
+                      {sels.map(sel => (
+                        <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
+                          {selLabel(sel)}
+                          {cat.qty_step != null &&
+                            ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
+                          {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
+                        </p>
+                      ))}
+                    </div>
                   )
-                ) : (
-                  visibleCats.map(cat => {
-                    const sels = selsByCat[cat.id] ?? []
-                    if (sels.length === 0) return null
-                    return (
-                      <div key={cat.id}>
-                        {sels.map(sel => (
-                          <p key={sel.id} className="text-[13px] leading-snug text-[#3a5160] py-px">
-                            {selLabel(sel)}
-                            {cat.qty_step != null &&
-                              ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`}
-                            {cat.split_portions && sels.length > 1 && ` (1/${sels.length})`}
-                          </p>
-                        ))}
-                      </div>
-                    )
-                  })
-                )}
+                })}
               </div>
             </div>
           )}
 
-          {/* Kalkulácia pre kuchyňu — kópia zhrnutia + stĺpce jednotkové/množstvo */}
+          {/* Kalkulácia pre kuchyňu — sekcie + stĺpce jednotkové/množstvo */}
           {summary?.calc && hasAnySelection && (
             <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
-              <div className="flex items-center justify-between gap-3 px-4 py-2 bg-[#8fa6b2]">
+              <div className="px-4 py-2 bg-[#8fa6b2]">
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
                   Kalkulácia pre kuchyňu
                 </p>
-                <button
-                  type="button"
-                  onClick={() => printView('calc')}
-                  title="Vytlačiť kalkuláciu"
-                  aria-label="Vytlačiť kalkuláciu"
-                  className="w-7 h-7 rounded flex items-center justify-center text-white
-                             hover:bg-white/15 transition-colors"
-                >
-                  <IconPrinter size={15} />
-                </button>
+              </div>
+              {/* Tlač: do kuchyne (s množstvami) a zhrnutie pre zákazníka (bez nich) */}
+              <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
+                {printRow('Tlač do kuchyne', () => openThermal('kitchen'), () => printView('calc'))}
+                {printRow('Zhrnutie pre zákazníka', () => openThermal('summary'), () => printView('summary'))}
               </div>
               <div className="px-4 py-2.5 space-y-3">
+                {/* Raut + Prílohy pre raut vedľa seba od tabletu; na mobile pod sebou (celé názvy) */}
                 {buildRows(summarySections).map((row, i) =>
                   row.length === 2 ? (
-                    <div key={`r${i}`} className="grid grid-cols-2 gap-4">
+                    <div key={`r${i}`} className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div>{renderCalcSectionInner(row[0])}</div>
                       <div>{renderCalcSectionInner(row[1])}</div>
                     </div>
@@ -774,6 +731,11 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
         <p className="mx-4 mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
           {error}
         </p>
+      )}
+
+      {/* Náhľad lístka pre termotlačiareň */}
+      {ticketPreview && (
+        <TicketPreview {...ticketPreview} onClose={() => setTicketPreview(null)} />
       )}
 
       {/* Okno výberu položiek — bez potvrdzovania, klik mimo / Hotovo zatvorí */}
