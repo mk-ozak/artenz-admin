@@ -27,6 +27,14 @@ const HALL_LABEL = {
   CATERING:    'CATERING',
 }
 
+// Skratka sály — veľký nápis v hlavičke tlače do kuchyne
+const HALL_SHORT = {
+  ARTENZ_PLUS: 'PLUS',
+  ARTENZ:      'ARTENZ',
+  LUNA:        'LUNA',
+  CATERING:    'CATERING',
+}
+
 const HALL_VENUE = {
   ARTENZ_PLUS: 'artenzPlus',
   ARTENZ:      'artenz',
@@ -348,6 +356,7 @@ export default function BookingDetail() {
                 date:  booking.date,
                 time:  form.time,  // '' = čas nevybratý („–" v okne Upraviť)
                 hall:  HALL_LABEL[booking.hall] ?? booking.hall,
+                hallShort: HALL_SHORT[booking.hall] ?? booking.hall,
                 notes: form.decoration,
               }}
             />

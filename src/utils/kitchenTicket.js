@@ -130,6 +130,7 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
     date:   t.date,
     time:   t.time ?? '',
     hall:   t.hall ?? '',
+    hallShort: t.hallShort ?? '',  // veľký nápis sály v hlavičke (PLUS, ARTENZ, LUNA)
     notes:  (t.notes ?? '').trim(),
     counts: t.counts,
     // Raut nemusí byť vždy — rámček RAUT len keď je v jeho blokoch niečo vybraté
@@ -317,11 +318,20 @@ class Sheet {
   }
 }
 
-// Hlavička: čierny pruh, vľavo deň + dátum, vpravo biele okienko s časom
-// (bez času ostane prázdne — dopíše sa ručne; timeBox: false = bez okienka)
-function drawHeader(s, model, b, { timeBox = true } = {}) {
+// Najväčšia veľkosť písma (od size nadol), pri ktorej sa text zmestí do maxW
+function fitSize(s, text, size, weight, maxW) {
+  while (size > 12 && s.width(text, size, weight) > maxW) size--
+  return size
+}
+
+// Hlavička: čierny pruh, vľavo dátum, vpravo biele okienko s časom (bez času
+// ostane prázdne — dopíše sa ručne; timeBox: false = bez okienka).
+// hall = veľký nápis sály: termo nad dátumom (vyšší pruh, dátum v jednom
+// riadku), A5 (inline) vľavo od dátumu
+function drawHeader(s, model, b, { timeBox = true, hall = '', inline = false } = {}) {
   const top = s.y
-  const H = 124
+  const stacked = !!hall && !inline
+  const H = stacked ? 150 : 124
   s.rect(b.x, top, b.w, H)
   const bw = 230
   const bx = b.x + b.w - 12 - bw
@@ -331,15 +341,35 @@ function drawHeader(s, model, b, { timeBox = true } = {}) {
   if (model.time) {
     s.text(model.time, bx + bw / 2, s.base(by, bh, 72, 700), 72, 700, { align: 'center' })
   }
-  if (model.date) {
-    const d = new Date(`${model.date}T00:00:00`)
-    const h1 = lineH(30)
-    const h2 = lineH(40)
+  const white = { color: '#fff' }
+  const d = model.date ? new Date(`${model.date}T00:00:00`) : null
+  const day = d ? DAYS_LONG[d.getDay()].toLocaleUpperCase('sk') : ''
+  const date = d ? `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}` : ''
+  let x = b.x + 16
+  if (stacked) {
+    // Sála a pod ňou dátum v jednom riadku — do šírky vľavo od okienka
+    const maxW = bx - 16 - x
+    const h1 = lineH(64)
+    const h2 = lineH(30)
     const t1 = top + Math.round((H - h1 - h2) / 2)
-    const white = { color: '#fff' }
-    s.text(DAYS_LONG[d.getDay()].toLocaleUpperCase('sk'), b.x + 16, s.base(t1, h1, 30, 700), 30, 700, white)
-    s.text(`${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`,
-      b.x + 16, s.base(t1 + h1, h2, 40, 700), 40, 700, white)
+    const hs = fitSize(s, hall, 64, 700, maxW)
+    s.text(hall, x, s.base(t1, h1, hs, 700), hs, 700, white)
+    if (d) {
+      const ds = fitSize(s, `${day} ${date}`, 30, 700, maxW)
+      s.text(`${day} ${date}`, x, s.base(t1 + h1, h2, ds, 700), ds, 700, white)
+    }
+  } else {
+    if (hall) {
+      s.text(hall, x, s.base(top, H, 72, 700), 72, 700, white)
+      x += s.width(hall, 72, 700) + 32
+    }
+    if (d) {
+      const h1 = lineH(30)
+      const h2 = lineH(40)
+      const t1 = top + Math.round((H - h1 - h2) / 2)
+      s.text(day, x, s.base(t1, h1, 30, 700), 30, 700, white)
+      s.text(date, x, s.base(t1 + h1, h2, 40, 700), 40, 700, white)
+    }
   }
   s.y = top + H
 }
@@ -530,7 +560,7 @@ export async function renderKitchenTickets(model) {
 
   // Lístok 1 — kuchyňa
   const s = new Sheet(family)
-  drawHeader(s, model, THERMAL)
+  drawHeader(s, model, THERMAL, { hall: model.hallShort })
   drawTitle(s, model, THERMAL)
   s.y += 4
   for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30, THERMAL)
@@ -551,7 +581,7 @@ export async function renderKitchenTickets(model) {
   // Lístok 2 — studená kuchyňa za rezom (len keď má položky)
   if (model.cold) {
     const c = new Sheet(family)
-    drawHeader(c, model, THERMAL)
+    drawHeader(c, model, THERMAL, { hall: model.hallShort })
     drawTitle(c, model, THERMAL)
     c.y += 16
     drawSection(c, model.cold, false, THERMAL)
@@ -631,7 +661,7 @@ function layoutA5(family, model, cw) {
     s.y = Math.max(y1, s.y)
   }
 
-  drawHeader(s, model, full)
+  drawHeader(s, model, full, { hall: model.hallShort, inline: true })
   drawTitleHall(s, model, full)
   s.y += 4
   for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30, full)
