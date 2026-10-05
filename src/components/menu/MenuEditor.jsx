@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
-  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter, IconReceipt, IconX,
+  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter, IconReceipt, IconTag,
+  IconX,
 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -8,8 +9,8 @@ import {
 } from '../../lib/menuVariants'
 import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
 import {
-  buildKitchenTicket, buildSummaryTicket, downloadPng, renderKitchenA5, renderKitchenTickets,
-  renderSummaryTicket,
+  buildKitchenTicket, buildRautLabels, buildSummaryTicket, downloadPng, renderKitchenA5,
+  renderKitchenTickets, renderRautLabels, renderSummaryTicket,
 } from '../../utils/kitchenTicket'
 import TicketPreview from './TicketPreview'
 
@@ -370,18 +371,20 @@ export default function MenuEditor({
     win.print()
   }
 
-  // Termotlačiareň (RawBT) — náhľad lístka do kuchyne alebo zhrnutia pre
-  // zákazníka. Lístky berú tie isté sekcie ako kalkulácia; nedokončený výber
-  // neprepustí ako A4 tlač.
+  // Termotlačiareň (RawBT) — náhľad lístka do kuchyne, zhrnutia pre zákazníka
+  // alebo štítkov na plechy rautu. Lístky berú tie isté sekcie ako kalkulácia;
+  // nedokončený výber neprepustí ako A4 tlač.
   function openThermal(kind) {
     if (incomplete.length > 0) {
       setError(incompleteMessage(incomplete))
       return
     }
     const data = { sections: summarySections, selsByCat, summary }
-    setTicketPreview(kind === 'kitchen'
-      ? { title: 'Tlač do kuchyne', ticket: buildKitchenTicket(data), render: renderKitchenTickets, file: 'kuchyna' }
-      : { title: 'Zhrnutie pre zákazníka', ticket: buildSummaryTicket(data), render: renderSummaryTicket, file: 'zhrnutie' })
+    setTicketPreview({
+      kitchen: { title: 'Tlač do kuchyne', ticket: buildKitchenTicket(data), render: renderKitchenTickets, file: 'kuchyna' },
+      summary: { title: 'Zhrnutie pre zákazníka', ticket: buildSummaryTicket(data), render: renderSummaryTicket, file: 'zhrnutie' },
+      raut:    { title: 'Štítky – raut', ticket: buildRautLabels(data), render: renderRautLabels, file: 'raut_stitky' },
+    }[kind])
   }
 
   // Kuchyňa na jednu stranu A5 (grafika ako termo lístok, sekcie vo dvojiciach)
@@ -420,14 +423,15 @@ export default function MenuEditor({
     win.print()
   }
 
-  // Riadok tlače v karte kalkulácie: popis + tlačidlá [{ icon, text, title, onClick }]
+  // Riadok tlače v karte kalkulácie: popis + tlačidlá [{ icon, text, title, onClick }];
+  // keď sa tlačidlá vedľa popisu nezmestia (mobil), zalomia sa pod neho
   function printRow(label, actions) {
     const btn = `h-7 px-2 rounded-lg border border-[#d5e2e9] bg-white flex items-center gap-1
       whitespace-nowrap text-[11px] font-bold text-[#3a5160] hover:bg-[#eaf4f2] transition-colors`
     return (
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
-        <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
+        <div className="flex items-center gap-1.5 ml-auto">
           {actions.map(({ icon: Icon, text, title, onClick }) => (
             <button key={text} type="button" onClick={onClick} title={title} className={btn}>
               <Icon size={14} />
@@ -749,6 +753,10 @@ export default function MenuEditor({
                   { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen') },
                   { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
                   { icon: IconPrinter, text: 'A4', title: 'Tlač na A4 (grafika A5)', onClick: printKitchenA4 },
+                  // Štítky na plechy — len keď je v raute niečo vybraté
+                  ...(buildRautLabels({ sections: summarySections, summary }).labels.length
+                    ? [{ icon: IconTag, text: 'RAUT', title: 'Štítky na plechy rautu (termotlačiareň)', onClick: () => openThermal('raut') }]
+                    : []),
                 ])}
                 {printRow('Zhrnutie pre zákazníka', [
                   ...(summary.ticket

@@ -613,6 +613,41 @@ export async function renderSummaryTicket(model) {
   return [s.paint()]
 }
 
+// ── Štítky na plechy rautu (termo) ───────────────────────────────────────
+// Každá vybratá položka rautu a príloh pre raut = samostatný štítok, medzi
+// štítkami rez. Názov kapitálkami, veľkým písmom ako sála v hlavičke.
+const LABEL_SIZE   = 64 // ako veľký nápis sály v hlavičke
+const LABEL_TOP    = 32 // voľné miesto nad textom
+const LABEL_BOTTOM = 8  // pod textom len málo — tlačiareň pred rezom ešte posúva papier
+
+export function buildRautLabels({ sections, summary }) {
+  return {
+    date: summary.ticket?.date ?? '',
+    labels: sections
+      .filter(sec => RAUT_BLOCKS.includes(sec.block))
+      .flatMap(sec => sec.items.map(({ sel }) => selLabel(sel).toLocaleUpperCase('sk'))),
+  }
+}
+
+// Vykreslí štítky: [štítok, štítok, …] — dlhý text sa zalamuje a štítok rastie;
+// slovo dlhšie ako riadok sa radšej zmenší, než by sa delilo po písmenách
+export async function renderRautLabels(model) {
+  const family = await ticketFont()
+  return model.labels.map(text => {
+    const s = new Sheet(family)
+    let size = LABEL_SIZE
+    while (size > 36 && text.split(/\s+/).some(w => s.width(w, size, 700) > CW)) size -= 2
+    s.y = LABEL_TOP
+    for (const ln of s.wrap([{ text, weight: 700 }], CW, size)) {
+      s.text(ln.words.map(wd => wd.text).join(' '), W / 2, s.base(s.y, lineH(size), size, 700), size, 700,
+        { align: 'center' })
+      s.y += lineH(size)
+    }
+    s.y += LABEL_BOTTOM
+    return s.paint()
+  })
+}
+
 // ── Kuchyňa na A5 (BOLD PNG a tlač na A4) ────────────────────────────────
 // Ten istý lístok do kuchyne rozložený na šírku strany A5 na výšku: dva
 // stĺpce, dvojice sekcií vedľa seba. Vždy jedna strana — veľké menu sa
