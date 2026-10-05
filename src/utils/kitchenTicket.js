@@ -523,20 +523,26 @@ function drawSection(s, sec, numbered, b) {
   }
 }
 
-function drawPrinted(s, at, b) {
+// „Vytlačené: d. m. rrrr hh:mm"
+function printedText(at) {
   const p = n => String(n).padStart(2, '0')
-  const stamp = `${at.getDate()}. ${at.getMonth() + 1}. ${at.getFullYear()} ${p(at.getHours())}:${p(at.getMinutes())}`
-  s.line(`Vytlačené: ${stamp}`, b.x + b.w, 22, 400, { align: 'right' })
+  return `Vytlačené: ${at.getDate()}. ${at.getMonth() + 1}. ${at.getFullYear()} ${p(at.getHours())}:${p(at.getMinutes())}`
+}
+
+function drawPrinted(s, at, b) {
+  s.line(printedText(at), b.x + b.w, 22, 400, { align: 'right' })
 }
 
 // Box POZNÁMKY — vždy na konci lístka 1: poznámky k akcii + bodkované riadky
 // na ručné dopisovanie (bodky 3 px s medzerou 6 px, riadky po 64 px = 8 mm;
 // termo 1 riadok, A5 2)
-function drawNotes(s, notes, b, lines) {
+// printedAt = „Vytlačené" vpravo hore v rámčeku, na riadku s nadpisom
+function drawNotes(s, notes, b, lines, printedAt) {
   const top = s.y
   const L = b.x + 16
   const R = b.x + b.w - 16
   s.y += 12
+  if (printedAt) s.text(printedText(printedAt), R, s.base(s.y, lineH(26), 26, 700), 22, 400, { align: 'right' })
   s.line('POZNÁMKY', L, 26, 700)
   if (notes) s.para([{ text: notes, weight: 700 }], L, R - L, 28)
   for (let i = 0; i < lines; i++) {
@@ -571,9 +577,7 @@ export async function renderKitchenTickets(model) {
     drawSection(s, sec, true, THERMAL)
     s.y += 20
   }
-  drawPrinted(s, model.printedAt, THERMAL)
-  s.y += 12
-  drawNotes(s, model.notes, THERMAL, 1)
+  drawNotes(s, model.notes, THERMAL, 1, model.printedAt)
   s.y += 40
   const tickets = [s.paint()]
 
@@ -663,9 +667,7 @@ function layoutA5(family, model, cw) {
     }
     s.y += 20
   }
-  drawNotes(s, model.notes, full, 2)
-  s.y += 12
-  drawPrinted(s, model.printedAt, full)
+  drawNotes(s, model.notes, full, 2, model.printedAt)
   s.y += margin
 
   const width = content + 2 * margin
