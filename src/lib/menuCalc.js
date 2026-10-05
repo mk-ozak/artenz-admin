@@ -5,12 +5,14 @@
 // Množstvo: 0.5 → „0,5"
 export const fmtQty = q => String(Number(q)).replace('.', ',')
 
-// Výnimka natvrdo: Ryža v kategórii Príloha — porcia na osobu je v uvarenom
-// stave, kuchyňa však potrebuje surovú ryžu, teda polovicu množstva.
-// Podľa ID (menu_categories.id, menu_items.id), na názve nezáleží.
-const SIDE_CATEGORY = '9eea1fd0-f5e5-4436-9814-40517455e498' // Príloha
-const RICE_ITEM     = '0bea09e2-2761-41dd-827d-9ed61b754f06' // Ryža
-const isCookedRice = (sel, cat) => cat.id === SIDE_CATEGORY && sel.item_id === RICE_ITEM
+// Výnimka natvrdo: Ryža — porcia na osobu je v uvarenom stave, kuchyňa však
+// potrebuje surovú ryžu, teda polovicu množstva. Podľa ID položky
+// (menu_items.id) v jej kategórii (menu_categories.id), na názve nezáleží.
+const COOKED_RICE = [
+  { category: '9eea1fd0-f5e5-4436-9814-40517455e498', item: '0bea09e2-2761-41dd-827d-9ed61b754f06' }, // Príloha → Ryža
+  { category: '7efaedf5-96c3-4086-aef8-762bba9e8318', item: '1f2ab805-08d2-4e09-adee-e16cfc95bd96' }, // Jedlo deti → Ryža
+]
+const isCookedRice = (sel, cat) => COOKED_RICE.some(r => r.category === cat.id && r.item === sel.item_id)
 
 // Počet osôb v nadpise sekcie (kalkulácia aj zhrnutie pre zákazníka): počet,
 // ktorým sa sekcia násobí, inak počet špeciálov alebo pevný počet bloku (raut)
