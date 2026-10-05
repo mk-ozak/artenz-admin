@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconEraser, IconPlus, IconPrinter, IconTemplate, IconX } from '@tabler/icons-react'
+import { IconEraser, IconPlus, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
-import {
-  groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel,
-} from '../../lib/menuVariants'
-
-const fmtQty = q => String(Number(q)).replace('.', ',')
-const esc = s => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
@@ -368,72 +361,6 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     setRefreshKey(k => k + 1)
   }
 
-  // Systémový print dialóg — jednoduchý výpis menu, zatiaľ bez šablóny.
-  // Okno otvárame pred fetchom, aby ho prehliadač nezablokoval ako popup.
-  async function handlePrint() {
-    const win = window.open('', '_blank')
-    if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const [c, v, s] = await Promise.all([
-      supabase.from('menu_categories').select('*').order('block').order('position'),
-      supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
-      supabase.from('booking_menu_items')
-        .select('*, menu_items(name, category_id, has_variants, variant_group_name), variant:menu_item_variants(name)')
-        .eq('booking_id', bookingId)
-        .order('created_at'),
-    ])
-    if (c.error || v.error || s.error) {
-      win.close()
-      setError((c.error || v.error || s.error).message)
-      return
-    }
-    const cats = c.data ?? []
-    const sels = s.data ?? []
-
-    // Položka s variantmi bez zvoleného variantu = nedokončený lístok
-    const variantsByItem = groupVariantsByItem(v.data ?? [])
-    const incomplete = sels.filter(x => needsVariant(x, variantsByItem))
-    if (incomplete.length > 0) {
-      win.close()
-      setError(incompleteMessage(incomplete))
-      return
-    }
-
-    // Zoskupenie podľa aktuálnej kategórie z katalógu (po prípadnom presune),
-    // fallback na uložené category_id (keď položka už v katalógu neexistuje)
-    const sections = cats.map(cat => {
-      const catSels = sels.filter(x => selCatId(x) === cat.id)
-      if (catSels.length === 0) return ''
-      const split = cat.split_portions && catSels.length > 1 ? ` (1/${catSels.length})` : ''
-      const lis = catSels.map(x => {
-        const name = selLabel(x)
-        const qty = cat.qty_step != null
-          ? ` — ${fmtQty(x.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
-          : split
-        return `<li>${esc(name)}${esc(qty)}</li>`
-      }).join('')
-      return `<h2>${esc(cat.name)}</h2><ul>${lis}</ul>`
-    }).join('')
-
-    win.document.write(`<!doctype html>
-<html lang="sk"><head><meta charset="utf-8"><title>Menu</title>
-<style>
-  body { font-family: Georgia, 'Times New Roman', serif; color: #1a2830; margin: 40px; }
-  h1 { font-size: 22px; letter-spacing: .3em; text-transform: uppercase; text-align: center; }
-  .sub { text-align: center; color: #5d7d8e; margin-bottom: 28px; font-size: 14px; }
-  h2 { font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
-       color: #5d7d8e; border-bottom: 1px solid #d5e2e9; padding-bottom: 4px; margin: 22px 0 8px; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  li { font-size: 14px; padding: 3px 0; }
-</style></head><body>
-<h1>Menu</h1>
-${printSubtitle ? `<p class="sub">${esc(printSubtitle)}</p>` : ''}
-${sections || '<p>Menu je prázdne.</p>'}
-</body></html>`)
-    win.document.close()
-    win.focus()
-    win.print()
-  }
-
   return (
     <div>
       {/* Hlavička MENU vo farbe top baru, s akciami */}
@@ -442,44 +369,30 @@ ${sections || '<p>Menu je prázdne.</p>'}
         <p className="text-[13px] font-bold tracking-[.18em] uppercase" style={{ color: '#ddeef6' }}>
           Menu
         </p>
-        {/* Akcie len keď je menu vytvorené */}
-        {menuCreated && (
+        {/* Akcie len keď je menu vytvorené (tlač je v karte Kalkulácia pre kuchyňu) */}
+        {menuCreated && editable && (
         <div className="flex items-center gap-1">
-          {editable && (
-            <>
-              <button
-                type="button"
-                onClick={openTemplates}
-                disabled={busy}
-                title="Načítať šablónu / prázdne menu"
-                aria-label="Načítať šablónu / prázdne menu"
-                className={headerBtnCls}
-                style={{ color: '#ddeef6' }}
-              >
-                <IconTemplate size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={busy}
-                title={confirmReset ? 'Naozaj vymazať všetky položky?' : 'Vymazať všetky položky menu'}
-                aria-label="Vymazať všetky položky menu"
-                className={`${headerBtnCls} ${confirmReset ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                style={{ color: confirmReset ? '#fff' : '#ddeef6' }}
-              >
-                <IconEraser size={18} />
-              </button>
-            </>
-          )}
           <button
             type="button"
-            onClick={handlePrint}
-            title="Vytlačiť menu"
-            aria-label="Vytlačiť menu"
+            onClick={openTemplates}
+            disabled={busy}
+            title="Načítať šablónu / prázdne menu"
+            aria-label="Načítať šablónu / prázdne menu"
             className={headerBtnCls}
             style={{ color: '#ddeef6' }}
           >
-            <IconPrinter size={18} />
+            <IconTemplate size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={busy}
+            title={confirmReset ? 'Naozaj vymazať všetky položky?' : 'Vymazať všetky položky menu'}
+            aria-label="Vymazať všetky položky menu"
+            className={`${headerBtnCls} ${confirmReset ? 'bg-red-600 hover:bg-red-700' : ''}`}
+            style={{ color: confirmReset ? '#fff' : '#ddeef6' }}
+          >
+            <IconEraser size={18} />
           </button>
         </div>
         )}

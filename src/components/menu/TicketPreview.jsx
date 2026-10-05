@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { IconDownload, IconPrinter, IconScissors, IconX } from '@tabler/icons-react'
 import { buildEscPos, canvasToRaster, rasterToCanvas, rawbtUrl } from '../../utils/escpos'
+import { downloadPng } from '../../utils/kitchenTicket'
 
 // RawBT je Android aplikácia — inde sa dá lístok len stiahnuť ako PNG
 const IS_ANDROID = /Android/i.test(navigator.userAgent)
@@ -57,14 +58,7 @@ export default function TicketPreview({ title, ticket, render, file, onClose }) 
       ctx.drawImage(c, 0, y)
       y += c.height
     })
-    canvas.toBlob(blob => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${ticket.date}_${file}.png`
-      a.click()
-      URL.revokeObjectURL(url)
-    }, 'image/png')
+    downloadPng(canvas, `${ticket.date}_${file}.png`)
   }
 
   return (

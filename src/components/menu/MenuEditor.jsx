@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import {
-  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconReceipt, IconX,
+  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter, IconReceipt, IconX,
 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -8,7 +8,8 @@ import {
 } from '../../lib/menuVariants'
 import { calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
 import {
-  buildKitchenTicket, buildSummaryTicket, renderKitchenTickets, renderSummaryTicket,
+  buildKitchenTicket, buildSummaryTicket, downloadPng, renderKitchenA5, renderKitchenTickets,
+  renderSummaryTicket,
 } from '../../utils/kitchenTicket'
 import TicketPreview from './TicketPreview'
 
@@ -320,20 +321,19 @@ export default function MenuEditor({
     )
   }
 
-  // Tlač zhrnutia / kalkulácie — systémový print dialóg.
+  // Tlač zhrnutia pre zákazníka na A4 — systémový print dialóg.
   // Nedokončený výber (chýbajúci variant) tlač neprepustí.
-  function printView(mode) {
+  function printSummary() {
     if (incomplete.length > 0) {
       setError(incompleteMessage(incomplete))
       return
     }
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const titleText = mode === 'calc' ? 'Kalkulácia pre kuchyňu' : 'Zhrnutie'
+    const titleText = 'Zhrnutie'
     const sub = summary?.printSubtitle ? `<p class="sub">${esc(summary.printSubtitle)}</p>` : ''
     const sections = summarySections.map(sec => {
       const title = summary.titles?.[sec.block]
-      const count = summary.calc?.countByBlock?.[sec.block]  // násobenie v kalkulácii
       const head = sectionHeadCount(summary, sec.block)
       const heading = title
         ? `<h2>${sec.block}. ${esc(title)}${head != null ? ` <span class="cnt">— pre ${head} osôb</span>` : ''}</h2>`
@@ -343,14 +343,6 @@ export default function MenuEditor({
         const badge = cat.split_portions && catSels.length > 1
           ? `<span class="b">1/${catSels.length}</span> ` : ''
         const name = esc(selLabel(sel))
-        if (mode === 'calc') {
-          // Rovnaký výpočet ako obrazovka (lib/menuCalc) — aj s výnimkou pre ryžu
-          const line = calcLine(sel, cat, catSels, count)
-          const dash = count != null ? '—' : ''
-          const jedn = line.jedn ? esc(`${line.jedn}${line.jednNote ? ` (${line.jednNote})` : ''}`) : dash
-          const mnozstvo = line.mnozstvo != null ? esc(line.mnozstvo) : dash
-          return `<tr><td>${badge}${name}</td><td class="r">${jedn}</td><td class="r b2">${mnozstvo}</td></tr>`
-        }
         const showQty = summary.qtyBlocks?.includes(sec.block) && cat.qty_step != null
         const qty = showQty ? ` — ${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${esc(cat.qty_unit)}` : ''}` : ''
         return `<tr><td>${badge}${name}${qty}</td></tr>`
@@ -369,8 +361,6 @@ export default function MenuEditor({
   h2 .cnt { font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ab0ba; }
   table { width: 100%; border-collapse: collapse; }
   td { font-size: 13px; padding: 2px 0; vertical-align: top; }
-  td.r { text-align: right; color: #5d7d8e; white-space: nowrap; width: 90px; padding-left: 12px; }
-  td.b2 { color: #1a2830; font-weight: 600; }
   .b { font-size: 10px; background: #eef3f6; color: #5d7d8e; border-radius: 3px; padding: 0 3px; }
 </style></head><body>
 <h1>${titleText}</h1>${sub}${sections || '<p>Prázdne.</p>'}
@@ -394,24 +384,56 @@ export default function MenuEditor({
       : { title: 'Zhrnutie pre zákazníka', ticket: buildSummaryTicket(data), render: renderSummaryTicket, file: 'zhrnutie' })
   }
 
-  // Riadok tlače v karte kalkulácie: popis + termotlačiareň + A4
-  function printRow(label, onThermal, onA4) {
-    const btn = `h-7 px-2.5 rounded-lg border border-[#d5e2e9] bg-white flex items-center gap-1
-      text-[11px] font-bold text-[#3a5160] hover:bg-[#eaf4f2] transition-colors`
+  // Kuchyňa na jednu stranu A5 (grafika ako termo lístok, sekcie vo dvojiciach)
+  function kitchenA5() {
+    return renderKitchenA5(buildKitchenTicket({ sections: summarySections, selsByCat, summary }))
+  }
+
+  // BOLD PNG — kuchyňa na A5 ako obrázok
+  async function downloadKitchenPng() {
+    if (incomplete.length > 0) {
+      setError(incompleteMessage(incomplete))
+      return
+    }
+    downloadPng(await kitchenA5(), `${summary.ticket.date}_kuchyna_A5.png`)
+  }
+
+  // Tlač do kuchyne na A4: grafika A5 v ľavej polovici A4 na šírku.
+  // Okno sa otvára pred vykreslením, aby ho prehliadač nezablokoval ako popup.
+  async function printKitchenA4() {
+    if (incomplete.length > 0) {
+      setError(incompleteMessage(incomplete))
+      return
+    }
+    const win = window.open('', '_blank')
+    if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
+    const canvas = await kitchenA5()
+    win.document.write(`<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Tlač do kuchyne</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  html, body { margin: 0; }
+  img { display: block; width: 148mm; height: 210mm; }
+</style></head><body><img src="${canvas.toDataURL('image/png')}" alt=""></body></html>`)
+    win.document.close()
+    await win.document.querySelector('img').decode().catch(() => {})
+    win.focus()
+    win.print()
+  }
+
+  // Riadok tlače v karte kalkulácie: popis + tlačidlá [{ icon, text, title, onClick }]
+  function printRow(label, actions) {
+    const btn = `h-7 px-2 rounded-lg border border-[#d5e2e9] bg-white flex items-center gap-1
+      whitespace-nowrap text-[11px] font-bold text-[#3a5160] hover:bg-[#eaf4f2] transition-colors`
     return (
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
+        <span className="min-w-0 text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
         <div className="flex items-center gap-1.5 shrink-0">
-          {summary.ticket && (
-            <button type="button" onClick={onThermal} title="Termotlačiareň (RawBT)" className={btn}>
-              <IconReceipt size={14} />
-              Termo
+          {actions.map(({ icon: Icon, text, title, onClick }) => (
+            <button key={text} type="button" onClick={onClick} title={title} className={btn}>
+              <Icon size={14} />
+              {text}
             </button>
-          )}
-          <button type="button" onClick={onA4} title="Tlač na A4" className={btn}>
-            <IconPrinter size={14} />
-            A4
-          </button>
+          ))}
         </div>
       </div>
     )
@@ -723,8 +745,17 @@ export default function MenuEditor({
               </div>
               {/* Tlač: do kuchyne (s množstvami) a zhrnutie pre zákazníka (bez nich) */}
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
-                {printRow('Tlač do kuchyne', () => openThermal('kitchen'), () => printView('calc'))}
-                {printRow('Zhrnutie pre zákazníka', () => openThermal('summary'), () => printView('summary'))}
+                {summary.ticket && printRow('Tlač do kuchyne', [
+                  { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen') },
+                  { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
+                  { icon: IconPrinter, text: 'A4', title: 'Tlač na A4 (grafika A5)', onClick: printKitchenA4 },
+                ])}
+                {printRow('Zhrnutie pre zákazníka', [
+                  ...(summary.ticket
+                    ? [{ icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
+                    : []),
+                  { icon: IconPrinter, text: 'A4', title: 'Tlač na A4', onClick: printSummary },
+                ])}
               </div>
               <div className="px-4 py-2.5 space-y-3">
                 {/* Raut + Prílohy pre raut vedľa seba od tabletu; na mobile pod sebou (celé názvy) */}
