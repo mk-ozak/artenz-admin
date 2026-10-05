@@ -31,6 +31,7 @@ const SOUP_PARTS = [
 // Sekcie podľa čísla bloku (menu_categories.block; bloky nemajú ID ani názov)
 const SPECIAL_BLOCK = 3 // Hlavné jedlo špeciál — rámček + požiadavky ku strave
 const COLD_BLOCK    = 6 // Studená kuchyňa — aj samostatný lístok za rezom
+const RAUT_BLOCKS   = [4, 5] // Raut + Prílohy pre raut — bez výberu sa rámček RAUT netlačí
 
 // ── Model lístka ─────────────────────────────────────────────────────────
 
@@ -131,6 +132,8 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
     hall:   t.hall ?? '',
     notes:  (t.notes ?? '').trim(),
     counts: t.counts,
+    // Raut nemusí byť vždy — rámček RAUT len keď je v jeho blokoch niečo vybraté
+    hasRaut: sections.some(s => RAUT_BLOCKS.includes(s.block) && s.items.length),
     toasts: TOAST_CATEGORIES
       .map(c => ({ label: c.label, names: (selsByCat[c.id] ?? []).map(selLabel) }))
       .filter(c => c.names.length),
@@ -347,8 +350,9 @@ function drawLabeled(s, label, value, size) {
   s.para([{ text: `${label}:`, weight: 400 }, { text: value, weight: 700 }], M, CW, size)
 }
 
-// Počty osôb: mriežka 2 × 2 rámčekov, zobrazujú sa vždy (aj s nulou)
-function drawCounts(s, c) {
+// Počty osôb: mriežka 2 × 2 rámčekov, zobrazujú sa vždy (aj s nulou);
+// RAUT len pri akcii s rautom (hasRaut), inak ostane jeho miesto prázdne
+function drawCounts(s, c, hasRaut) {
   const gap = 8
   const bw = (CW - gap) / 2
   const extra = n => (n > 0 ? `z toho +${n} navyše` : `z toho −${-n} menej`)
@@ -359,7 +363,7 @@ function drawCounts(s, c) {
     ],
     [
       { label: 'ŠPECIÁLY', n: c.specials, sub: '' },
-      { label: 'RAUT',     n: c.raut,     sub: c.rautExtra ? extra(c.rautExtra) : '' },
+      ...(hasRaut ? [{ label: 'RAUT', n: c.raut, sub: c.rautExtra ? extra(c.rautExtra) : '' }] : []),
     ],
   ]
   rows.forEach((row, ri) => {
@@ -527,7 +531,7 @@ export async function renderKitchenTickets(model) {
   for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30)
   if (model.hall) drawLabeled(s, 'Sála', model.hall, 26)
   s.y += 16
-  drawCounts(s, model.counts)
+  drawCounts(s, model.counts, model.hasRaut)
   s.y += 24
   for (const sec of model.sections) {
     drawSection(s, sec, true)

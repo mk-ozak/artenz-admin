@@ -24,6 +24,9 @@ const DETAIL_COLS = {
   rautGrams:          'raut_grams',
   notes:              'notes',
 }
+// Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
+const RAUT_BLOCKS = [4, 5]
+
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
   focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500`
 
@@ -47,11 +50,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   const [details, setDetails] = useState(null)
   // Je pre rezerváciu vytvorené menu? (null = načítava)
   const [menuCreated, setMenuCreated] = useState(null)
+  // Raut s prílohami — predvolene zapnutý; vypnutý skryje bloky rautu
+  const [rautOn, setRautOn] = useState(true)
 
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -66,6 +71,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           notes:              data?.notes ?? '',
         })
         setMenuCreated(!!data?.menu_created)
+        setRautOn(data?.raut_enabled ?? true)
       })
   }, [bookingId])
 
@@ -95,6 +101,17 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       .update({ [DETAIL_COLS[field]]: value })
       .eq('id', bookingId)
     if (error) setError(error.message)
+  }
+
+  // Zapnutie / vypnutie rautu — ukladá sa hneď (optimisticky + návrat pri chybe)
+  async function toggleRaut() {
+    const next = !rautOn
+    setRautOn(next)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ raut_enabled: next })
+      .eq('id', bookingId)
+    if (error) { setError(error.message); setRautOn(!next) }
   }
 
   // Číselné okienko počtu hostí
@@ -190,6 +207,33 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             className={detailInputCls}
           />
         </div>
+      </div>
+    ),
+  } : undefined
+
+  // Prepínač nad rautovou časťou (len pri úprave)
+  const rautToggle = editable ? {
+    [RAUT_BLOCKS[0]]: (
+      <div className="rounded-card border border-[#e0e8ec] bg-white px-4 py-3
+                      flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[#1a2830]">Raut s prílohami</p>
+          <p className="text-[11px] text-[#5d7d8e]">
+            {rautOn ? 'Raut a prílohy pre raut sú v menu' : 'Bez rautu — raut sa nezobrazuje ani netlačí'}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={rautOn}
+          aria-label="Raut s prílohami"
+          onClick={toggleRaut}
+          className={`relative w-11 h-6 shrink-0 rounded-full transition-colors
+                      ${rautOn ? 'bg-[#4cbfb3]' : 'bg-[#cfdbe2]'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow
+                            transition-transform ${rautOn ? 'translate-x-5' : ''}`} />
+        </button>
       </div>
     ),
   } : undefined
@@ -475,6 +519,8 @@ ${sections || '<p>Menu je prázdne.</p>'}
           ownerId={bookingId}
           editable={editable && !busy}
           extraBeforeBlock={menuBlockSlots}
+          aboveBlock={rautToggle}
+          hiddenBlocks={rautOn ? [] : RAUT_BLOCKS}
           summary={menuSummary}
         />
       )}

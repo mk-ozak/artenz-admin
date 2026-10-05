@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
   IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPlus, IconPrinter, IconReceipt, IconX,
 } from '@tabler/icons-react'
@@ -43,8 +43,13 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // Generický nad „vlastníkom" výberov: menu rezervácie (booking_menu_items /
 // booking_id) aj šablóna menu (menu_template_items / template_id).
 // extraBeforeBlock: { [číslo bloku]: ReactNode } — vloží sa navrch daného bloku.
+// aboveBlock: { [číslo bloku]: ReactNode } — samostatne nad kartou bloku (aj keď je skrytý).
+// hiddenBlocks: [čísla blokov] — skryté v menu, kalkulácii aj tlači (napr. vypnutý
+//   raut); vybraté položky v nich ostávajú uložené.
 // summary: konfigurácia zhrnutia (sekcie podľa blokov + množstvá); null = jednoduché zhrnutie
-export default function MenuEditor({ table, ownerColumn, ownerId, editable, extraBeforeBlock, summary }) {
+export default function MenuEditor({
+  table, ownerColumn, ownerId, editable, extraBeforeBlock, aboveBlock, hiddenBlocks, summary,
+}) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
   const [variants, setVariants]     = useState([])   // aktívne možnosti variantov
@@ -88,12 +93,17 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
 
   // Možnosti variantov podľa položky + nedokončené výbery (zaškrtnutá
   // položka s variantmi, ktorá zatiaľ nemá zvolený variant)
+  // Výbery v skrytých blokoch sa nezobrazujú, nepočítajú ani netlačia
+  const hidden = new Set(hiddenBlocks ?? [])
+  const blockOf = Object.fromEntries(categories.map(c => [c.id, c.block]))
+  const activeSelections = selections.filter(sel => !hidden.has(blockOf[selCatId(sel)]))
+
   const variantsByItem = groupVariantsByItem(variants)
-  const incomplete = selections.filter(sel => needsVariant(sel, variantsByItem))
+  const incomplete = activeSelections.filter(sel => needsVariant(sel, variantsByItem))
 
   // Archivovaná kategória sa zobrazí, len ak v nej výber už niečo má
   const visibleCats = categories.filter(c =>
-    !c.archived_at || (selsByCat[c.id]?.length > 0)
+    !hidden.has(c.block) && (!c.archived_at || (selsByCat[c.id]?.length > 0))
   )
 
   // Reálne vykreslené kategórie (v read-only sa prázdne vynechávajú) —
@@ -215,10 +225,13 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
     saveQty(sel, n)
   }
 
-  const hasAnySelection = selections.length > 0
+  const hasAnySelection = activeSelections.length > 0
 
   // Reálne vykreslené čísla blokov (v poradí)
   const blockNums = [...new Set(renderCats.map(c => c.block))]
+  // Poradie kariet aj s obsahom nad blokom (aboveBlock), ktorý ostáva aj pri skrytom bloku
+  const slotBlocks = [...new Set([...blockNums, ...Object.keys(aboveBlock ?? {}).map(Number)])]
+    .sort((a, b) => a - b)
 
   // Zhrnutie po sekciách (blokoch) — len bloky s výberom
   const summarySections = []
@@ -605,7 +618,8 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
               </p>
             </div>
           )}
-          {blockNums.map(block => {
+          {slotBlocks.map(block => {
+            if (!blockNums.includes(block)) return <Fragment key={block}>{aboveBlock?.[block]}</Fragment>
             // Kontrola súčtu množstiev v bloku — pod jedlami bloku
             let check = null
             if (summary && summary.checkBlock === block) {
@@ -655,14 +669,17 @@ export default function MenuEditor({ table, ownerColumn, ownerId, editable, extr
               }
             }
             return (
-              <div key={block} className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
-                <div className="h-3 bg-[#8fa6b2]" />
-                {extraBeforeBlock?.[block]}
-                {mirrorNote}
-                {renderCats.filter(c => c.block === block).map(renderCategory)}
-                {check}
-                <div className="h-2" />
-              </div>
+              <Fragment key={block}>
+                {aboveBlock?.[block]}
+                <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
+                  <div className="h-3 bg-[#8fa6b2]" />
+                  {extraBeforeBlock?.[block]}
+                  {mirrorNote}
+                  {renderCats.filter(c => c.block === block).map(renderCategory)}
+                  {check}
+                  <div className="h-2" />
+                </div>
+              </Fragment>
             )
           })}
 
