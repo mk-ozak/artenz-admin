@@ -264,6 +264,8 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         1: Number(details.guestsAdults) || 0,
         2: Number(details.guestsKidsMeal) || 0,
       },
+      // Špeciáli pijú prípitok dospelých (lib/menuCalc → calcCount)
+      specials: Number(details.guestsSpecials) || 0,
     },
     // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × (gramáž/1000) kg
     weightCheck: {

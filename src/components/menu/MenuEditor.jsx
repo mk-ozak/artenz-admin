@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import {
   groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel, variantGroupLabel,
 } from '../../lib/menuVariants'
-import { calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
+import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
 import {
   buildKitchenTicket, buildSummaryTicket, downloadPng, renderKitchenA5, renderKitchenTickets,
   renderSummaryTicket,
@@ -296,7 +296,7 @@ export default function MenuEditor({
         )}
         {sec.items.map(({ sel, cat }) => {
           // Výpočet zdieľa s lístkom do kuchyne (lib/menuCalc)
-          const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], count)
+          const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], calcCount(summary, sec.block, cat))
           const splitBadge = line.split ? `1/${line.split}` : null
           const dash = count != null ? '—' : ''
           const jedn = line.jedn ? `${line.jedn}${line.jednNote ? ` (${line.jednNote})` : ''}` : dash

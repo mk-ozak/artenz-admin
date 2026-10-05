@@ -4,7 +4,7 @@
 // s adminom. Lístok sa kreslí
 // cez Canvas 2D a do tlačiarne ide ako obrázok (utils/escpos) — textový režim
 // tlačiarne má čínsku znakovú sadu a slovenskú diakritiku by rozsypal.
-import { calcLine, fmtQty, sectionHeadCount } from '../lib/menuCalc'
+import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../lib/menuCalc'
 import { selLabel } from '../lib/menuVariants'
 import { DAYS_LONG } from './format'
 
@@ -70,13 +70,13 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
   for (const sec of secs) {
     // Počet v pruhu sekcie; násobí sa tým istým počtom ako na obrazovke
     const count = t.sectionCount?.[sec.block] ?? null
-    const calcCount = summary.calc?.countByBlock?.[sec.block] ?? null
+    const blockCount = summary.calc?.countByBlock?.[sec.block] ?? null
     const items = count === 0 ? [] : sec.items.flatMap(({ sel, cat }) => {
       if (toastIds.has(cat.id)) return []
-      const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], calcCount)
+      const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], calcCount(summary, sec.block, cat))
       if (cat.id === SOUP_CATEGORY) {
         if (!soups.has(sel.id)) soups.set(sel.id, { sel, cat, from: [] })
-        soups.get(sel.id).from.push({ block: sec.block, title: sectionTitle(sec, summary), count: calcCount, line })
+        soups.get(sel.id).from.push({ block: sec.block, title: sectionTitle(sec, summary), count: blockCount, line })
         return []
       }
       if (line.amount === 0) return []

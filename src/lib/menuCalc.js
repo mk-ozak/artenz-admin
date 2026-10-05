@@ -14,6 +14,17 @@ const COOKED_RICE = [
 ]
 const isCookedRice = (sel, cat) => COOKED_RICE.some(r => r.category === cat.id && r.item === sel.item_id)
 
+// Prípitok dospelých pijú aj špeciáli — násobí sa dospelými + špeciálmi
+const TOAST_CATEGORY = 'e9d6904c-5fa5-464a-ab00-5fea29f52b49' // Prípitok
+
+// Počet osôb, ktorým sa v kalkulácii násobí porcia položky kategórie cat
+// v bloku (null = blok sa nenásobí, berie sa naklikané množstvo)
+export function calcCount(summary, block, cat) {
+  const count = summary.calc?.countByBlock?.[block] ?? null
+  if (count != null && cat.id === TOAST_CATEGORY) return count + (summary.calc?.specials ?? 0)
+  return count
+}
+
 // Počet osôb v nadpise sekcie (kalkulácia aj zhrnutie pre zákazníka): počet,
 // ktorým sa sekcia násobí, inak počet špeciálov alebo pevný počet bloku (raut)
 export function sectionHeadCount(summary, block) {
