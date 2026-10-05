@@ -754,7 +754,7 @@ export default function MenuEditor({
                   { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
                   { icon: IconPrinter, text: 'A4', title: 'Tlač na A4 (grafika A5)', onClick: printKitchenA4 },
                   // Štítky na plechy — len keď je v raute niečo vybraté
-                  ...(buildRautLabels({ sections: summarySections, summary }).labels.length
+                  ...(buildRautLabels({ sections: summarySections, selsByCat, summary }).labels.length
                     ? [{ icon: IconTag, text: 'RAUT', title: 'Štítky na plechy rautu (termotlačiareň)', onClick: () => openThermal('raut') }]
                     : []),
                 ])}

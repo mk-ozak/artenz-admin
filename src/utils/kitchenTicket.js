@@ -615,33 +615,59 @@ export async function renderSummaryTicket(model) {
 
 // ── Štítky na plechy rautu (termo) ───────────────────────────────────────
 // Každá vybratá položka rautu a príloh pre raut = samostatný štítok, medzi
-// štítkami rez. Názov kapitálkami, veľkým písmom ako sála v hlavičke.
+// štítkami rez. Názov kapitálkami, veľkým písmom ako sála v hlavičke; za ním
+// množstvo z kalkulácie polovičným písmom.
 const LABEL_SIZE   = 64 // ako veľký nápis sály v hlavičke
 const LABEL_TOP    = 32 // voľné miesto nad textom
 const LABEL_BOTTOM = 8  // pod textom len málo — tlačiareň pred rezom ešte posúva papier
 
-export function buildRautLabels({ sections, summary }) {
+export function buildRautLabels({ sections, selsByCat, summary }) {
   return {
     date: summary.ticket?.date ?? '',
     labels: sections
       .filter(sec => RAUT_BLOCKS.includes(sec.block))
-      .flatMap(sec => sec.items.map(({ sel }) => selLabel(sel).toLocaleUpperCase('sk'))),
+      .flatMap(sec => sec.items.map(({ sel, cat }) => ({
+        text: selLabel(sel).toLocaleUpperCase('sk'),
+        // rovnaké množstvo ako v kalkulácii (raut: naklikané kg)
+        qty: calcLine(sel, cat, selsByCat?.[cat.id] ?? [], calcCount(summary, sec.block, cat)).mnozstvo,
+      }))),
   }
 }
 
 // Vykreslí štítky: [štítok, štítok, …] — dlhý text sa zalamuje a štítok rastie;
-// slovo dlhšie ako riadok sa radšej zmenší, než by sa delilo po písmenách
+// slovo dlhšie ako riadok sa radšej zmenší, než by sa delilo po písmenách.
+// Množstvo ide za posledné slovo, a keď sa tam nezmestí, na samostatný riadok.
 export async function renderRautLabels(model) {
   const family = await ticketFont()
-  return model.labels.map(text => {
+  return model.labels.map(({ text, qty }) => {
     const s = new Sheet(family)
     let size = LABEL_SIZE
     while (size > 36 && text.split(/\s+/).some(w => s.width(w, size, 700) > CW)) size -= 2
+    const qtySize = Math.round(size / 2)
+    const gap = s.width(' ', size, 700)
+    const qtyW = qty ? s.width(qty, qtySize, 700) : 0
+    const lines = s.wrap([{ text, weight: 700 }], CW, size).map(ln => ({
+      text: ln.words.map(wd => wd.text).join(' '),
+      w: ln.w,
+    }))
+    const last = lines[lines.length - 1]
+    const qtyInline = qty && last.w + gap + qtyW <= CW
     s.y = LABEL_TOP
-    for (const ln of s.wrap([{ text, weight: 700 }], CW, size)) {
-      s.text(ln.words.map(wd => wd.text).join(' '), W / 2, s.base(s.y, lineH(size), size, 700), size, 700,
-        { align: 'center' })
+    lines.forEach(ln => {
+      const base = s.base(s.y, lineH(size), size, 700)
+      if (ln === last && qtyInline) {
+        // posledný riadok + množstvo spolu vycentrované, na spoločnom účiarí
+        const x = W / 2 - (ln.w + gap + qtyW) / 2
+        s.text(ln.text, x, base, size, 700)
+        s.text(qty, x + ln.w + gap, base, qtySize, 700)
+      } else {
+        s.text(ln.text, W / 2, base, size, 700, { align: 'center' })
+      }
       s.y += lineH(size)
+    })
+    if (qty && !qtyInline) {
+      s.text(qty, W / 2, s.base(s.y, lineH(qtySize), qtySize, 700), qtySize, 700, { align: 'center' })
+      s.y += lineH(qtySize)
     }
     s.y += LABEL_BOTTOM
     return s.paint()
