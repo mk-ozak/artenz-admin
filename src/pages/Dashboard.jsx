@@ -12,6 +12,7 @@ import ExpectedDeposits from '../components/dashboard/ExpectedDeposits'
 import ReceivedDeposits from '../components/dashboard/ReceivedDeposits'
 import DeletedBookings from '../components/dashboard/DeletedBookings'
 import RecentlyAdded from '../components/dashboard/RecentlyAdded'
+import DaySummary from '../components/dashboard/DaySummary'
 
 // Jednotný dashboard pre mobil, tablet aj desktop – bez bočného menu,
 // obsah v jednom stĺpci so 4 veľkými farebnými tlačidlami.
@@ -50,17 +51,21 @@ export default function Dashboard() {
         {/* 3. Veľké tlačidlá */}
         <NavGrid stats={stats} />
 
-        {/* 4.–7. Desktop: vľavo akcie; vpravo zálohy, posledné pridané a úplne dole
-            posledné vymazané. Mobil/tablet: to isté pod sebou v jednom stĺpci. */}
-        <div className="px-4 pb-2 grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
+        {/* 4.–8. Desktop: vľavo akcie a pod nimi sumár jedál; vpravo zálohy, posledné
+            pridané a úplne dole posledné vymazané. Mobil/tablet: pod sebou v jednom
+            stĺpci, sumár jedál úplne naspodu (pravý stĺpec cez dva riadky mriežky). */}
+        <div className="px-4 pb-2 grid grid-cols-1 xl:grid-cols-2 xl:grid-rows-[auto_1fr] gap-2 items-start">
           <div className="min-w-0">
             <UpcomingEvents refreshKey={refreshKey} />
           </div>
-          <div className="min-w-0 flex flex-col gap-2">
+          <div className="min-w-0 flex flex-col gap-2 xl:row-span-2">
             <ReceivedDeposits refreshKey={refreshKey} />
             <RecentlyAdded refreshKey={refreshKey} />
             <ExpectedDeposits refreshKey={refreshKey} />
             <DeletedBookings refreshKey={refreshKey} />
+          </div>
+          <div className="min-w-0">
+            <DaySummary refreshKey={refreshKey} />
           </div>
         </div>
 

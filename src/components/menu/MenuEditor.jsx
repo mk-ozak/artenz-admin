@@ -5,9 +5,9 @@ import {
 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import {
-  groupVariantsByItem, incompleteMessage, needsVariant, selCatId, selLabel, variantGroupLabel,
+  groupVariantsByItem, incompleteMessage, needsVariant, selLabel, variantGroupLabel,
 } from '../../lib/menuVariants'
-import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
+import { buildMenuSections, calcCount, calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
 import {
   buildKitchenTicket, buildRautLabels, buildSummaryTicket, downloadPng, renderKitchenA5,
   renderKitchenTickets, renderRautLabels, renderSummaryTicket,
@@ -88,25 +88,15 @@ export default function MenuEditor({
   // Pri otvorení/zatvorení výberu vyčisti rozpísaný názov novej položky
   useEffect(() => { setNewItemName('') }, [pickerCatId])
 
-  const selsByCat = {}
-  for (const sel of selections) {
-    (selsByCat[selCatId(sel)] ??= []).push(sel)
-  }
+  // Výbery po kategóriách a sekciách — spoločné so sumárom jedál (lib/menuCalc).
+  // Výbery v skrytých blokoch sa nezobrazujú, nepočítajú ani netlačia.
+  const { selsByCat, activeSelections, visibleCats, sections: summarySections } =
+    buildMenuSections({ categories, selections, summary, hiddenBlocks })
 
   // Možnosti variantov podľa položky + nedokončené výbery (zaškrtnutá
   // položka s variantmi, ktorá zatiaľ nemá zvolený variant)
-  // Výbery v skrytých blokoch sa nezobrazujú, nepočítajú ani netlačia
-  const hidden = new Set(hiddenBlocks ?? [])
-  const blockOf = Object.fromEntries(categories.map(c => [c.id, c.block]))
-  const activeSelections = selections.filter(sel => !hidden.has(blockOf[selCatId(sel)]))
-
   const variantsByItem = groupVariantsByItem(variants)
   const incomplete = activeSelections.filter(sel => needsVariant(sel, variantsByItem))
-
-  // Archivovaná kategória sa zobrazí, len ak v nej výber už niečo má
-  const visibleCats = categories.filter(c =>
-    !hidden.has(c.block) && (!c.archived_at || (selsByCat[c.id]?.length > 0))
-  )
 
   // Reálne vykreslené kategórie (v read-only sa prázdne vynechávajú) —
   // potrebné na oddeľovač medzi blokmi
@@ -234,33 +224,6 @@ export default function MenuEditor({
   // Poradie kariet aj s obsahom nad blokom (aboveBlock), ktorý ostáva aj pri skrytom bloku
   const slotBlocks = [...new Set([...blockNums, ...Object.keys(aboveBlock ?? {}).map(Number)])]
     .sort((a, b) => a - b)
-
-  // Zhrnutie po sekciách (blokoch) — len bloky s výberom
-  const summarySections = []
-  if (summary) {
-    for (const cat of visibleCats) {
-      const sels = selsByCat[cat.id] ?? []
-      if (!sels.length) continue
-      let entry = summarySections.find(s => s.block === cat.block)
-      if (!entry) { entry = { block: cat.block, items: [] }; summarySections.push(entry) }
-      for (const sel of sels) entry.items.push({ sel, cat })
-    }
-    // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom)
-    if (summary.mirror) {
-      const mirrored = categories
-        .filter(c => c.name === summary.mirror.fromCategory)
-        .flatMap(c => (selsByCat[c.id] ?? []).map(sel => ({ sel, cat: c })))
-      if (mirrored.length) {
-        let entry = summarySections.find(s => s.block === summary.mirror.toBlock)
-        if (!entry) {
-          entry = { block: summary.mirror.toBlock, items: [] }
-          summarySections.push(entry)
-          summarySections.sort((a, b) => a.block - b.block)
-        }
-        entry.items = [...mirrored, ...entry.items]
-      }
-    }
-  }
 
   // Zoskupenie sekcií do riadkov — pár blokov (napr. 4+5) ide vedľa seba
   function buildRows(sections) {

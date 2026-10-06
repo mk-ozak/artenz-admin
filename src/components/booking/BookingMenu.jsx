@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IconEraser, IconPlus, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
+import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
@@ -17,9 +18,6 @@ const DETAIL_COLS = {
   rautGrams:          'raut_grams',
   notes:              'notes',
 }
-// Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
-const RAUT_BLOCKS = [4, 5]
-
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
   focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500`
 
@@ -53,16 +51,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
-        setDetails({
-          guestsAdults:       data?.guests_adults ?? '',
-          guestsAdultsNoMeal: data?.guests_adults_no_meal ?? '',
-          guestsSpecials:     data?.guests_specials ?? '',
-          guestsKidsMeal:     data?.guests_kids_meal ?? '',
-          guestsKidsNoMeal:   data?.guests_kids_no_meal ?? '',
-          rautExtra:          data?.raut_extra ?? '',
-          rautGrams:          data?.raut_grams ?? 200,
-          notes:              data?.notes ?? '',
-        })
+        setDetails(detailsFromRow(data))
         setMenuCreated(!!data?.menu_created)
         setRautOn(data?.raut_enabled ?? true)
       })
@@ -126,12 +115,8 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     )
   }
 
-  // Počet ľudí na raut = (dospelí + špeciály) + zaokrúhlené nahor(deti s jedlom / 2)
-  const rautBase = details
-    ? (Number(details.guestsAdults) || 0) + (Number(details.guestsSpecials) || 0)
-      + Math.ceil((Number(details.guestsKidsMeal) || 0) / 2)
-    : 0
-  const rautTotal = rautBase + (Number(details?.rautExtra) || 0)
+  // Počet ľudí na raut = (dospelí + špeciály) + zaokrúhlené nahor(deti s jedlom / 2) + navyše/menej
+  const rautTotal = rautTotalOf(details)
 
   // Polia napevno navrchu blokov:
   // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3, raut → blok 4
@@ -232,70 +217,8 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   } : undefined
 
   // Konfigurácia zhrnutia — sekcie podľa blokov + množstvá z počtov hostí
-  const menuSummary = details ? {
-    titles: {
-      1: 'Hlavné jedlo - dospelí',
-      2: 'Hlavné jedlo deti',
-      3: 'Hlavné jedlo špeciál',
-      4: 'Raut',
-      5: 'Prílohy pre raut',
-      6: 'Studená kuchyňa',
-    },
-    fixedQty: {
-      1: Number(details.guestsAdults) || 0,
-      // hlavné jedlo deti = zadaný počet detí (vzorec /2 platí len pre raut)
-      2: Number(details.guestsKidsMeal) || 0,
-      4: rautTotal,
-      5: rautTotal,
-    },
-    checkBlock:  3,
-    checkTarget: Number(details.guestsSpecials) || 0,
-    // Deti dostanú automaticky tú istú polievku ako dospelí (z bloku 1)
-    mirror: { fromCategory: 'Polievka', toBlock: 2 },
-    // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke
-    qtyBlocks: [6],
-    // Bloky zobrazené vedľa seba (dva stĺpce): RAUT + Prílohy pre raut
-    pairBlocks: [4, 5],
-    printSubtitle,
-    // Kalkulácia pre kuchyňu — počet ľudí na násobenie jednotkového množstva
-    // blok 1 = Dospelí (bez špeciálov), blok 2 = Deti s jedlom (zadaný počet)
-    calc: {
-      countByBlock: {
-        1: Number(details.guestsAdults) || 0,
-        2: Number(details.guestsKidsMeal) || 0,
-      },
-      // Špeciáli pijú prípitok dospelých (lib/menuCalc → calcCount)
-      specials: Number(details.guestsSpecials) || 0,
-    },
-    // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × (gramáž/1000) kg
-    weightCheck: {
-      blocks: [4, 5],
-      perPerson: ((Number(details.rautGrams) > 0 ? Number(details.rautGrams) : 200) / 1000),
-      people: rautTotal,
-    },
-    // Tlač do kuchyne (termotlačiareň) — údaje akcie + počty osôb presne tak,
-    // ako s nimi admin počíta
-    ticket: ticketInfo && {
-      ...ticketInfo,
-      counts: {
-        adults:       Number(details.guestsAdults) || 0,
-        adultsNoMeal: Number(details.guestsAdultsNoMeal) || 0,
-        kidsMeal:     Number(details.guestsKidsMeal) || 0,
-        kidsNoMeal:   Number(details.guestsKidsNoMeal) || 0,
-        specials:     Number(details.guestsSpecials) || 0,
-        raut:         rautTotal,
-        rautExtra:    Number(details.rautExtra) || 0,
-      },
-      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 a 6 bez počtu
-      sectionCount: {
-        1: Number(details.guestsAdults) || 0,
-        2: Number(details.guestsKidsMeal) || 0,
-        3: Number(details.guestsSpecials) || 0,
-        4: rautTotal,
-      },
-      specialNotes: details.notes,
-    },
-  } : undefined
+  // Konfigurácia zhrnutia/kalkulácie — spoločná s dashboardom (lib/menuSummary)
+  const menuSummary = details ? menuSummaryConfig(details, { printSubtitle, ticketInfo }) : undefined
 
   async function openTemplates() {
     setShowTemplates(true)

@@ -2,6 +2,8 @@
 // Spoločné pre obrazovku (MenuEditor) aj lístok do kuchyne (kitchenTicket),
 // aby čísla na lístku vždy sedeli s adminom.
 
+import { selCatId } from './menuVariants'
+
 // Množstvo: 0.5 → „0,5"
 export const fmtQty = q => String(Number(q)).replace('.', ',')
 
@@ -38,7 +40,7 @@ export function sectionHeadCount(summary, block) {
 //          null = sekcia sa nenásobí → naklikané množstvo, ak ho kategória má
 // Vracia: split (počet položiek pri podiele, inak null), jedn (porcia na osobu),
 // jednNote (doplnok k porcii, napr. „v hotovom stave"), mnozstvo (spolu) —
-// sformátované texty, null = nie je čo ukázať; amount = číslo
+// sformátované texty, null = nie je čo ukázať; amount = číslo, unit = jeho jednotka
 export function calcLine(sel, cat, catSels, count) {
   const split = cat.split_portions && catSels.length > 1 ? catSels.length : null
   const rice = isCookedRice(sel, cat)
@@ -48,18 +50,67 @@ export function calcLine(sel, cat, catSels, count) {
     : null
   let amount = null
   let mnozstvo = null
+  let unit = null
   if (count != null && jednAmount != null) {
     amount = Math.round(jednAmount * count * (rice ? 50 : 100)) / 100
     mnozstvo = `${fmtQty(amount)}${unitSuffix}`
+    unit = cat.default_unit ?? null
   } else if (count == null && cat.qty_step != null) {
     amount = Number(sel.quantity)
     mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
+    unit = cat.qty_unit ?? null
   }
   return {
     split,
     jedn: jednAmount != null ? `${fmtQty(jednAmount)}${unitSuffix}` : null,
     jednNote: rice && jednAmount != null ? 'v hotovom stave' : null,
     amount,
+    unit,
     mnozstvo,
   }
+}
+
+// Výbery menu zoskupené po kategóriách a do sekcií (blokov) tak, ako ich ukazuje
+// kalkulácia — spoločné pre MenuEditor a sumár jedál na dashboarde.
+// Kategória výberu je aktuálna z katalógu (selCatId); archivovaná kategória sa
+// ukáže len s výberom; skryté bloky (napr. vypnutý raut) sa vynechajú;
+// zrkadlenie (summary.mirror) dá polievku dospelých aj deťom.
+// sections sa skladajú len so summary (bloky s výberom, v poradí).
+export function buildMenuSections({ categories, selections, summary, hiddenBlocks }) {
+  const selsByCat = {}
+  for (const sel of selections) (selsByCat[selCatId(sel)] ??= []).push(sel)
+
+  const hidden = new Set(hiddenBlocks ?? [])
+  const blockOf = Object.fromEntries(categories.map(c => [c.id, c.block]))
+  const activeSelections = selections.filter(sel => !hidden.has(blockOf[selCatId(sel)]))
+  const visibleCats = categories.filter(c =>
+    !hidden.has(c.block) && (!c.archived_at || (selsByCat[c.id]?.length > 0))
+  )
+
+  const sections = []
+  if (summary) {
+    for (const cat of visibleCats) {
+      const sels = selsByCat[cat.id] ?? []
+      if (!sels.length) continue
+      let entry = sections.find(s => s.block === cat.block)
+      if (!entry) { entry = { block: cat.block, items: [] }; sections.push(entry) }
+      for (const sel of sels) entry.items.push({ sel, cat })
+    }
+    // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom)
+    if (summary.mirror) {
+      const mirrored = categories
+        .filter(c => c.name === summary.mirror.fromCategory)
+        .flatMap(c => (selsByCat[c.id] ?? []).map(sel => ({ sel, cat: c })))
+      if (mirrored.length) {
+        let entry = sections.find(s => s.block === summary.mirror.toBlock)
+        if (!entry) {
+          entry = { block: summary.mirror.toBlock, items: [] }
+          sections.push(entry)
+          sections.sort((a, b) => a.block - b.block)
+        }
+        entry.items = [...mirrored, ...entry.items]
+      }
+    }
+  }
+  return { selsByCat, activeSelections, visibleCats, sections }
 }

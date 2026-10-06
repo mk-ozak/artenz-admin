@@ -12,6 +12,7 @@ import BottomNav from '../components/layout/BottomNav'
 import BookingModal from '../components/BookingModal'
 import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
+import { HALL_SHORT } from '../utils/kitchenTicket'
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -22,14 +23,6 @@ const HALL_COLOR = {
 
 const HALL_LABEL = {
   ARTENZ_PLUS: 'ARTENZ PLUS',
-  ARTENZ:      'ARTENZ',
-  LUNA:        'LUNA',
-  CATERING:    'CATERING',
-}
-
-// Skratka sály — veľký nápis v hlavičke tlače do kuchyne
-const HALL_SHORT = {
-  ARTENZ_PLUS: 'PLUS',
   ARTENZ:      'ARTENZ',
   LUNA:        'LUNA',
   CATERING:    'CATERING',

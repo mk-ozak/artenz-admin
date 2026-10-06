@@ -1,4 +1,4 @@
-const DAYS_SHORT  = ['Ned','Pon','Ut','Str','Štv','Pia','Sob']
+export const DAYS_SHORT = ['Ned','Pon','Ut','Str','Štv','Pia','Sob']
 export const DAYS_LONG = ['Nedeľa','Pondelok','Utorok','Streda','Štvrtok','Piatok','Sobota']
 const MONTHS_GEN  = ['januára','februára','marca','apríla','mája','júna',
                      'júla','augusta','septembra','októbra','novembra','decembra']

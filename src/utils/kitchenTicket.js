@@ -6,7 +6,16 @@
 // tlačiarne má čínsku znakovú sadu a slovenskú diakritiku by rozsypal.
 import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../lib/menuCalc'
 import { selLabel } from '../lib/menuVariants'
-import { DAYS_LONG } from './format'
+import { RAUT_BLOCKS } from '../lib/menuSummary'
+import { DAYS_LONG, DAYS_SHORT } from './format'
+
+// Skratka sály — veľký nápis v hlavičke tlače do kuchyne
+export const HALL_SHORT = {
+  ARTENZ_PLUS: 'PLUS',
+  ARTENZ:      'ARTENZ',
+  LUNA:        'LUNA',
+  CATERING:    'CATERING',
+}
 
 // ── Rozpoznanie v katalógu ───────────────────────────────────────────────
 // Kategórie podľa ID (menu_categories.id) — na názve kategórie ani položky
@@ -31,7 +40,6 @@ const SOUP_PARTS = [
 // Sekcie podľa čísla bloku (menu_categories.block; bloky nemajú ID ani názov)
 const SPECIAL_BLOCK = 3 // Hlavné jedlo špeciál — rámček + požiadavky ku strave
 const COLD_BLOCK    = 6 // Studená kuchyňa — aj samostatný lístok za rezom
-const RAUT_BLOCKS   = [4, 5] // Raut + Prílohy pre raut — bez výberu sa rámček RAUT netlačí
 
 // ── Model lístka ─────────────────────────────────────────────────────────
 
@@ -44,6 +52,9 @@ function soupParts(count) {
     total:   `${(Math.round((count * p.grams) / 100) / 10).toFixed(1).replace('.', ',')} kg`,
   }))
 }
+
+// Kľúč položky pre súčty cez viac akcií (rovnaká položka katalógu + variant)
+const itemKey = sel => `${sel.item_id ?? selLabel(sel)}|${sel.variant_id ?? ''}`
 
 // Názov sekcie ako v kalkulácii; nový blok bez názvu → názvy jeho kategórií
 function sectionTitle(sec, summary) {
@@ -67,13 +78,17 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
 
   const out = []
   const soups = new Map()  // polievka → riadky kalkulácie zo sekcií (dospelí, deti)
+  const toastLines = []    // prípitky s množstvom (pre sumár jedál)
   for (const sec of secs) {
     // Počet v pruhu sekcie; násobí sa tým istým počtom ako na obrazovke
     const count = t.sectionCount?.[sec.block] ?? null
     const blockCount = summary.calc?.countByBlock?.[sec.block] ?? null
     const items = count === 0 ? [] : sec.items.flatMap(({ sel, cat }) => {
-      if (toastIds.has(cat.id)) return []
       const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], calcCount(summary, sec.block, cat))
+      if (toastIds.has(cat.id)) {
+        toastLines.push({ category: cat.id, key: itemKey(sel), name: selLabel(sel), amount: line.amount, unit: line.unit })
+        return []
+      }
       if (cat.id === SOUP_CATEGORY) {
         if (!soups.has(sel.id)) soups.set(sel.id, { sel, cat, from: [] })
         soups.get(sel.id).from.push({ block: sec.block, title: sectionTitle(sec, summary), count: blockCount, line })
@@ -87,6 +102,9 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
         portionNote: line.jednNote,  // napr. „v hotovom stave" (ryža)
         total:   line.mnozstvo,  // množstvo spolu
         parts:   [],
+        key:     itemKey(sel),   // pre sumár jedál: kľúč, číslo a jednotka
+        amount:  line.amount,
+        unit:    line.unit,
       }]
     })
     const notes = sec.block === SPECIAL_BLOCK ? specialNotes : ''
@@ -119,6 +137,10 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
         ? from.map(f => `${SOUP_WHO[f.block] ?? f.title} ${f.line.mnozstvo ?? ''} (${f.count} os.)`).join(' + ')
         : null,
       parts:     people > 0 ? soupParts(people) : [],
+      key:       itemKey(sel),
+      amount,
+      unit:      cat.default_unit ?? null,
+      people,
     }]
   })
   if (soupItems.length) {
@@ -136,7 +158,11 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
     // Raut nemusí byť vždy — rámček RAUT len keď je v jeho blokoch niečo vybraté
     hasRaut: sections.some(s => RAUT_BLOCKS.includes(s.block) && s.items.length),
     toasts: TOAST_CATEGORIES
-      .map(c => ({ label: c.label, names: (selsByCat[c.id] ?? []).map(selLabel) }))
+      .map(c => ({
+        label: c.label,
+        names: (selsByCat[c.id] ?? []).map(selLabel),
+        lines: toastLines.filter(l => l.category === c.id),  // s množstvom (sumár jedál)
+      }))
       .filter(c => c.names.length),
     sections: out,
     cold:     out.find(s => s.block === COLD_BLOCK && s.items.length) ?? null,
@@ -672,6 +698,157 @@ export async function renderRautLabels(model) {
     s.y += LABEL_BOTTOM
     return s.paint()
   })
+}
+
+// ── Sumár jedál za vybraté dni (dashboard) ───────────────────────────────
+// Každá akcia sa prepočíta ako jej lístok do kuchyne (buildKitchenTicket);
+// rovnaké položky (kľúč = položka katalógu + variant) sa v rámci sekcie sčítajú.
+// Akcie bez menu sa len vypíšu a do súčtov sa nerátajú.
+
+const round2 = n => Math.round(n * 100) / 100
+const qtyText = (amount, unit) => `${fmtQty(round2(amount))}${unit ? ` ${unit}` : ''}`
+
+// Krátky dátum „Sob 10. 10."
+const shortDate = iso => {
+  const d = new Date(`${iso}T00:00:00`)
+  return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${d.getMonth() + 1}.`
+}
+
+// dates:  vybraté dni (ISO), events: [{ hallShort, date, time, title, model }]
+//         — model = lístok do kuchyne akcie, null = akcia bez menu
+export function buildDaySummary(dates, events) {
+  const days = [...dates].sort()
+  const multiDay = days.length > 1
+  // Označenie akcie v rozpisoch: sála (+ deň pri viac dňoch, + čas pri zhode)
+  const base = e => `${multiDay ? `${shortDate(e.date)} ` : ''}${e.hallShort}`
+  const label = e => (events.filter(x => base(x) === base(e)).length > 1 && e.time ? `${base(e)} ${e.time}` : base(e))
+
+  const withMenu = events.filter(e => e.model)
+  const counts = { adults: 0, adultsNoMeal: 0, kidsMeal: 0, kidsNoMeal: 0, specials: 0, raut: 0, rautExtra: 0 }
+  for (const e of withMenu) {
+    for (const k of Object.keys(counts)) {
+      if (k.startsWith('raut') && !e.model.hasRaut) continue
+      counts[k] += e.model.counts?.[k] ?? 0
+    }
+  }
+
+  // Prípitky: súčet ks podľa položky
+  const toasts = new Map()  // označenie prípitku → Map(kľúč → { name, amount, unit })
+  for (const e of withMenu) {
+    for (const t of e.model.toasts) {
+      if (!toasts.has(t.label)) toasts.set(t.label, new Map())
+      for (const l of t.lines) {
+        const m = toasts.get(t.label)
+        const a = m.get(l.key) ?? { name: l.name, amount: null, unit: l.unit }
+        if (l.amount != null) a.amount = (a.amount ?? 0) + l.amount
+        m.set(l.key, a)
+      }
+    }
+  }
+
+  // Sekcie: blok → položky sčítané podľa kľúča
+  const blocks = new Map()
+  for (const e of withMenu) {
+    for (const sec of e.model.sections) {
+      let b = blocks.get(sec.block)
+      if (!b) {
+        b = { block: sec.block, title: sec.title, count: null, special: sec.special, notes: [], items: new Map() }
+        blocks.set(sec.block, b)
+      }
+      if (sec.count != null) b.count = (b.count ?? 0) + sec.count
+      if (sec.notes) b.notes.push(`${label(e)}: ${sec.notes}`)
+      for (const it of sec.items) {
+        const a = b.items.get(it.key) ?? { name: it.name, unit: it.unit, amount: null, people: 0, from: [] }
+        if (it.amount != null) a.amount = (a.amount ?? 0) + it.amount
+        a.people += it.people ?? 0
+        a.from.push(`${label(e)}${it.total ? ` ${it.total}` : ''}`)
+        b.items.set(it.key, a)
+      }
+    }
+  }
+
+  return {
+    date: days[0] ?? '',
+    days,
+    events: events.map(e => ({ label: label(e), time: e.time, title: e.title, counts: e.model?.counts, hasMenu: !!e.model, hasRaut: !!e.model?.hasRaut })),
+    counts,
+    hasRaut: withMenu.some(e => e.model.hasRaut),
+    toasts: [...toasts].map(([lbl, m]) => ({
+      label: lbl,
+      text: [...m.values()].map(a => `${a.name}${a.amount != null ? ` ${qtyText(a.amount, a.unit)}` : ''}`).join(', '),
+    })).filter(t => t.text),
+    sections: [...blocks.values()].sort((a, b) => a.block - b.block).map(b => ({
+      block:   b.block,
+      title:   b.title,
+      count:   b.count,
+      special: b.special,
+      notes:   b.notes.join('\n'),
+      items: [...b.items.values()].map(a => ({
+        name:      a.name,
+        split:     null,
+        portion:   null,
+        total:     a.amount != null ? qtyText(a.amount, a.unit) : null,
+        // z ktorých akcií (pri viacerých akciách)
+        breakdown: events.length > 1 ? a.from.join(' + ') : null,
+        parts:     b.block === 0 && a.people > 0 ? soupParts(a.people) : [],
+      })),
+    })),
+    printedAt: new Date(),
+  }
+}
+
+// Vykreslí sumár jedál: [lístok]
+export async function renderDaySummary(model) {
+  const s = new Sheet(await ticketFont())
+  const b = THERMAL
+  const white = { color: '#fff' }
+
+  // Hlavička: čierny pruh — KALKULÁCIA a vybraté dni
+  const top = s.y
+  const year = model.days.length ? new Date(`${model.days[0]}T00:00:00`).getFullYear() : ''
+  const daysText = model.days.length === 1
+    ? (() => {
+        const d = new Date(`${model.days[0]}T00:00:00`)
+        return `${DAYS_LONG[d.getDay()].toLocaleUpperCase('sk')} ${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`
+      })()
+    : `${model.days.map(shortDate).join(', ')} ${year}`
+  const dayLines = s.wrap([{ text: daysText, weight: 700 }], b.w - 32, 28)
+  const H = 16 + lineH(48) + dayLines.length * lineH(28) + 16
+  s.rect(b.x, top, b.w, H)
+  s.y = top + 16
+  s.line('KALKULÁCIA', b.x + 16, 48, 700, white)
+  for (const ln of dayLines) s.line(ln.words.map(w => w.text).join(' '), b.x + 16, 28, 700, white)
+  s.y = top + H + 12
+
+  // Akcie: označenie + názov, pod tým počty (akcia bez menu sa nepočíta)
+  model.events.forEach((ev, i) => {
+    if (i > 0) { s.rect(b.x, s.y, b.w, 2); s.y += 6 }
+    s.para([{ text: ev.label, weight: 700 }, { text: ev.title, weight: 400 }], b.x, b.w, 26)
+    const c = ev.counts
+    const info = !ev.hasMenu
+      ? 'bez menu — nepočíta sa'
+      : [
+          `dospelí ${c.adults}${c.adultsNoMeal ? ` (+${c.adultsNoMeal} bez jedla)` : ''}`,
+          `deti ${c.kidsMeal}${c.kidsNoMeal ? ` (+${c.kidsNoMeal} bez jedla)` : ''}`,
+          c.specials ? `špeciály ${c.specials}` : '',
+          ev.hasRaut ? `raut ${c.raut}` : '',
+        ].filter(Boolean).join(' · ')
+    s.para([{ text: info, weight: 400 }], b.x, b.w, 22)
+    s.y += 4
+  })
+  s.y += 12
+
+  drawCounts(s, model.counts, model.hasRaut, b)
+  s.y += 16
+  for (const t of model.toasts) drawLabeled(s, t.label, t.text, 30, b)
+  s.y += 16
+  for (const sec of model.sections) {
+    drawSection(s, sec, true, b)
+    s.y += 20
+  }
+  drawPrinted(s, model.printedAt, b)
+  s.y += 40
+  return [s.paint()]
 }
 
 // ── Kuchyňa na A5 (BOLD PNG a tlač na A4) ────────────────────────────────
