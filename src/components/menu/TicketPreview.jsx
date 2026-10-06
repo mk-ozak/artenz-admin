@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
-import { IconDownload, IconPrinter, IconScissors, IconX } from '@tabler/icons-react'
-import { buildEscPos, canvasToRaster, rasterToCanvas, rawbtUrl } from '../../utils/escpos'
+import { IconCheck, IconDownload, IconPrinter, IconScissors, IconX } from '@tabler/icons-react'
+import { buildEscPosParts, canvasToRaster, rasterToCanvas, rawbtUrl } from '../../utils/escpos'
 import { downloadPng } from '../../utils/kitchenTicket'
 
 // RawBT je Android aplikácia — inde sa dá lístok len stiahnuť ako PNG
@@ -13,9 +13,11 @@ const CUT_GAP = 48
 // render(ticket) → plátna lístkov; file = názov stiahnutého PNG za dátumom.
 // Lístky aj dáta pre tlačiareň sa pripravia hneď po otvorení, aby „Tlačiť"
 // otvorilo RawBT synchrónne priamo z ťuknutia — Chrome intent po await nepustí.
+// Dlhá tlač (napr. sumár jedál) ide po častiach — každá časť jedným ťuknutím.
 export default function TicketPreview({ title, ticket, render, file, onClose }) {
-  const [out, setOut]     = useState(null)  // { images, previews, url }
+  const [out, setOut]     = useState(null)  // { images, previews, urls }
   const [error, setError] = useState('')
+  const [printed, setPrinted] = useState(() => new Set())  // odoslané časti
 
   useEffect(() => {
     let alive = true
@@ -28,15 +30,16 @@ export default function TicketPreview({ title, ticket, render, file, onClose }) 
         setOut({
           images: previews.map(c => c.toDataURL('image/png')),
           previews,
-          url: rawbtUrl(buildEscPos(rasters)),
+          urls: buildEscPosParts(rasters).map(rawbtUrl),
         })
       })
       .catch(e => { if (alive) setError(e.message) })
     return () => { alive = false }
   }, [ticket, render])
 
-  function print() {
-    window.location.href = out.url
+  function print(i) {
+    setPrinted(p => new Set(p).add(i))
+    window.location.href = out.urls[i]
   }
 
   // Lístky pod sebou do jedného PNG (s naznačeným rezom) — test bez tlačiarne
@@ -113,31 +116,57 @@ export default function TicketPreview({ title, ticket, render, file, onClose }) 
           ))}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex gap-2">
-          <button
-            type="button"
-            onClick={downloadAll}
-            disabled={!out}
-            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-300
-                       text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors
-                       disabled:opacity-50"
-          >
-            <IconDownload size={16} />
-            Stiahnuť PNG
-          </button>
-          {IS_ANDROID && (
+        <div className="px-5 py-3 border-t border-gray-100 shrink-0 space-y-2">
+          {/* Dlhá tlač po častiach: každá časť samostatne, papier pokračuje bez rezu */}
+          {IS_ANDROID && out?.urls.length > 1 && (
+            <>
+              <p className="text-[12px] text-[#5d7d8e]">
+                Dlhý lístok sa tlačí po častiach — ťukni postupne na každú časť,
+                papier pokračuje bez rezu.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {out.urls.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => print(i)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold
+                               rounded-lg transition-opacity hover:opacity-90 whitespace-nowrap"
+                    style={{ background: printed.has(i) ? '#cdeae6' : '#4cbfb3', color: '#0a2d2a' }}
+                  >
+                    {printed.has(i) ? <IconCheck size={16} /> : <IconPrinter size={16} />}
+                    Tlačiť {i + 1}/{out.urls.length}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={print}
+              onClick={downloadAll}
               disabled={!out}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold
-                         rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-300
+                         text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors
+                         disabled:opacity-50"
             >
-              <IconPrinter size={16} />
-              Tlačiť
+              <IconDownload size={16} />
+              Stiahnuť PNG
             </button>
-          )}
+            {IS_ANDROID && !(out?.urls.length > 1) && (
+              <button
+                type="button"
+                onClick={() => print(0)}
+                disabled={!out}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold
+                           rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+              >
+                <IconPrinter size={16} />
+                Tlačiť
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -45,26 +45,59 @@ export function rasterToCanvas({ width, height, rowBytes, data }) {
   return canvas
 }
 
-// Jeden balík pre tlačiareň: ESC @ → raster lístka → ESC d 4 → čiastočný rez
-// GS V 66 0 → ďalší lístok… Raster cez GS v 0 po pásoch max. 256 riadkov.
-export function buildEscPos(rasters) {
-  const parts = [Uint8Array.of(ESC, 0x40)]
+// Najviac dát v jednom odkaze pre RawBT. Android prenáša odkaz (intent) medzi
+// aplikáciami s obmedzenou veľkosťou — pri prekročení Chrome namiesto otvorenia
+// RawBT spadne. 256 KB dát ≈ 350 000 znakov base64, s rezervou pod limitom.
+export const MAX_PART_BYTES = 256 * 1024
+
+const concat = chunks => {
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0))
+  let o = 0
+  for (const c of chunks) {
+    out.set(c, o)
+    o += c.length
+  }
+  return out
+}
+
+// Príkazy pre tlačiareň: raster lístka cez GS v 0 po pásoch max. 256 riadkov
+// (hlavička pásu + dáta spolu), za každým lístkom ESC d 4 a čiastočný rez GS V 66 0
+function commands(rasters) {
+  const cmds = []
   for (const r of rasters) {
     for (let y = 0; y < r.height; y += 256) {
       const h = Math.min(256, r.height - y)
-      parts.push(Uint8Array.of(GS, 0x76, 0x30, 0, r.rowBytes & 0xff, r.rowBytes >> 8, h & 0xff, h >> 8))
-      parts.push(r.data.subarray(y * r.rowBytes, (y + h) * r.rowBytes))
+      cmds.push(concat([
+        Uint8Array.of(GS, 0x76, 0x30, 0, r.rowBytes & 0xff, r.rowBytes >> 8, h & 0xff, h >> 8),
+        r.data.subarray(y * r.rowBytes, (y + h) * r.rowBytes),
+      ]))
     }
-    parts.push(Uint8Array.of(ESC, 0x64, 4))      // posun papiera o 4 riadky
-    parts.push(Uint8Array.of(GS, 0x56, 0x42, 0)) // čiastočný rez
+    cmds.push(Uint8Array.of(ESC, 0x64, 4))      // posun papiera o 4 riadky
+    cmds.push(Uint8Array.of(GS, 0x56, 0x42, 0)) // čiastočný rez
   }
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
-  let o = 0
-  for (const p of parts) {
-    out.set(p, o)
-    o += p.length
+  return cmds
+}
+
+// Balíky pre tlačiareň: ESC @ → raster lístka → ESC d 4 → čiastočný rez → ďalší
+// lístok… Dlhá tlač sa rozdelí na časti do maxBytes (na hranici pásov rastra);
+// každá časť je samostatná tlač v RawBT so začiatkom ESC @ a papier medzi
+// časťami pokračuje bez rezu — vyjde jeden súvislý lístok.
+export function buildEscPosParts(rasters, maxBytes = MAX_PART_BYTES) {
+  const init = Uint8Array.of(ESC, 0x40)
+  const parts = []
+  let cur = [init]
+  let size = init.length
+  for (const c of commands(rasters)) {
+    if (cur.length > 1 && size + c.length > maxBytes) {
+      parts.push(concat(cur))
+      cur = [init]
+      size = init.length
+    }
+    cur.push(c)
+    size += c.length
   }
-  return out
+  parts.push(concat(cur))
+  return parts
 }
 
 // Uint8Array → base64 po kúskoch (celé pole naraz by pri dlhom lístku

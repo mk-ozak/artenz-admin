@@ -719,9 +719,23 @@ const shortDate = iso => {
 export function buildDaySummary(dates, events) {
   const days = [...dates].sort()
   const multiDay = days.length > 1
-  // Označenie akcie v rozpisoch: sála (+ deň pri viac dňoch, + čas pri zhode)
-  const base = e => `${multiDay ? `${shortDate(e.date)} ` : ''}${e.hallShort}`
-  const label = e => (events.filter(x => base(x) === base(e)).length > 1 && e.time ? `${base(e)} ${e.time}` : base(e))
+  // Označenie akcie: sála, pri viacerých dňoch aj deň; najkratšie, ktoré akciu
+  // ešte jednoznačne určí (deň v týždni → dátum → + čas)
+  const dayName = e => DAYS_SHORT[new Date(`${e.date}T00:00:00`).getDay()]
+  const variants = [
+    e => `${multiDay ? `${dayName(e)} ` : ''}${e.hallShort}`,
+    e => `${multiDay ? `${shortDate(e.date)} ` : ''}${e.hallShort}`,
+    e => `${multiDay ? `${shortDate(e.date)} ` : ''}${e.hallShort}${e.time ? ` ${e.time}` : ''}`,
+  ]
+  const label = e => {
+    const f = variants.find(v => events.filter(x => v(x) === v(e)).length === 1) ?? variants[2]
+    return f(e)
+  }
+  // V zozname akcií vždy aj dátum (pri viacerých dňoch)
+  const fullLabel = e => {
+    const f = variants.slice(1).find(v => events.filter(x => v(x) === v(e)).length === 1) ?? variants[2]
+    return f(e)
+  }
 
   const withMenu = events.filter(e => e.model)
   const counts = { adults: 0, adultsNoMeal: 0, kidsMeal: 0, kidsNoMeal: 0, specials: 0, raut: 0, rautExtra: 0 }
@@ -770,7 +784,7 @@ export function buildDaySummary(dates, events) {
   return {
     date: days[0] ?? '',
     days,
-    events: events.map(e => ({ label: label(e), time: e.time, title: e.title, counts: e.model?.counts, hasMenu: !!e.model, hasRaut: !!e.model?.hasRaut })),
+    events: events.map(e => ({ label: fullLabel(e), time: e.time, title: e.title, counts: e.model?.counts, hasMenu: !!e.model, hasRaut: !!e.model?.hasRaut })),
     counts,
     hasRaut: withMenu.some(e => e.model.hasRaut),
     toasts: [...toasts].map(([lbl, m]) => ({
@@ -797,10 +811,15 @@ export function buildDaySummary(dates, events) {
   }
 }
 
+// Sumár je hustejší než lístok do kuchyne: kreslí sa na širšiu „virtuálnu"
+// stranu a pri tlači sa zmenší na šírku papiera — menšie písmo aj riadkovanie
+const SUMMARY_SCALE = 0.75
+
 // Vykreslí sumár jedál: [lístok]
 export async function renderDaySummary(model) {
   const s = new Sheet(await ticketFont())
-  const b = THERMAL
+  const vm = Math.round(M / SUMMARY_SCALE)
+  const b = { x: vm, w: Math.round(W / SUMMARY_SCALE) - 2 * vm }
   const white = { color: '#fff' }
 
   // Hlavička: čierny pruh — KALKULÁCIA a vybraté dni
@@ -848,7 +867,7 @@ export async function renderDaySummary(model) {
   }
   drawPrinted(s, model.printedAt, b)
   s.y += 40
-  return [s.paint()]
+  return [s.paint({ height: Math.ceil(s.y * SUMMARY_SCALE), scale: SUMMARY_SCALE })]
 }
 
 // ── Kuchyňa na A5 (BOLD PNG a tlač na A4) ────────────────────────────────
