@@ -78,6 +78,8 @@ export default function BookingDetail() {
   const [accessError, setAccessError]   = useState('')
   const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [copied, setCopied]             = useState('')    // 'link' | 'password'
+  // Miesto na spodku pre blok „Zhrnutie pre zákazníka" (vykresľuje ho menu)
+  const [customerPrintSlot, setCustomerPrintSlot] = useState(null)
   const revokeTimer = useRef(null)
   const prevModal   = useRef(modalState)
 
@@ -352,6 +354,7 @@ export default function BookingDetail() {
                 hallShort: HALL_SHORT[booking.hall] ?? booking.hall,
                 notes: form.decoration,
               }}
+              customerPrintTarget={customerPrintSlot}
             />
 
             {/* Prístup zákazníka – len admin */}
@@ -467,6 +470,8 @@ export default function BookingDetail() {
             </div>
             )}
 
+            {/* Zhrnutie pre zákazníka (tlač) — úplne naspodu; obsah dodá menu */}
+            <div ref={setCustomerPrintSlot} className="empty:hidden" />
           </>
         )}
 

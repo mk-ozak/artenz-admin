@@ -24,7 +24,8 @@ const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-
 // MENU rezervácie: hlavička s akciami (načítať šablónu, reset, tlač)
 // + spoločný editor menu. Zmeny sa ukladajú okamžite.
 // ticketInfo: údaje akcie pre lístok do kuchyne { title, date, time, hall, notes }
-export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo }) {
+// customerPrintTarget: miesto pre blok „Zhrnutie pre zákazníka" (spodok detailu)
+export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo, customerPrintTarget }) {
   // Po hromadnej zmene (šablóna / reset) editor remountneme — načíta sa nanovo
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -360,6 +361,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           aboveBlock={rautToggle}
           hiddenBlocks={rautOn ? [] : RAUT_BLOCKS}
           summary={menuSummary}
+          customerPrintTarget={customerPrintTarget}
         />
       )}
 

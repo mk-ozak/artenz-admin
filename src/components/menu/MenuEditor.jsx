@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter, IconReceipt, IconTag,
   IconX,
@@ -49,8 +50,11 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // hiddenBlocks: [čísla blokov] — skryté v menu, kalkulácii aj tlači (napr. vypnutý
 //   raut); vybraté položky v nich ostávajú uložené.
 // summary: konfigurácia zhrnutia (sekcie podľa blokov + množstvá); null = jednoduché zhrnutie
+// customerPrintTarget: DOM prvok, kam sa vykreslí blok „Zhrnutie pre zákazníka"
+//   (v detaile rezervácie úplne naspodu, pod prístupom zákazníka)
 export default function MenuEditor({
   table, ownerColumn, ownerId, editable, extraBeforeBlock, aboveBlock, hiddenBlocks, summary,
+  customerPrintTarget,
 }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
@@ -390,22 +394,29 @@ export default function MenuEditor({
   // accent = zelené (hlavná akcia, ako tlačidlo menu v Najbližších akciách).
   // Keď sa tlačidlá vedľa popisu nezmestia (mobil), zalomia sa pod neho.
   function printRow(label, actions) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
+        {printButtons(actions)}
+      </div>
+    )
+  }
+
+  // Tlačidlá tlače [{ icon, text, title, onClick, accent }]
+  function printButtons(actions) {
     const btn = `h-7 px-2 rounded-lg border flex items-center gap-1 whitespace-nowrap
       text-[11px] font-bold transition-colors`
     const plain  = 'border-[#d5e2e9] bg-white text-[#3a5160] hover:bg-[#eaf4f2]'
     const accent = 'border-[#a8d9d3] bg-[#cdeae6] text-[#1a2830] hover:bg-[#b9e2dd]'
     return (
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">{label}</span>
-        <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
-          {actions.map(({ icon: Icon, text, title, onClick, accent: isAccent }) => (
-            <button key={text} type="button" onClick={onClick} title={title}
-                    className={`${btn} ${isAccent ? accent : plain}`}>
-              <Icon size={14} />
-              {text}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
+        {actions.map(({ icon: Icon, text, title, onClick, accent: isAccent }) => (
+          <button key={text} type="button" onClick={onClick} title={title}
+                  className={`${btn} ${isAccent ? accent : plain}`}>
+            <Icon size={14} />
+            {text}
+          </button>
+        ))}
       </div>
     )
   }
@@ -725,12 +736,6 @@ export default function MenuEditor({
                     ? [{ icon: IconTag, text: 'RAUT', title: 'Štítky na plechy rautu (termotlačiareň)', onClick: () => openThermal('raut') }]
                     : []),
                 ])}
-                {printRow('Zhrnutie pre zákazníka', [
-                  ...(summary.ticket
-                    ? [{ icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
-                    : []),
-                  { icon: IconPrinter, text: 'A4', title: 'Tlač na A4', onClick: printSummary },
-                ])}
               </div>
               <div className="px-4 py-2.5 space-y-3">
                 {/* Raut + Prílohy pre raut vedľa seba od tabletu; na mobile pod sebou (celé názvy) */}
@@ -754,6 +759,30 @@ export default function MenuEditor({
         <p className="mx-4 mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
           {error}
         </p>
+      )}
+
+      {/* Zhrnutie pre zákazníka — samostatný blok na spodku detailu rezervácie */}
+      {customerPrintTarget && summary?.calc && hasAnySelection && createPortal(
+        <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
+          <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
+            Zhrnutie pre zákazníka
+          </p>
+          <div className="px-4 pb-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-gray-500">Menu bez množstiev pre kuchyňu.</p>
+            {printButtons([
+              ...(summary.ticket
+                ? [{ icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
+                : []),
+              { icon: IconPrinter, text: 'A4', title: 'Tlač na A4', onClick: printSummary },
+            ])}
+          </div>
+          {error && (
+            <p className="mx-4 mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+              {error}
+            </p>
+          )}
+        </div>,
+        customerPrintTarget,
       )}
 
       {/* Náhľad lístka pre termotlačiareň */}
