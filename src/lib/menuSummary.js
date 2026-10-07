@@ -5,6 +5,16 @@
 // Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
 export const RAUT_BLOCKS = [4, 5]
 
+// Názvy blokov (sekcie kalkulácie a tlače; aj katalóg pre hlasové zadanie menu)
+export const BLOCK_TITLES = {
+  1: 'Hlavné jedlo - dospelí',
+  2: 'Hlavné jedlo deti',
+  3: 'Hlavné jedlo špeciál',
+  4: 'Raut',
+  5: 'Prílohy pre raut',
+  6: 'Studená kuchyňa',
+}
+
 // Riadok z bookings → počty hostí a požiadavky ku strave (tvar formulára v BookingMenu)
 export function detailsFromRow(row) {
   return {
@@ -32,14 +42,7 @@ export function rautTotalOf(details) {
 export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo } = {}) {
   const rautTotal = rautTotalOf(details)
   return {
-    titles: {
-      1: 'Hlavné jedlo - dospelí',
-      2: 'Hlavné jedlo deti',
-      3: 'Hlavné jedlo špeciál',
-      4: 'Raut',
-      5: 'Prílohy pre raut',
-      6: 'Studená kuchyňa',
-    },
+    titles: BLOCK_TITLES,
     fixedQty: {
       1: Number(details.guestsAdults) || 0,
       // hlavné jedlo deti = zadaný počet detí (vzorec /2 platí len pre raut)

@@ -5,11 +5,12 @@ import { IconMicrophone, IconPlayerStopFilled, IconLoader2, IconCoinEuro } from 
 import { useBookingsStore, HALL_MAP } from '../store/bookings'
 import { useAuthStore } from '../store/auth'
 import { EVENT_TYPES, DEFAULT_EVENT_TYPE } from '../lib/eventTypes'
-import { useVoiceBooking } from '../hooks/useVoiceBooking'
+import { postVoice, useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
 import SettlementPanel from './SettlementPanel'
+import RecordingOverlay from './RecordingOverlay'
 import DepositsModal from './DepositsModal'
 
 // Čas rezervácie: 09–19 h, minúty po 15
@@ -69,7 +70,8 @@ export default function BookingModal() {
 
   // Hlasové zadanie (len nová rezervácia): výsledok predvyplní formulár,
   // používateľ skontroluje a uloží sám.
-  const voice = useVoiceBooking(function handleVoiceResult(parsed) {
+  const voice = useVoiceRecorder(async function handleVoiceAudio(audio) {
+    const parsed = await postVoice('/api/parse-booking', audio)
     const patch = voiceResultToForm(parsed)
     setNameMissing(!patch.customerName)
     setForm(f => ({ ...f, ...patch }))
@@ -323,8 +325,12 @@ export default function BookingModal() {
               >
                 {voice.phase === 'recording'   && <IconPlayerStopFilled size={16} className="text-white" />}
                 {voice.phase === 'processing'  && <IconLoader2 size={18} className="animate-spin" style={{ color: '#ddeef6' }} />}
-                {voice.phase === 'idle'        && <IconMicrophone size={18} style={{ color: '#ddeef6' }} />}
+                {(voice.phase === 'idle' || voice.phase === 'starting') && (
+                  <IconMicrophone size={18} style={{ color: '#ddeef6' }} />
+                )}
               </button>
+              {/* Počas nahrávania veľké tlačidlo Zastaviť cez celú obrazovku */}
+              <RecordingOverlay voice={voice} onCancel={voice.reset} />
             </div>
           )}
         </div>

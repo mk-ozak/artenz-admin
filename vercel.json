@@ -4,6 +4,9 @@
   "functions": {
     "api/generate-pdf.py": {
       "includeFiles": "api/assets/**"
+    },
+    "api/parse-menu.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

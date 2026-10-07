@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { IconEraser, IconPlus, IconSettings, IconTemplate, IconX } from '@tabler/icons-react'
+import { IconEraser, IconMicrophone, IconPlus, IconSettings, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
+import VoiceMenuDialog from './VoiceMenuDialog'
+import VoiceMenuSummary from './VoiceMenuSummary'
 import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
+import { buildVoiceCatalog, planVoiceMenu } from '../../lib/voiceMenu'
+import { postVoice, useVoiceRecorder } from '../../hooks/useVoiceRecorder'
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
+
+// Hlasové zadanie menu — najdlhšia nahrávka (potom sa sama zastaví a spracuje)
+const VOICE_MAX_MS = 4 * 60_000
 
 // Počty hostí — pole vo formulári → stĺpec v bookings
 const DETAIL_COLS = {
@@ -45,9 +52,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   const [menuCreated, setMenuCreated] = useState(null)
   // Raut s prílohami — predvolene zapnutý; vypnutý skryje bloky rautu
   const [rautOn, setRautOn] = useState(true)
+  // Hlasové zadanie menu: otvorené okno nahrávania, zhrnutie posledného diktovania
+  const [voiceOpen, setVoiceOpen]       = useState(false)
+  const [voiceSummary, setVoiceSummary] = useState(null)
 
-  useEffect(() => {
-    supabase
+  // Počty hostí, príznak vytvoreného menu a raut (znova aj po hlasovom zadaní)
+  function loadDetails() {
+    return supabase
       .from('bookings')
       .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled')
       .eq('id', bookingId)
@@ -57,7 +68,88 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         setMenuCreated(!!data?.menu_created)
         setRautOn(data?.raut_enabled ?? true)
       })
-  }, [bookingId])
+  }
+
+  useEffect(() => { loadDetails() }, [bookingId])
+
+  // Hlasové zadanie menu: nahrávka + katalóg → /api/parse-menu → plán zmien
+  // (lib/voiceMenu) → zápis. Len pridáva, nič nemaže; nevytvorené menu vytvorí.
+  const voice = useVoiceRecorder(async function handleVoiceAudio(audio) {
+    const [c, i, v, s, b] = await Promise.all([
+      supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
+      supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+      supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
+      supabase.from('booking_menu_items')
+        .select('*, menu_items(category_id), variant:menu_item_variants(name)')
+        .eq('booking_id', bookingId),
+      supabase.from('bookings').select('notes, raut_enabled, menu_created').eq('id', bookingId).single(),
+    ])
+    const loadErr = c.error || i.error || v.error || s.error || b.error
+    if (loadErr) throw new Error(loadErr.message)
+
+    const { catalog, byRef } = buildVoiceCatalog(c.data ?? [], i.data ?? [], v.data ?? [])
+    const parsed = await postVoice('/api/parse-menu', { ...audio, catalog })
+
+    // Vytvorenie menu začína od prázdneho (ako prázdne menu / šablóna)
+    const creating = !b.data?.menu_created
+    const plan = planVoiceMenu(parsed, {
+      byRef,
+      selections: creating ? [] : (s.data ?? []),
+      booking: b.data ?? {},
+    })
+    if (!plan.recognized) {
+      const missing = plan.summary.unmatched
+      throw new Error(missing.length
+        ? `V katalógu som nenašiel nič z nadiktovaného (${missing.join(', ')}). Skús to znova alebo jedlá pridaj ručne.`
+        : 'Nerozpoznal som žiadne jedlá ani počty hostí. Skús to znova.')
+    }
+
+    setBusy(true)
+    const errors = []
+    try {
+      if (creating) {
+        const { error } = await supabase.from('booking_menu_items').delete().eq('booking_id', bookingId)
+        if (error) throw new Error(error.message)
+      }
+      if (plan.inserts.length > 0) {
+        const { error } = await supabase
+          .from('booking_menu_items')
+          .insert(plan.inserts.map(row => ({ ...row, booking_id: bookingId })))
+        if (error) throw new Error(error.message)
+      }
+      for (const u of plan.updates) {
+        const { error } = await supabase.from('booking_menu_items').update(u.patch).eq('id', u.id)
+        if (error) errors.push(error.message)
+      }
+      const { error } = await supabase
+        .from('bookings')
+        .update({ ...plan.bookingPatch, menu_created: true })
+        .eq('id', bookingId)
+      if (error) errors.push(error.message)
+    } finally {
+      setBusy(false)
+    }
+
+    setError(errors.join(' · '))
+    setVoiceOpen(false)
+    setVoiceSummary(plan.summary)
+    await loadDetails()
+    setRefreshKey(k => k + 1)
+  }, { maxMs: VOICE_MAX_MS })
+
+  // Okno diktovania — nahrávanie štartuje hneď, v rámci kliknutia
+  function openVoice() {
+    setShowTemplates(false)
+    setVoiceSummary(null)
+    setVoiceOpen(true)
+    voice.toggle()
+  }
+
+  // Zrušenie zahodí rozbehnutú nahrávku bez spracovania
+  function closeVoice() {
+    voice.reset()
+    setVoiceOpen(false)
+  }
 
   // Vytvorenie prázdneho menu — nastaví príznak, položky ostanú prázdne
   async function createEmptyMenu() {
@@ -304,6 +396,17 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             <>
               <button
                 type="button"
+                onClick={openVoice}
+                disabled={busy}
+                title="Nadiktovať do menu hlasom"
+                aria-label="Nadiktovať do menu hlasom"
+                className={headerBtnCls}
+                style={{ color: '#ddeef6' }}
+              >
+                <IconMicrophone size={18} />
+              </button>
+              <button
+                type="button"
                 onClick={openTemplates}
                 disabled={busy}
                 title="Načítať šablónu / prázdne menu"
@@ -343,6 +446,10 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         <p className="mx-4 mt-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
           {error}
         </p>
+      )}
+
+      {voiceSummary && (
+        <VoiceMenuSummary summary={voiceSummary} onClose={() => setVoiceSummary(null)} />
       )}
 
       {/* Menu ešte nevytvorené → ponuka na vytvorenie */}
@@ -406,7 +513,23 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             </div>
 
             <div className="overflow-y-auto divide-y divide-gray-100 flex-1">
-              {/* Prvá možnosť — prázdne menu */}
+              {/* Hlasové zadanie — len pri vytváraní menu (vytvorené menu má
+                  mikrofón v hlavičke; diktovanie pridáva, šablóna nahrádza) */}
+              {menuCreated === false && (
+                <button
+                  type="button"
+                  onClick={openVoice}
+                  disabled={busy}
+                  className="w-full flex items-center gap-2 px-5 py-3 text-left
+                             text-sm font-bold text-[#2a8d83] hover:bg-[#eaf7f5]
+                             transition-colors disabled:opacity-50"
+                >
+                  <IconMicrophone size={16} stroke={2.5} />
+                  Nadiktovať menu
+                </button>
+              )}
+
+              {/* Prázdne menu */}
               <button
                 type="button"
                 onClick={createEmptyMenu}
@@ -460,6 +583,10 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             </div>
           </div>
         </div>
+      )}
+
+      {voiceOpen && (
+        <VoiceMenuDialog voice={voice} onClose={closeVoice} />
       )}
     </div>
   )
