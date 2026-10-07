@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconCopy, IconHome, IconKey, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
@@ -52,7 +52,9 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState({})   // { [id]: string }
   const [copiedId, setCopiedId] = useState(null)
 
-  const [tab, setTab] = useState('users')   // 'users' | 'menu' | 'templates' | 'logs'
+  // Otvorená záložka; z adresy sa dá otvoriť priamo (napr. /settings?tab=menu z menu rezervácie)
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'templates' | 'logs' | 'version'
 
   const isAdmin = currentUserRole === 'admin'
 

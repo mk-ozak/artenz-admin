@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconEraser, IconPlus, IconTemplate, IconX } from '@tabler/icons-react'
+import { Link } from 'react-router-dom'
+import { IconEraser, IconPlus, IconSettings, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
 import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
@@ -295,31 +296,45 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         <p className="text-[13px] font-bold tracking-[.18em] uppercase" style={{ color: '#ddeef6' }}>
           Menu
         </p>
-        {/* Akcie len keď je menu vytvorené (tlač je v karte Kalkulácia pre kuchyňu) */}
-        {menuCreated && editable && (
+        {/* Šablóna a vymazanie len keď je menu vytvorené; nastavenia menu vždy pri úprave
+            (tlač je v karte Kalkulácia pre kuchyňu) */}
+        {editable && (
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={openTemplates}
-            disabled={busy}
-            title="Načítať šablónu / prázdne menu"
-            aria-label="Načítať šablónu / prázdne menu"
+          {menuCreated && (
+            <>
+              <button
+                type="button"
+                onClick={openTemplates}
+                disabled={busy}
+                title="Načítať šablónu / prázdne menu"
+                aria-label="Načítať šablónu / prázdne menu"
+                className={headerBtnCls}
+                style={{ color: '#ddeef6' }}
+              >
+                <IconTemplate size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={busy}
+                title={confirmReset ? 'Naozaj vymazať všetky položky?' : 'Vymazať všetky položky menu'}
+                aria-label="Vymazať všetky položky menu"
+                className={`${headerBtnCls} ${confirmReset ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                style={{ color: confirmReset ? '#fff' : '#ddeef6' }}
+              >
+                <IconEraser size={18} />
+              </button>
+            </>
+          )}
+          <Link
+            to="/settings?tab=menu"
+            title="Nastavenia menu (kategórie a položky)"
+            aria-label="Nastavenia menu"
             className={headerBtnCls}
             style={{ color: '#ddeef6' }}
           >
-            <IconTemplate size={18} />
-          </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={busy}
-            title={confirmReset ? 'Naozaj vymazať všetky položky?' : 'Vymazať všetky položky menu'}
-            aria-label="Vymazať všetky položky menu"
-            className={`${headerBtnCls} ${confirmReset ? 'bg-red-600 hover:bg-red-700' : ''}`}
-            style={{ color: confirmReset ? '#fff' : '#ddeef6' }}
-          >
-            <IconEraser size={18} />
-          </button>
+            <IconSettings size={18} />
+          </Link>
         </div>
         )}
       </div>
