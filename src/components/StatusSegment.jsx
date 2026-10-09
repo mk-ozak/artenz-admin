@@ -18,7 +18,8 @@ function paymentSms(phone, { typeLabel, dateISO, amount, hallLabel }) {
   const vs   = (dateISO ?? '').replaceAll('-', '')
   const text =
     `Dobrý deň, k Vašej rezervácii v ${hallLabel || 'Artenz'} (${typeLabel}, ${formatDateSkYear(dateISO)}) ` +
-    `prosíme o úhradu zálohy ${amount} €. ${PAYMENT_ACCOUNT}, VS: ${vs}. Ďakujeme.`
+    `prosíme o úhradu zálohy ${amount} €. ${PAYMENT_ACCOUNT}, VS: ${vs}. Ďakujeme. ` +
+    `[Toto je automaticky generovaná správa.]`
   return `sms:${phone}?body=${encodeURIComponent(text)}`
 }
 
