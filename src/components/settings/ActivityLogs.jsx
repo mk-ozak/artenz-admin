@@ -1,19 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { EVENT_LABEL } from '../../lib/eventTypes'
-import { SETTLEMENT_DOCUMENT_LABEL, SETTLEMENT_METHOD_LABEL } from '../../lib/settlement'
-
-const ACTION_LABEL = {
-  booking_create:         'Vytvoril rezerváciu',
-  booking_update:         'Upravil rezerváciu',
-  booking_soft_delete:    'Vymazal rezerváciu',
-  booking_restore:        'Obnovil rezerváciu',
-  booking_delete:         'Natrvalo vymazal rezerváciu',
-  user_create:            'Vytvoril používateľa',
-  customer_access_create: 'Vytvoril zákaznícky prístup',
-  user_delete:            'Zmazal používateľa',
-  user_password_reset:    'Resetoval heslo',
-}
+import { ACTION_LABEL, FIELD_LABEL, HALL_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
 
 const ACTION_BADGE = {
   booking_create:         'bg-emerald-100 text-emerald-700',
@@ -27,63 +14,6 @@ const ACTION_BADGE = {
   user_password_reset:    'bg-amber-100 text-amber-700',
 }
 
-const HALL_LABEL = {
-  ARTENZ_PLUS: 'ARTENZ PLUS',
-  ARTENZ:      'ARTENZ',
-  LUNA:        'LUNA',
-  CATERING:    'CATERING',
-}
-
-const STATUS_LABEL = {
-  dopyt:     'Nezáväzný dopyt',
-  zaloha:    'Čakajúca záloha',
-  potvrdene: 'Potvrdené',
-}
-
-// Slovenské názvy stĺpcov pre riadky zmien
-const FIELD_LABEL = {
-  customer_name:   'Názov',
-  customer_phone:  'Telefón',
-  date:            'Dátum',
-  start_time:      'Čas',
-  hall:            'Sála',
-  event_type:      'Typ akcie',
-  status:          'Stav',
-  expected_guests: 'Očakávaný počet osôb',
-  estimated_price: 'Cena na osobu',
-  guest_count:     'Počet hostí',
-  deposit_amount:  'Záloha',
-  deposit_payments: 'Zaplatené zálohy',
-  settlement_document: 'Vyúčtovanie – doklad',
-  settlement_method:   'Vyúčtovanie – spôsob',
-  // decoration = všeobecné poznámky z formulára; notes = požiadavky ku strave (Menu)
-  decoration:      'Poznámky',
-  notes:           'Požiadavky ku strave',
-}
-
-function formatValue(field, value) {
-  if (value === null || value === undefined || value === '') return '—'
-  if (field === 'status')     return STATUS_LABEL[value] ?? value
-  if (field === 'hall')       return HALL_LABEL[value] ?? value
-  if (field === 'event_type') return EVENT_LABEL[value] ?? value
-  if (field === 'settlement_document') return SETTLEMENT_DOCUMENT_LABEL[value] ?? value
-  if (field === 'settlement_method')   return SETTLEMENT_METHOD_LABEL[value] ?? value
-  if (field === 'start_time')   return String(value).slice(0, 5)
-  if (field === 'deposit_payments') {
-    const arr = Array.isArray(value) ? value : []
-    return arr.length ? arr.map(p => `${p.amount} € (${p.date})`).join(', ') : '—'
-  }
-  const s = String(value)
-  return s.length > 40 ? s.slice(0, 40) + '…' : s
-}
-
-function formatTime(ts) {
-  return new Date(ts).toLocaleString('sk', {
-    day: 'numeric', month: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
-
 function detailText(log) {
   const d = log.details ?? {}
   if (log.entity === 'booking') {
@@ -94,25 +24,28 @@ function detailText(log) {
 
 export default function ActivityLogs() {
   const [logs, setLogs]       = useState([])
+  const [names, setNames]     = useState({})  // { user_id: meno }
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
   const [userFilter, setUserFilter] = useState('')
 
   useEffect(() => {
-    supabase
-      .from('activity_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(300)
-      .then(({ data, error }) => {
-        if (error) setError(error.message)
-        else setLogs(data ?? [])
-        setLoading(false)
-      })
+    Promise.all([
+      supabase
+        .from('activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(300),
+      fetchUserNames(),
+    ]).then(([{ data, error }, userNames]) => {
+      if (error) setError(error.message)
+      else { setLogs(data ?? []); setNames(userNames) }
+      setLoading(false)
+    })
   }, [])
 
-  const users    = [...new Set(logs.map(l => l.user_email).filter(Boolean))].sort()
-  const filtered = userFilter ? logs.filter(l => l.user_email === userFilter) : logs
+  const users    = [...new Set(logs.map(l => userLabel(l, names)))].sort((a, b) => a.localeCompare(b, 'sk'))
+  const filtered = userFilter ? logs.filter(l => userLabel(l, names) === userFilter) : logs
 
   if (loading) {
     return (
@@ -180,7 +113,7 @@ export default function ActivityLogs() {
                     </ul>
                   )}
                   <p className="text-xs text-gray-400 mt-1">
-                    {log.user_email ?? 'systém'} · {formatTime(log.created_at)}
+                    {userLabel(log, names)} · {formatTime(log.created_at)}
                   </p>
                 </div>
               </li>

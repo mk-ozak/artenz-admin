@@ -12,6 +12,7 @@ import BottomNav from '../components/layout/BottomNav'
 import BookingModal from '../components/BookingModal'
 import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
+import BookingHistory from '../components/booking/BookingHistory'
 import { HALL_SHORT } from '../utils/kitchenTicket'
 
 const HALL_COLOR = {
@@ -472,6 +473,9 @@ export default function BookingDetail() {
 
             {/* Zhrnutie pre zákazníka (tlač) — úplne naspodu; obsah dodá menu */}
             <div ref={setCustomerPrintSlot} className="empty:hidden" />
+
+            {/* História rezervácie (logy) — úplne naspodu, len admin */}
+            {isAdmin && <BookingHistory bookingId={id} booking={booking} access={access} />}
           </>
         )}
 
