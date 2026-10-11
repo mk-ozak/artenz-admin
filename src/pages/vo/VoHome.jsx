@@ -115,7 +115,35 @@ export default function VoHome() {
             </ul>
           )}
         </div>
+
+        {/* Stručný návod pre VO */}
+        <div className="rounded-card bg-white border border-[#e0e8ec] px-4 pt-3 pb-4">
+          <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase pb-2">
+            Ako na to
+          </p>
+          <ol className="list-decimal pl-5 space-y-1.5 text-[13px] leading-snug text-[#3a5160]">
+            {GUIDE.map((step, i) => <li key={i}>{step}</li>)}
+          </ol>
+          <p className="mt-3 text-[12px] text-[#6a8898]">
+            Ak sa hore objaví lišta <b>„Obnoviť“</b>, ťuknite na ňu — načíta sa nová verzia aplikácie.
+          </p>
+        </div>
       </div>
     </div>
   )
 }
+
+// Návod pre VO (pod zoznamom objednávok)
+const GUIDE = [
+  <><b>Nová objednávka:</b> ťuknite na „+ Nová objednávka“, vyberte dátum, prípadne doplňte názov
+    (meno zákazníka) a poznámky → „Vytvoriť objednávku“.</>,
+  <><b>Menu:</b> ťuknite na „Vytvoriť menu“ a vyberte šablónu, prázdne menu alebo ho nadiktujte.
+    V blokoch Hlavné jedlo a Raut zadajte počty osôb a čas (čo nechcete, vypnite vypínačom).
+    Jedlá pridáte ťuknutím na názov kategórie. Všetko sa ukladá automaticky.
+    Množstvá (kg) pri raute určuje naša kuchyňa.</>,
+  <><b>Dokončenie:</b> keď je objednávka hotová, prepnite ju na <b>FINAL</b> — zamkne sa.
+    Ak ju potrebujete zmeniť, prepnite ju späť na <b>Koncept</b>.</>,
+  <><b>Tlač:</b> úplne dole v objednávke — Sumár objednávky → A4.</>,
+  <><b>Vymazanie:</b> tlačidlo Vymazať (ťuknúť dvakrát), len v stave Koncept.</>,
+  <><b>Zmena hesla:</b> ozubené koliesko vpravo hore.</>,
+]
