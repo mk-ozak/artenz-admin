@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ACTION_LABEL, FIELD_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
+import { ACTION_LABEL, FIELD_LABEL, VO_ACTION_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
+import { VO_VISIBLE_FIELDS } from '../../lib/vo'
 
 // Akcie so zákazníckym účtom — v kontexte rezervácie zrozumiteľnejšie názvy
 const CUSTOMER_ACTION_LABEL = {
   customer_access_create: 'Vytvoril prístup zákazníka',
   user_password_reset:    'Vygeneroval nové heslo zákazníka',
   user_delete:            'Odobral prístup zákazníka',
+}
+
+// Zmeny len v poliach, ktoré smie vidieť VO (bez nich záznam úpravy vypadne)
+function onlyVisibleChanges(log) {
+  const changes = log.details?.changes
+  if (!changes) return log
+  const visible = Object.fromEntries(
+    Object.entries(changes).filter(([field]) => VO_VISIBLE_FIELDS.includes(field))
+  )
+  const details = { ...log.details, changes: Object.keys(visible).length ? visible : undefined }
+  return { ...log, details }
 }
 
 // História rezervácie — logy činností len k tejto rezervácii (malým šedým
@@ -16,7 +28,9 @@ const CUSTOMER_ACTION_LABEL = {
 //   • nové heslo / odobratie prístupu (entity_id = zákaznícky účet z predošlého)
 // booking/access sa menia po uložení v modáli a pri zmenách prístupu →
 // história sa načíta znova.
-export default function BookingHistory({ bookingId, booking, access }) {
+// vo: objednávka VO (texty „…objednávku"); restricted: históriu číta VO —
+// vidí len zmeny polí objednávky, nie naše interné údaje (cena, záloha…).
+export default function BookingHistory({ bookingId, booking, access, vo = false, restricted = false }) {
   const [logs, setLogs]   = useState([])
   const [names, setNames] = useState({})  // { user_id: meno }
 
@@ -50,6 +64,7 @@ export default function BookingHistory({ bookingId, booking, access }) {
       // Úprava bez zmenených polí = technický zápis (napr. priradenie
       // zákazníckeho účtu) — ten je v histórii vlastným riadkom
       const all = [...own, ...customer]
+        .map(l => restricted ? onlyVisibleChanges(l) : l)
         .filter(l => l.action !== 'booking_update' || l.details?.changes)
         .sort((a, b) => a.id - b.id)
       if (!cancelled) { setLogs(all); setNames(userNames) }
@@ -57,14 +72,14 @@ export default function BookingHistory({ bookingId, booking, access }) {
 
     load()
     return () => { cancelled = true }
-  }, [bookingId, booking, access])
+  }, [bookingId, booking, access, restricted])
 
   if (!logs.length) return null
 
   return (
     <div className="pt-4 mt-2 border-t border-[#eef3f6]">
       <p className="text-[10px] text-[#9ab0ba] tracking-widest uppercase mb-1.5">
-        História rezervácie
+        {vo ? 'História objednávky' : 'História rezervácie'}
       </p>
       <ul className="space-y-1">
         {logs.map(log => (
@@ -72,7 +87,7 @@ export default function BookingHistory({ bookingId, booking, access }) {
             <span className="tabular-nums">{formatTime(log.created_at)}</span>
             {' · '}
             <span className="text-[#7f98a5]">
-              {CUSTOMER_ACTION_LABEL[log.action] ?? ACTION_LABEL[log.action] ?? log.action}
+              {CUSTOMER_ACTION_LABEL[log.action] ?? (vo ? VO_ACTION_LABEL[log.action] : undefined) ?? ACTION_LABEL[log.action] ?? log.action}
             </span>
             {' · '}
             {userLabel(log, names)}

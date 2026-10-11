@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { IconChevronLeft, IconChevronRight, IconReceipt } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { EVENT_LABEL } from '../../lib/eventTypes'
+import { voLabel } from '../../lib/vo'
 import { buildMenuSections } from '../../lib/menuCalc'
 import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig } from '../../lib/menuSummary'
 import { toISO } from '../../utils/diaryWeeks'
 import { DAYS_SHORT } from '../../utils/format'
 import {
-  HALL_SHORT, buildDaySummary, buildKitchenTicket, renderDaySummary,
+  hallShortOf, buildDaySummary, buildKitchenTicket, renderDaySummary,
 } from '../../utils/kitchenTicket'
 import TicketPreview from '../menu/TicketPreview'
 
@@ -16,7 +17,7 @@ const MONTHS = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
 const WEEKDAYS = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne']
 
 // Stĺpce rezervácie potrebné na kalkuláciu (počty osôb, raut, požiadavky)
-const BOOKING_COLS = `id, date, hall, customer_name, event_type, start_time, menu_created, raut_enabled,
+const BOOKING_COLS = `id, date, hall, customer_name, event_type, start_time, menu_created, raut_enabled, is_vo, vo_order_no,
   guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal,
   raut_extra, raut_grams, notes`
 // Výbery menu ako v MenuEditor (živý názov + kategória z katalógu, variant)
@@ -102,9 +103,9 @@ export default function DaySummary({ refreshKey }) {
     if (c.error || s.error) { setError((c.error || s.error).message); setBusy(false); return }
 
     const events = rows.map(r => {
-      const title = `${EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia'} – ${r.customer_name}`
+      const title = `${r.is_vo ? voLabel(r) : (EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – ${r.customer_name}`
       const time = r.start_time ? r.start_time.slice(0, 5) : ''
-      const event = { hallShort: HALL_SHORT[r.hall] ?? r.hall, date: r.date, time, title, model: null }
+      const event = { hallShort: hallShortOf(r), date: r.date, time, title, model: null }
       if (!r.menu_created) return event
       const summary = menuSummaryConfig(detailsFromRow(r), {
         ticketInfo: { title, date: r.date, time, hall: r.hall, hallShort: event.hallShort, notes: '' },

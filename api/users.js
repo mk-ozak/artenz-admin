@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-const ROLES = ['admin', 'read_only', 'customer']
+const ROLES = ['admin', 'read_only', 'customer', 'vo']
 
 function serviceClient() {
   return createClient(

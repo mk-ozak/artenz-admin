@@ -83,7 +83,9 @@ export function buildVoiceCatalog(categories, items, variants) {
 // Vracia inserts (riadky booking_menu_items bez booking_id), updates ({ id, patch }),
 // bookingPatch (stĺpce bookings), summary (do zhrnutia; položky ako { text, note },
 // note = kategória alebo dôvod) a recognized — false = z nahrávky sa nedalo použiť nič.
-export function planVoiceMenu(parsed, { byRef, selections, booking }) {
+// lockedQtyBlocks: bloky, v ktorých sa nadiktované množstvo ignoruje (VO nemení kg
+// rautu — nová položka dostane predvolené množstvo, gramáž rautu sa nemení).
+export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlocks = [] }) {
   const inserts = []
   const updates = []
   const bookingPatch = {}
@@ -111,7 +113,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking }) {
     // Variant len z možností tej istej položky
     const opt = it.variant ? byRef[it.variant]?.variant : null
     const variant = opt && opt.item_id === item.id ? opt : null
-    const qty = cat.qty_step != null && Number(it.quantity) > 0
+    const qty = cat.qty_step != null && Number(it.quantity) > 0 && !lockedQtyBlocks.includes(cat.block)
       ? normalizeQty(cat, Number(it.quantity))
       : null
 
@@ -183,7 +185,8 @@ export function planVoiceMenu(parsed, { byRef, selections, booking }) {
     summary.guests.push(`Raut navyše/menej ${extra > 0 ? '+' : ''}${extra}`)
   }
   const grams = Math.round(Number(parsed.raut_grams))
-  if (parsed.raut_grams != null && Number.isFinite(grams) && grams > 0 && grams <= 2000) {
+  if (parsed.raut_grams != null && Number.isFinite(grams) && grams > 0 && grams <= 2000
+      && !lockedQtyBlocks.includes(RAUT_BLOCKS[0])) {
     bookingPatch.raut_grams = grams
     summary.guests.push(`Gramáž rautu ${grams} g`)
   }

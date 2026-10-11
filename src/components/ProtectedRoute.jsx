@@ -20,5 +20,10 @@ export default function ProtectedRoute() {
     return <Navigate to="/moja" replace />
   }
 
+  // VO (veľkoobchod) vidí len svoje rozhranie objednávok
+  if (role === 'vo' && !/^\/vo(\/|$)/.test(location.pathname)) {
+    return <Navigate to="/vo" replace />
+  }
+
   return <Outlet />
 }

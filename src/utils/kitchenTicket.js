@@ -8,6 +8,7 @@ import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../lib/menuCalc'
 import { selLabel } from '../lib/menuVariants'
 import { RAUT_BLOCKS } from '../lib/menuSummary'
 import { DAYS_LONG, DAYS_SHORT } from './format'
+import { VO_KITCHEN_NAME } from '../lib/vo'
 
 // Skratka sály — veľký nápis v hlavičke tlače do kuchyne
 export const HALL_SHORT = {
@@ -16,6 +17,9 @@ export const HALL_SHORT = {
   LUNA:        'LUNA',
   CATERING:    'CATERING',
 }
+
+// Skratka sály pre riadok bookings — objednávka VO má v hlavičke „ČIERNE"
+export const hallShortOf = row => (row?.is_vo ? VO_KITCHEN_NAME : (HALL_SHORT[row?.hall] ?? row?.hall))
 
 // ── Rozpoznanie v katalógu ───────────────────────────────────────────────
 // Kategórie podľa ID (menu_categories.id) — na názve kategórie ani položky

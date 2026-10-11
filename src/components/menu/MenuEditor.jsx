@@ -52,9 +52,13 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // summary: konfigurácia zhrnutia (sekcie podľa blokov + množstvá); null = jednoduché zhrnutie
 // customerPrintTarget: DOM prvok, kam sa vykreslí blok „Zhrnutie pre zákazníka"
 //   (v detaile rezervácie úplne naspodu, pod prístupom zákazníka)
+// printMode: 'all' | 'summary-a4' — len tlač zhrnutia na A4 (objednávky VO)
+// customerPrintTitle: nadpis bloku zhrnutia a tlače (predvolene „Zhrnutie pre zákazníka")
+// lockedQtyBlocks: [čísla blokov] — množstvá len na čítanie (VO nemení kg rautu)
+// canAddCatalog: false = v okne výberu sa nedá pridať nová položka do katalógu
 export default function MenuEditor({
   table, ownerColumn, ownerId, editable, extraBeforeBlock, aboveBlock, hiddenBlocks, summary,
-  customerPrintTarget,
+  customerPrintTarget, printMode = 'all', customerPrintTitle, lockedQtyBlocks, canAddCatalog = true,
 }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
@@ -298,7 +302,7 @@ export default function MenuEditor({
     }
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const titleText = 'Zhrnutie'
+    const titleText = customerPrintTitle ?? 'Zhrnutie'
     const sub = summary?.printSubtitle ? `<p class="sub">${esc(summary.printSubtitle)}</p>` : ''
     const sections = summarySections.map(sec => {
       const title = summary.titles?.[sec.block]
@@ -425,6 +429,7 @@ export default function MenuEditor({
   function renderCategory(cat) {
     const sels      = selsByCat[cat.id] ?? []
     const hasQty    = cat.qty_step != null
+    const qtyLocked = !!lockedQtyBlocks?.includes(cat.block)
     const clickable = editable && !cat.archived_at
     // Podiel porcie (Mäso, Príloha): pri 2+ položkách príznak „1/2"…
     const splitBadge = cat.split_portions && sels.length > 1 ? `1/${sels.length}` : null
@@ -492,7 +497,26 @@ export default function MenuEditor({
             )}
 
             {hasQty ? (
-              editable ? (
+              editable && qtyLocked ? (
+                // Množstvo určuje kuchyňa — zašednuté, položka sa dá len odobrať
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => removeSelection(sel)}
+                    aria-label="Odobrať položku"
+                    className={X_BTN}
+                  >
+                    <IconX size={15} stroke={2.5} />
+                  </button>
+                  <span
+                    title="Množstvo určuje kuchyňa"
+                    className="rounded-lg border border-[#e3e9ed] bg-[#f3f5f7] px-3 py-2
+                               text-sm font-semibold text-[#9aa7b0]"
+                  >
+                    {fmtQty(sel.quantity)}{cat.qty_unit ? ` ${cat.qty_unit}` : ''}
+                  </span>
+                </div>
+              ) : editable ? (
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
@@ -637,7 +661,7 @@ export default function MenuEditor({
                   Súčet: {sum} / Špeciály: {summary.checkTarget}{ok ? ' ✓' : ' — nesedí'}
                 </p>
               )
-            } else if (summary?.weightCheck?.blocks?.includes(block)) {
+            } else if (summary?.weightCheck?.blocks?.includes(block) && !lockedQtyBlocks?.includes(block)) {
               // Raut: súčet naklikaných kg vs počet ľudí na raut × 0,2 kg
               const wc = summary.weightCheck
               const sumKg = renderCats
@@ -726,6 +750,7 @@ export default function MenuEditor({
                 </p>
               </div>
               {/* Tlač: do kuchyne (s množstvami) a zhrnutie pre zákazníka (bez nich) */}
+              {printMode !== 'summary-a4' && (
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
                 {summary.ticket && printRow('Tlač do kuchyne', [
                   { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen'), accent: true },
@@ -737,6 +762,7 @@ export default function MenuEditor({
                     : []),
                 ])}
               </div>
+              )}
               <div className="px-4 py-2.5 space-y-3">
                 {/* Raut + Prílohy pre raut vedľa seba od tabletu; na mobile pod sebou (celé názvy) */}
                 {buildRows(summarySections).map((row, i) =>
@@ -765,12 +791,12 @@ export default function MenuEditor({
       {customerPrintTarget && summary?.calc && hasAnySelection && createPortal(
         <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
           <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
-            Zhrnutie pre zákazníka
+            {customerPrintTitle ?? 'Zhrnutie pre zákazníka'}
           </p>
           <div className="px-4 pb-4 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-gray-500">Menu bez množstiev pre kuchyňu.</p>
             {printButtons([
-              ...(summary.ticket
+              ...(summary.ticket && printMode !== 'summary-a4'
                 ? [{ icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
                 : []),
               { icon: IconPrinter, text: 'A4', title: 'Tlač na A4', onClick: printSummary },
@@ -890,12 +916,15 @@ export default function MenuEditor({
               })}
               {items.filter(i => i.category_id === pickerCat.id).length === 0 && (
                 <p className="px-5 py-6 text-sm text-gray-400 text-center">
-                  Kategória zatiaľ nemá žiadne položky — pridajte novú vyššie.
+                  {canAddCatalog
+                    ? 'Kategória zatiaľ nemá žiadne položky — pridajte novú vyššie.'
+                    : 'Kategória zatiaľ nemá žiadne položky.'}
                 </p>
               )}
             </div>
 
             {/* Pridať novú položku rovno do katalógu tejto kategórie */}
+            {canAddCatalog && (
             <form
               onSubmit={addCatalogItem}
               className="flex gap-2 px-5 py-3 bg-gray-50 border-t border-gray-100 shrink-0"
@@ -919,6 +948,7 @@ export default function MenuEditor({
                 Pridať
               </button>
             </form>
+            )}
 
             <div className="px-5 py-3 border-t border-gray-100 shrink-0">
               <button

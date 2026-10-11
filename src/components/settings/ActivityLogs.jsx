@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ACTION_LABEL, FIELD_LABEL, HALL_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
+import { ACTION_LABEL, FIELD_LABEL, HALL_LABEL, VO_ACTION_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
 
 const ACTION_BADGE = {
   booking_create:         'bg-emerald-100 text-emerald-700',
@@ -16,6 +16,9 @@ const ACTION_BADGE = {
 
 function detailText(log) {
   const d = log.details ?? {}
+  if (log.entity === 'booking' && d.vo_order_no != null) {
+    return [`VO č. ${d.vo_order_no}`, d.customer_name, d.date].filter(Boolean).join(' · ')
+  }
   if (log.entity === 'booking') {
     return [d.customer_name, d.date, HALL_LABEL[d.hall] ?? d.hall].filter(Boolean).join(' · ')
   }
@@ -93,7 +96,8 @@ export default function ActivityLogs() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium
                                       ${ACTION_BADGE[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {ACTION_LABEL[log.action] ?? log.action}
+                      {(log.details?.vo_order_no != null ? VO_ACTION_LABEL[log.action] : undefined)
+                        ?? ACTION_LABEL[log.action] ?? log.action}
                     </span>
                     <span className="text-sm font-medium text-gray-800 truncate">
                       {detailText(log)}

@@ -35,6 +35,9 @@ export function toFrontend(row) {
     time:           row.start_time ? row.start_time.slice(0, 5) : '',
     expectedGuests: row.expected_guests != null ? row.expected_guests : '',
     estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : '',
+    isVo:           !!row.is_vo,
+    voOrderNo:      row.vo_order_no ?? null,
+    voStatus:       row.vo_status ?? null,
   }
 }
 
@@ -273,7 +276,8 @@ export const useBookingsStore = create((set, get) => ({
     }
 
     // Event sa pri mazaní zmazal → vytvor ho nanovo a ulož nové ID.
-    if (row && !row.google_calendar_event_id) {
+    // Objednávky VO do Google Kalendára nejdú.
+    if (row && !row.google_calendar_event_id && !row.is_vo) {
       const result = await syncCalendar('POST', {
         title: `${HALL_LABEL[row.hall] ?? row.hall} – ${row.customer_name} – ${EVENT_LABEL[row.event_type] ?? row.event_type ?? 'Akcia'}`,
         hall:  row.hall,

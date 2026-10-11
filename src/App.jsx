@@ -13,6 +13,9 @@ import ImportMenu from './pages/menuLuna/ImportMenu'
 import DailyMenu from './pages/menuLuna/DailyMenu'
 import PermanentMenu from './pages/menuLuna/PermanentMenu'
 import MenuLunaSettings from './pages/menuLuna/MenuLunaSettings'
+import VoHome from './pages/vo/VoHome'
+import VoOrderDetail from './pages/vo/VoOrderDetail'
+import VoSettings from './pages/vo/VoSettings'
 import ProtectedRoute from './components/ProtectedRoute'
 import Toast from './components/Toast'
 import UpdatePrompt from './components/UpdatePrompt'
@@ -45,6 +48,10 @@ export default function App() {
           <Route path="/menu/denne" element={<DailyMenu />} />
           <Route path="/menu/trvale" element={<PermanentMenu />} />
           <Route path="/menu/nastavenia" element={<MenuLunaSettings />} />
+          <Route path="/vo" element={<VoHome />} />
+          <Route path="/vo/objednavka/nova" element={<VoOrderDetail />} />
+          <Route path="/vo/objednavka/:id" element={<VoOrderDetail />} />
+          <Route path="/vo/nastavenia" element={<VoSettings />} />
         </Route>
       </Routes>
     </BrowserRouter>

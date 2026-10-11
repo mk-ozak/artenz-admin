@@ -9,6 +9,7 @@ import { postVoice, useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
+import { VO_STATUS_LABEL, VO_STATUS_STYLE } from '../lib/vo'
 import SettlementPanel from './SettlementPanel'
 import RecordingOverlay from './RecordingOverlay'
 import DepositsModal from './DepositsModal'
@@ -128,6 +129,8 @@ export default function BookingModal() {
   if (!modalState) return null
 
   const isEdit = modalState.mode === 'edit'
+  // Objednávka VO (veľkoobchod) — číslo a stav Koncept/FINAL
+  const voOrder = isEdit && modalState.booking?.isVo ? modalState.booking : null
   // Rezervácia v minulosti sa už nedá upravovať ani mazať (ani adminom).
   // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
   const isPastBooking = isEdit && form.date < toISO(new Date())
@@ -300,7 +303,7 @@ export default function BookingModal() {
         {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between" style={{ background: '#354d5d' }}>
           <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>
-            {isEdit ? 'Editovať rezerváciu' : 'Nová rezervácia'}
+            {isEdit ? (voOrder ? 'Editovať objednávku VO' : 'Editovať rezerváciu') : 'Nová rezervácia'}
           </h2>
           {/* Hlasové zadanie — len pri novej rezervácii */}
           {!isEdit && canEdit && (
@@ -532,7 +535,18 @@ export default function BookingModal() {
             </div>
           </div>
 
-          {/* Status */}
+          {/* Status — objednávka VO má namiesto stavu rezervácie Koncept/FINAL
+              (prepína sa v detaile objednávky) */}
+          {voOrder ? (
+            <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                 style={{ borderColor: '#f3c6b6', background: '#fdf3ef', color: '#7a3a22' }}>
+              <span className="font-bold">Objednávka VO č. {voOrder.voOrderNo}</span>
+              <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full"
+                    style={VO_STATUS_STYLE[voOrder.voStatus ?? 'koncept']}>
+                {VO_STATUS_LABEL[voOrder.voStatus ?? 'koncept']}
+              </span>
+            </div>
+          ) : (
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Stav rezervácie</label>
             <StatusSegment
@@ -550,6 +564,7 @@ export default function BookingModal() {
               hallLabel={venueName}
             />
           </div>
+          )}
 
           {/* Expected guests + cena na osobu + spolu (vypočítané) */}
           <div className="flex gap-3">

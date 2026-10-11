@@ -13,7 +13,9 @@ import BookingModal from '../components/BookingModal'
 import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
 import BookingHistory from '../components/booking/BookingHistory'
-import { HALL_SHORT } from '../utils/kitchenTicket'
+import { hallShortOf } from '../utils/kitchenTicket'
+import { VO_COLOR, voLabel } from '../lib/vo'
+import VoStatusToggle from '../components/vo/VoStatusToggle'
 
 const HALL_COLOR = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -160,6 +162,9 @@ export default function BookingDetail() {
       deposit:        form.deposit,
       deposits:       form.deposits,
       googleEventId:  booking.google_calendar_event_id,
+      isVo:           !!booking.is_vo,
+      voOrderNo:      booking.vo_order_no ?? null,
+      voStatus:       booking.vo_status ?? null,
     })
   }
 
@@ -218,8 +223,11 @@ export default function BookingDetail() {
   const isPastBooking = !!booking && booking.date < toISO(new Date())
   const editable      = isAdmin && !isPastBooking
 
-  const color     = booking ? (HALL_COLOR[booking.hall] ?? '#4cbfb3') : '#4cbfb3'
-  const typeLabel = form ? (EVENT_LABEL[form.type] ?? form.type ?? 'Akcia') : ''
+  // Objednávka VO (veľkoobchod): vlastná farba, číslo namiesto typu akcie,
+  // Koncept/FINAL namiesto stavu rezervácie, bez prístupu zákazníka
+  const isVo      = !!booking?.is_vo
+  const color     = booking ? (isVo ? VO_COLOR : (HALL_COLOR[booking.hall] ?? '#4cbfb3')) : '#4cbfb3'
+  const typeLabel = form ? (isVo ? voLabel(booking) : (EVENT_LABEL[form.type] ?? form.type ?? 'Akcia')) : ''
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -257,10 +265,12 @@ export default function BookingDetail() {
                     {typeLabel}
                   </span>
                 </p>
+                {!isVo && (
                 <span className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"
                       style={STATUS_STYLE[form.status ?? 'dopyt']}>
                   {STATUSES.find(s => s.value === form.status)?.label ?? form.status}
                 </span>
+                )}
               </div>
               <div className="flex gap-4 mt-2 items-center flex-wrap">
                 <span className="flex items-center gap-1 text-xs text-[#6a8898]">
@@ -268,7 +278,7 @@ export default function BookingDetail() {
                   {formatDateSk(booking.date)}
                 </span>
                 <span className="text-xs font-bold" style={{ color }}>
-                  {HALL_LABEL[booking.hall] ?? booking.hall}
+                  {isVo ? 'VO' : (HALL_LABEL[booking.hall] ?? booking.hall)}
                 </span>
                 {form.phone?.trim() && (
                   <span className="flex items-center gap-2 ml-auto">
@@ -329,6 +339,18 @@ export default function BookingDetail() {
                   </button>
                 )}
               </div>
+
+              {/* Objednávka VO — Koncept / FINAL (FINAL zamyká objednávku pre VO) */}
+              {isVo && (
+                <div className="mt-3 sm:w-72">
+                  <VoStatusToggle
+                    bookingId={booking.id}
+                    value={booking.vo_status ?? 'koncept'}
+                    disabled={!editable}
+                    onChange={next => setBooking(b => ({ ...b, vo_status: next }))}
+                  />
+                </div>
+              )}
             </div>
 
             {isPastBooking && (
@@ -351,15 +373,15 @@ export default function BookingDetail() {
                 title: `${typeLabel} – ${form.customerName}`,
                 date:  booking.date,
                 time:  form.time,  // '' = čas nevybratý („–" v okne Upraviť)
-                hall:  HALL_LABEL[booking.hall] ?? booking.hall,
-                hallShort: HALL_SHORT[booking.hall] ?? booking.hall,
+                hall:  isVo ? hallShortOf(booking) : (HALL_LABEL[booking.hall] ?? booking.hall),
+                hallShort: hallShortOf(booking),
                 notes: form.decoration,
               }}
               customerPrintTarget={customerPrintSlot}
             />
 
-            {/* Prístup zákazníka – len admin */}
-            {isAdmin && (
+            {/* Prístup zákazníka – len admin (objednávka VO ho nemá — VO má vlastné prihlásenie) */}
+            {isAdmin && !isVo && (
             <div className="rounded-card bg-white border border-[#e0e8ec] overflow-hidden">
               <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase px-4 pt-3 pb-1">
                 Prístup zákazníka
@@ -475,7 +497,7 @@ export default function BookingDetail() {
             <div ref={setCustomerPrintSlot} className="empty:hidden" />
 
             {/* História rezervácie (logy) — úplne naspodu, len admin */}
-            {isAdmin && <BookingHistory bookingId={id} booking={booking} access={access} />}
+            {isAdmin && <BookingHistory bookingId={id} booking={booking} access={access} vo={isVo} />}
           </>
         )}
 

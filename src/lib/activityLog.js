@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { EVENT_LABEL } from './eventTypes'
 import { SETTLEMENT_DOCUMENT_LABEL, SETTLEMENT_METHOD_LABEL } from './settlement'
+import { VO_STATUS_LABEL } from './vo'
 
 // Spoločné popisy logov činností (stránka Logy + História rezervácie v detaile)
 
@@ -14,6 +15,15 @@ export const ACTION_LABEL = {
   customer_access_create: 'Vytvoril zákaznícky prístup',
   user_delete:            'Zmazal používateľa',
   user_password_reset:    'Resetoval heslo',
+}
+
+// Tie isté akcie pri objednávke VO
+export const VO_ACTION_LABEL = {
+  booking_create:      'Vytvoril objednávku',
+  booking_update:      'Upravil objednávku',
+  booking_soft_delete: 'Vymazal objednávku',
+  booking_restore:     'Obnovil objednávku',
+  booking_delete:      'Natrvalo vymazal objednávku',
 }
 
 export const HALL_LABEL = {
@@ -58,12 +68,15 @@ export const FIELD_LABEL = {
   raut_extra:      'Raut navyše/menej',
   raut_grams:      'Gramáž rautu (g)',
   menu_created:    'Menu vytvorené',
+  // Objednávka VO
+  vo_status:       'Stav objednávky',
 }
 
 export function formatValue(field, value) {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'áno' : 'nie'
   if (field === 'status')     return STATUS_LABEL[value] ?? value
+  if (field === 'vo_status')  return VO_STATUS_LABEL[value] ?? value
   if (field === 'hall')       return HALL_LABEL[value] ?? value
   if (field === 'event_type') return EVENT_LABEL[value] ?? value
   if (field === 'settlement_document') return SETTLEMENT_DOCUMENT_LABEL[value] ?? value
@@ -92,7 +105,8 @@ export async function fetchUserNames() {
   return Object.fromEntries((data ?? []).map(p => [p.id, p.full_name?.trim() || p.email]))
 }
 
-// Kto akciu urobil: meno → e-mail z logu (zmazaný používateľ) → systém
+// Kto akciu urobil: meno z profilu → meno uložené v logu (VO cudzie profily
+// nečíta) → e-mail z logu (zmazaný používateľ) → systém
 export function userLabel(log, names) {
-  return names[log.user_id] ?? log.user_email ?? 'systém'
+  return names[log.user_id] ?? log.user_name ?? log.user_email ?? 'systém'
 }

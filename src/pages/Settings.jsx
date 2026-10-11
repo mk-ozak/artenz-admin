@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { IconCopy, IconHome, IconKey, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
+import { IconBuildingStore, IconCopy, IconHome, IconKey, IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { usersApi } from '../lib/usersApi'
 import { useAuthStore } from '../store/auth'
@@ -14,12 +14,14 @@ const ROLES = [
   { value: 'admin',     label: 'Admin' },
   { value: 'read_only', label: 'Len čítanie' },
   { value: 'customer',  label: 'Zákazník' },
+  { value: 'vo',        label: 'VO (veľkoobchod)' },
 ]
 
 const ROLE_BADGE = {
   admin:     'bg-[#eaf7f5] text-[#2a8d83]',
   read_only: 'bg-gray-100 text-gray-600',
   customer:  'bg-[#fff5e6] text-[#a87d20]',
+  vo:        'bg-[#fde7df] text-[#b24a28]',
 }
 
 function initials(name) {
@@ -54,7 +56,7 @@ export default function Settings() {
 
   // Otvorená záložka; z adresy sa dá otvoriť priamo (napr. /settings?tab=menu z menu rezervácie)
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'templates' | 'logs' | 'version'
+  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'templates' | 'logs' | 'vo' | 'version'
 
   const isAdmin = currentUserRole === 'admin'
 
@@ -207,12 +209,12 @@ export default function Settings() {
       <main className="max-w-3xl mx-auto px-4 py-6">
         {/* Tabs */}
         <div className="border-b border-[#dde8ec] mb-6">
-          <div className="flex gap-1">
-            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
+          <div className="flex gap-1 overflow-x-auto overflow-y-hidden">
+            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['vo', 'VO'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`px-4 py-2.5 text-sm font-bold -mb-px transition-colors
+                className={`shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-bold -mb-px transition-colors
                             ${tab === key
                               ? 'text-[#2a8d83] border-b-2 border-[#4cbfb3]'
                               : 'text-[#7a99a8] hover:text-[#354d5d]'}`}
@@ -245,6 +247,26 @@ export default function Settings() {
           <MenuSettings />
         ) : tab === 'templates' ? (
           <MenuTemplates />
+        ) : tab === 'vo' ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Objednávky VO (veľkoobchod)
+            </p>
+            <p className="text-sm text-gray-600">
+              Rozhranie, v ktorom VO zadáva svoje objednávky s menu. Objednávky sa zobrazujú
+              aj v diári (stĺpec CATERING). Prihlásenie pre VO vytvoríš v záložke Používatelia
+              s rolou „VO (veľkoobchod)".
+            </p>
+            <button
+              onClick={() => navigate('/vo')}
+              className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold
+                         transition-opacity hover:opacity-90"
+              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+            >
+              <IconBuildingStore size={16} stroke={2} />
+              Otvoriť rozhranie VO
+            </button>
+          </div>
         ) : loading ? (
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin" />

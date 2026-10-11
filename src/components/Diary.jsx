@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/auth'
 import { toISO } from '../utils/diaryWeeks'
 import { formatDateSkYear } from '../utils/format'
 import { EVENT_LABEL } from '../lib/eventTypes'
+import { VO_COLOR, VO_DIARY_STYLE, VO_STATUS_LABEL } from '../lib/vo'
 
 const MIN_YEAR = 2024
 
@@ -213,6 +214,9 @@ export default function Diary() {
       time:          b.start_time ? b.start_time.slice(0, 5) : '',
       expectedGuests: b.expected_guests != null ? b.expected_guests : '',
       estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : '',
+      isVo:          !!b.is_vo,
+      voOrderNo:     b.vo_order_no ?? null,
+      voStatus:      b.vo_status ?? null,
     }
   }
 
@@ -367,6 +371,14 @@ export default function Diary() {
                 <div className="w-3.5 h-3 rounded-sm border-l-[3px]"
                      style={{ background: s.bg, borderLeftColor: s.strip }} />
                 {s.label}
+              </div>
+            ))}
+            {/* Objednávky VO (veľkoobchod) — v stĺpci CATERING */}
+            {['koncept', 'final'].map(v => (
+              <div key={v} className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3 rounded-sm border-l-[3px]"
+                     style={{ borderLeftColor: VO_COLOR, ...VO_DIARY_STYLE[v] }} />
+                VO – {VO_STATUS_LABEL[v]}
               </div>
             ))}
           </div>

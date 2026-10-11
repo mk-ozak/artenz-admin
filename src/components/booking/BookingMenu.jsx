@@ -8,6 +8,7 @@ import VoiceMenuSummary from './VoiceMenuSummary'
 import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
 import { buildVoiceCatalog, planVoiceMenu } from '../../lib/voiceMenu'
 import { postVoice, useVoiceRecorder } from '../../hooks/useVoiceRecorder'
+import { VO_LOCKED_QTY_BLOCKS } from '../../lib/vo'
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
@@ -33,7 +34,9 @@ const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-
 // + spoločný editor menu. Zmeny sa ukladajú okamžite.
 // ticketInfo: údaje akcie pre lístok do kuchyne { title, date, time, hall, notes }
 // customerPrintTarget: miesto pre blok „Zhrnutie pre zákazníka" (spodok detailu)
-export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo, customerPrintTarget }) {
+// vo: menu upravuje VO (veľkoobchod) — len tlač sumáru A4, bez nastavení menu
+//   a pridávania do katalógu, kg rautu a gramáž rautu len na čítanie
+export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo, customerPrintTarget, vo = false }) {
   // Po hromadnej zmene (šablóna / reset) editor remountneme — načíta sa nanovo
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -96,6 +99,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       byRef,
       selections: creating ? [] : (s.data ?? []),
       booking: b.data ?? {},
+      lockedQtyBlocks: vo ? VO_LOCKED_QTY_BLOCKS : [],
     })
     if (!plan.recognized) {
       const missing = plan.summary.unmatched
@@ -273,7 +277,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             min="1"
             placeholder="200"
             value={details.rautGrams}
-            disabled={!editable}
+            disabled={!editable || vo}
             onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
             onBlur={() => saveDetail('rautGrams')}
             className={detailInputCls}
@@ -429,6 +433,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
               </button>
             </>
           )}
+          {!vo && (
           <Link
             to="/settings?tab=menu"
             title="Nastavenia menu (kategórie a položky)"
@@ -438,6 +443,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           >
             <IconSettings size={18} />
           </Link>
+          )}
         </div>
         )}
       </div>
@@ -484,6 +490,10 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           hiddenBlocks={rautOn ? [] : RAUT_BLOCKS}
           summary={menuSummary}
           customerPrintTarget={customerPrintTarget}
+          printMode={vo ? 'summary-a4' : 'all'}
+          customerPrintTitle={vo ? 'Sumár objednávky' : undefined}
+          lockedQtyBlocks={vo ? VO_LOCKED_QTY_BLOCKS : undefined}
+          canAddCatalog={!vo}
         />
       )}
 

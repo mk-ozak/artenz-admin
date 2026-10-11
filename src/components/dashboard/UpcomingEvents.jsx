@@ -6,6 +6,7 @@ import { useBookingsStore } from '../../store/bookings'
 import { formatDateSk, formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { toISO } from '../../utils/diaryWeeks'
+import { VO_COLOR, voLabel } from '../../lib/vo'
 
 const STRIPE = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -42,7 +43,7 @@ export default function UpcomingEvents({ refreshKey }) {
     end.setDate(today.getDate() + 29)
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, customer_phone, start_time, menu_created')
+      .select('id, date, hall, customer_name, event_type, customer_phone, start_time, menu_created, is_vo, vo_order_no')
       .is('deleted_at', null)
       .gte('date', toISO(today))
       .lte('date', toISO(end))
@@ -64,8 +65,9 @@ export default function UpcomingEvents({ refreshKey }) {
       ) : (
         <ul className="divide-y divide-[#eef3f6]">
           {events.map(e => {
-            const color     = STRIPE[e.hall] ?? '#4cbfb3'
-            const typeLabel = EVENT_LABEL[e.event_type] ?? e.event_type ?? ''
+            // Objednávka VO: farba VO, číslo objednávky namiesto typu akcie
+            const color     = e.is_vo ? VO_COLOR : (STRIPE[e.hall] ?? '#4cbfb3')
+            const typeLabel = e.is_vo ? voLabel(e) : (EVENT_LABEL[e.event_type] ?? e.event_type ?? '')
             const phone     = e.customer_phone?.replace(/\s+/g, '')
             return (
               <li key={e.id}
@@ -87,7 +89,7 @@ export default function UpcomingEvents({ refreshKey }) {
                       {e.start_time && ` · ${e.start_time.slice(0, 5)}`}
                     </span>
                     <span className="text-xs font-bold" style={{ color }}>
-                      {HALL_LABEL[e.hall] ?? e.hall}
+                      {e.is_vo ? 'VO' : (HALL_LABEL[e.hall] ?? e.hall)}
                     </span>
                   </div>
                 </div>

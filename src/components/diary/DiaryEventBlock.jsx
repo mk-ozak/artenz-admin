@@ -1,3 +1,5 @@
+import { VO_COLOR, VO_DIARY_STYLE } from '../../lib/vo'
+
 const HALL_STRIP = {
   ARTENZ_PLUS: '#4cbfb3',
   ARTENZ:      '#d4a036',
@@ -17,7 +19,9 @@ const SIZE_CLS = {
   lg: 'text-[13px] px-2.5 py-2 rounded-[7px] pl-3',
 }
 
-export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt', size = 'md', past = false, onClick }) {
+// vo: stav objednávky VO ('koncept' | 'final') — vlastná farba namiesto sály a stavu;
+//   null = bežná rezervácia
+export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt', size = 'md', past = false, vo = null, onClick }) {
   // Na mobile (úzke stĺpce) zobrazíme len prvé slovo názvu + „…"; od sm nahor celý názov.
   const firstWord = (title ?? '').trim().split(/\s+/)[0] ?? ''
 
@@ -29,8 +33,10 @@ export default function DiaryEventBlock({ title, subtitle, hall, status = 'dopyt
                   ${onClick ? 'cursor-pointer hover:brightness-95 active:brightness-90' : ''}`}
       style={{
         // Minulá rezervácia: šedý pásik, šedší text, telo o niečo tmavšie než prekrytý kalendár
-        borderLeftColor: past ? '#9aa7b0' : (HALL_STRIP[hall] ?? '#9ab0ba'),
+        borderLeftColor: past ? '#9aa7b0' : vo ? VO_COLOR : (HALL_STRIP[hall] ?? '#9ab0ba'),
         background:      past ? '#dde3e7' : (STATUS_BG[status] ?? '#f0f2f4'),
+        // Objednávka VO: Koncept biely s čiarkovaným obrysom, FINAL vyplnený
+        ...(vo && !past ? VO_DIARY_STYLE[vo] : {}),
       }}
       onClick={onClick}
     >
