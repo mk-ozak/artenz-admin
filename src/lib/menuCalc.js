@@ -96,10 +96,11 @@ export function buildMenuSections({ categories, selections, summary, hiddenBlock
       if (!entry) { entry = { block: cat.block, items: [] }; sections.push(entry) }
       for (const sel of sels) entry.items.push({ sel, cat })
     }
-    // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom)
-    if (summary.mirror) {
+    // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom);
+    // pri skrytom zdrojovom alebo cieľovom bloku (vypnuté hlavné jedlo) nie
+    if (summary.mirror && !hidden.has(summary.mirror.toBlock)) {
       const mirrored = categories
-        .filter(c => c.name === summary.mirror.fromCategory)
+        .filter(c => c.name === summary.mirror.fromCategory && !hidden.has(c.block))
         .flatMap(c => (selsByCat[c.id] ?? []).map(sel => ({ sel, cat: c })))
       if (mirrored.length) {
         let entry = sections.find(s => s.block === summary.mirror.toBlock)

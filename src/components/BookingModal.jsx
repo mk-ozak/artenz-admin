@@ -14,10 +14,6 @@ import SettlementPanel from './SettlementPanel'
 import RecordingOverlay from './RecordingOverlay'
 import DepositsModal from './DepositsModal'
 
-// Čas rezervácie: 09–19 h, minúty po 15
-const HOURS   = Array.from({ length: 11 }, (_, i) => String(i + 9).padStart(2, '0'))
-const MINUTES = ['00', '15', '30', '45']
-
 const VENUES = [
   { key: 'artenzPlus', label: 'ARTENZ PLUS' },
   { key: 'artenz',     label: 'ARTENZ' },
@@ -28,7 +24,6 @@ const VENUES = [
 const EMPTY = {
   customerName: '',
   phone: '',
-  time: '',
   type: DEFAULT_EVENT_TYPE,
   status: 'dopyt',
   expectedGuests: '',
@@ -107,7 +102,6 @@ export default function BookingModal() {
         customerName: b.customerName,
         date:         b.date,
         venue:        b.venue,
-        time:         b.time ?? '',
         type:         b.type ?? DEFAULT_EVENT_TYPE,
         status:       b.status ?? 'dopyt',
         expectedGuests: b.expectedGuests ?? '',
@@ -174,17 +168,6 @@ export default function BookingModal() {
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
-  }
-
-  // Čas: "HH:MM" alebo '' (nepovinný); minúty po 15
-  const timeHH = form.time ? form.time.slice(0, 2) : ''
-  const timeMM = form.time ? form.time.slice(3, 5) : '00'
-
-  function setHour(h) {
-    set('time', h === '' ? '' : `${h}:${timeMM}`)
-  }
-  function setMinute(m) {
-    if (timeHH) set('time', `${timeHH}:${m}`)
   }
 
   // Zmena stavu: pri existujúcej rezervácii sa uloží okamžite
@@ -353,35 +336,8 @@ export default function BookingModal() {
               minulej/vyúčtovanej rezervácii — otvorí zoznam len na prezeranie. */}
           <div className="space-y-4 min-w-0">
 
-          {/* Context chips: Čas | Dátum | Sála */}
+          {/* Context chips: Dátum | Sála (čas podávania je v menu — Hlavné jedlo / Raut) */}
           <div className="flex gap-3">
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-200">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Čas</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <select
-                  value={timeHH}
-                  disabled={ro}
-                  onChange={e => setHour(e.target.value)}
-                  className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
-                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                    disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="">–</option>
-                  {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-                </select>
-                <span className="text-sm font-semibold text-gray-500">:</span>
-                <select
-                  value={timeMM}
-                  onChange={e => setMinute(e.target.value)}
-                  disabled={ro || !timeHH}
-                  className="bg-white border border-gray-200 rounded px-1 py-0.5 text-sm
-                    font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                    disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-            </div>
             <div className={`flex-1 rounded-lg px-3 py-2.5 border
                             ${isEdit && moveUnlocked ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'}`}>
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Dátum</p>

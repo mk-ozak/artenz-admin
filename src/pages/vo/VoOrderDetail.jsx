@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconCalendar, IconClock, IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconCalendar, IconPencil, IconTrash } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { formatDateSk, formatDateSkYear } from '../../utils/format'
@@ -12,7 +12,7 @@ import VoStatusToggle from '../../components/vo/VoStatusToggle'
 import BookingMenu from '../../components/booking/BookingMenu'
 import BookingHistory from '../../components/booking/BookingHistory'
 
-const EMPTY_FORM = { date: '', time: '', name: '' }
+const EMPTY_FORM = { date: '', name: '' }
 
 const inputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
   focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]`
@@ -68,7 +68,6 @@ export default function VoOrderDetail() {
   function startEdit() {
     setForm({
       date: order.date,
-      time: order.start_time ? order.start_time.slice(0, 5) : '',
       name: order.customer_name ?? '',
     })
     setError('')
@@ -90,10 +89,8 @@ export default function VoOrderDetail() {
     }
     setSaving(true)
     setError('')
-    const fields = {
-      date:       form.date,
-      start_time: form.time || null,
-    }
+    // čas podávania sa zadáva v menu (Hlavné jedlo / Raut)
+    const fields = { date: form.date }
     const { data, error: err } = isNew
       ? await supabase
           .from('bookings')
@@ -144,8 +141,6 @@ export default function VoOrderDetail() {
     navigate('/vo', { replace: true })
   }
 
-  const time = order?.start_time ? order.start_time.slice(0, 5) : ''
-
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <VoHeader title={isNew ? 'Nová objednávka' : 'Objednávka'} backTo="/vo" />
@@ -166,28 +161,17 @@ export default function VoOrderDetail() {
             <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase">
               {isNew ? 'Nová objednávka' : `Upraviť objednávku č. ${order.vo_order_no}`}
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Dátum <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  min={today}
-                  value={form.date}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Čas</label>
-                <input
-                  type="time"
-                  value={form.time}
-                  onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
+            <div className="sm:w-1/2">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Dátum <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                min={today}
+                value={form.date}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
@@ -246,12 +230,6 @@ export default function VoOrderDetail() {
                     <IconCalendar size={14} />
                     {formatDateSkYear(order.date)}
                   </span>
-                  {time && (
-                    <span className="flex items-center gap-1 text-xs text-[#6a8898]">
-                      <IconClock size={14} />
-                      {time}
-                    </span>
-                  )}
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-[#eef3f6] flex flex-col sm:flex-row sm:items-start gap-3">
@@ -316,7 +294,6 @@ export default function VoOrderDetail() {
               ticketInfo={isVoUser ? undefined : {
                 title:     `${voLabel(order)} – ${order.customer_name}`,
                 date:      order.date,
-                time,
                 hall:      hallShortOf(order),
                 hallShort: hallShortOf(order),
                 notes:     order.decoration ?? '',

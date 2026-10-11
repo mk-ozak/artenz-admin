@@ -17,7 +17,7 @@ export default function VoHome() {
   useEffect(() => {
     supabase
       .from('bookings')
-      .select('id, date, start_time, customer_name, vo_order_no, vo_status, menu_created')
+      .select('id, date, customer_name, vo_order_no, vo_status, menu_created')
       .eq('is_vo', true)
       .is('deleted_at', null)
       .order('date', { ascending: false })
@@ -93,7 +93,6 @@ export default function VoHome() {
                         <span className="flex items-center gap-1 text-xs text-[#6a8898]">
                           <IconCalendar size={13} />
                           {formatDateSkYear(o.date)}
-                          {o.start_time && ` · ${o.start_time.slice(0, 5)}`}
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                               style={VO_STATUS_STYLE[status]}>

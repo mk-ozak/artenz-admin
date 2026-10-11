@@ -39,16 +39,16 @@ export function useFinanceTimeline(mode = 'future') {
     const todayISO = toISO(new Date())
     let query = supabase
       .from('bookings')
-      .select('id, date, hall, event_type, expected_guests, estimated_price, start_time, deposit_payments')
+      .select('id, date, hall, event_type, expected_guests, estimated_price, main_time, deposit_payments')
       .is('deleted_at', null)
     // budúce (od dnes, vzostupne) alebo minulé (do včera, zostupne)
     query = mode === 'past'
       ? query.lt('date', todayISO)
              .order('date', { ascending: false })
-             .order('start_time', { ascending: false, nullsFirst: false })
+             .order('main_time', { ascending: false, nullsFirst: false })
       : query.gte('date', todayISO)
              .order('date')
-             .order('start_time', { ascending: true, nullsFirst: false })
+             .order('main_time', { ascending: true, nullsFirst: false })
     query
       .then(({ data, error }) => {
         if (error) console.error('[useFinanceTimeline] fetch error:', error.message)

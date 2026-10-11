@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { voLabel } from '../../lib/vo'
 import { buildMenuSections } from '../../lib/menuCalc'
-import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig } from '../../lib/menuSummary'
+import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, ticketTimeOf } from '../../lib/menuSummary'
 import { toISO } from '../../utils/diaryWeeks'
 import { DAYS_SHORT } from '../../utils/format'
 import {
@@ -17,7 +17,7 @@ const MONTHS = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
 const WEEKDAYS = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne']
 
 // Stĺpce rezervácie potrebné na kalkuláciu (počty osôb, raut, požiadavky)
-const BOOKING_COLS = `id, date, hall, customer_name, event_type, start_time, menu_created, raut_enabled, is_vo, vo_order_no,
+const BOOKING_COLS = `id, date, hall, customer_name, event_type, menu_created, raut_enabled, main_enabled, main_time, raut_time, is_vo, vo_order_no,
   guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal,
   raut_extra, raut_grams, notes`
 // Výbery menu ako v MenuEditor (živý názov + kategória z katalógu, variant)
@@ -85,7 +85,7 @@ export default function DaySummary({ refreshKey }) {
       .is('deleted_at', null)
       .in('date', dates)
       .order('date')
-      .order('start_time', { ascending: true, nullsFirst: false })
+      .order('main_time', { ascending: true, nullsFirst: false })
     if (b.error) { setError(b.error.message); setBusy(false); return }
     const rows = b.data ?? []
     if (!rows.length) {
@@ -104,7 +104,8 @@ export default function DaySummary({ refreshKey }) {
 
     const events = rows.map(r => {
       const title = `${r.is_vo ? voLabel(r) : (EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – ${r.customer_name}`
-      const time = r.start_time ? r.start_time.slice(0, 5) : ''
+      // čas podávania: hlavné jedlo, bez hlavného jedla raut
+      const time = ticketTimeOf(r)
       const event = { hallShort: hallShortOf(r), date: r.date, time, title, model: null }
       if (!r.menu_created) return event
       const summary = menuSummaryConfig(detailsFromRow(r), {
@@ -114,7 +115,7 @@ export default function DaySummary({ refreshKey }) {
         categories:   c.data ?? [],
         selections:   (s.data ?? []).filter(x => x.booking_id === r.id),
         summary,
-        hiddenBlocks: r.raut_enabled === false ? RAUT_BLOCKS : [],
+        hiddenBlocks: hiddenBlocksOf({ mainOn: r.main_enabled !== false, rautOn: r.raut_enabled !== false }),
       })
       return { ...event, model: buildKitchenTicket({ sections, selsByCat, summary }) }
     })

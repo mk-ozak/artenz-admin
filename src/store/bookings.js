@@ -32,7 +32,6 @@ export function toFrontend(row) {
     googleEventId:  row.google_calendar_event_id ?? null,
     status:         row.status ?? 'dopyt',
     phone:          row.customer_phone ?? null,
-    time:           row.start_time ? row.start_time.slice(0, 5) : '',
     expectedGuests: row.expected_guests != null ? row.expected_guests : '',
     estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : '',
     isVo:           !!row.is_vo,
@@ -86,7 +85,7 @@ function toBackend(b) {
     // modál ich zámerne nezapisuje, aby ich neprepísal.
     status: b.status ?? 'dopyt',
     customer_phone: b.phone?.trim() || null,
-    start_time: b.time || null,
+    // Čas podávania (hlavné jedlo / raut) vlastní sekcia Menu — modál ho nezapisuje
     // Prázdne (nezadané) → NULL; inak číslo
     expected_guests: b.expectedGuests !== '' && b.expectedGuests != null ? Number(b.expectedGuests) : null,
     estimated_price: b.estimatedPrice !== '' && b.estimatedPrice != null ? Number(b.estimatedPrice) : null,

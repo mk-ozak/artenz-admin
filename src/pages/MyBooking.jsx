@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconCalendar, IconClock, IconLogout, IconUsers } from '@tabler/icons-react'
+import { IconCalendar, IconLogout, IconUsers } from '@tabler/icons-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/auth'
 import { formatDateSk } from '../utils/format'
@@ -113,12 +113,6 @@ export default function MyBooking() {
               <p className="flex items-center gap-2">
                 <IconCalendar size={16} className="text-[#8aaabb]" />
                 {formatDateSk(booking.date)}
-                {booking.start_time && (
-                  <>
-                    <IconClock size={16} className="text-[#8aaabb] ml-2" />
-                    {booking.start_time.slice(0, 5)}
-                  </>
-                )}
               </p>
               <p>
                 <span className="text-xs font-bold" style={{ color }}>

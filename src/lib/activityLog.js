@@ -64,7 +64,10 @@ export const FIELD_LABEL = {
   guests_specials:       'Špeciály',
   guests_kids_meal:      'Deti s jedlom',
   guests_kids_no_meal:   'Deti bez jedla',
+  main_enabled:    'Hlavné jedlo',
+  main_time:       'Čas hlavného jedla',
   raut_enabled:    'Raut',
+  raut_time:       'Čas rautu',
   raut_extra:      'Raut navyše/menej',
   raut_grams:      'Gramáž rautu (g)',
   menu_created:    'Menu vytvorené',
@@ -81,7 +84,7 @@ export function formatValue(field, value) {
   if (field === 'event_type') return EVENT_LABEL[value] ?? value
   if (field === 'settlement_document') return SETTLEMENT_DOCUMENT_LABEL[value] ?? value
   if (field === 'settlement_method')   return SETTLEMENT_METHOD_LABEL[value] ?? value
-  if (field === 'start_time')   return String(value).slice(0, 5)
+  if (field === 'start_time' || field === 'main_time' || field === 'raut_time') return String(value).slice(0, 5)
   if (field === 'deposit_payments') {
     const arr = Array.isArray(value) ? value : []
     return arr.length ? arr.map(p => `${p.amount} € (${p.date})`).join(', ') : '—'

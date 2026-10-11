@@ -36,11 +36,12 @@ function Row({ tone, title, items }) {
 // Ostáva nad menu, kým ho používateľ nezavrie.
 export default function VoiceMenuSummary({ summary, onClose }) {
   const {
-    added, updated, already, guests, notes, raut, missingVariant, unmatched, overLimit, transcript,
+    added, updated, already, guests, notes, raut, main, missingVariant, unmatched, overLimit, transcript,
   } = summary
   const settings = [
     ...guests,
     ...(notes ? [`Požiadavky ku strave: ${notes}`] : []),
+    ...(main === 'on' ? ['Hlavné jedlo zapnuté'] : []),
     ...(raut === 'on' ? ['Raut s prílohami zapnutý'] : []),
     ...(raut === 'off' ? ['Raut s prílohami vypnutý'] : []),
   ]

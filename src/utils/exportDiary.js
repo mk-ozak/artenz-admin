@@ -162,7 +162,6 @@ export async function exportAllBookings() {
 
   ws.columns = [
     { header: 'Dátum',                 key: 'date',           width: 12 },
-    { header: 'Čas',                   key: 'time',           width: 8  },
     { header: 'Sála',                  key: 'hall',           width: 14 },
     { header: 'Typ akcie',             key: 'type',           width: 14 },
     { header: 'Zákazník',              key: 'name',           width: 26 },
@@ -192,7 +191,6 @@ export async function exportAllBookings() {
     const payments = Array.isArray(b.deposit_payments) ? b.deposit_payments : []
     const row = ws.addRow({
       date:           b.date,
-      time:           b.start_time ? b.start_time.slice(0, 5) : '',
       hall:           HALL_LABEL[b.hall] ?? b.hall,
       type:           EVENT_LABEL[b.event_type] ?? b.event_type ?? '',
       name:           b.customer_name,

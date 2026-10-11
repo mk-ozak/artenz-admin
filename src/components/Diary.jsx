@@ -211,7 +211,6 @@ export default function Diary() {
       googleEventId: b.google_calendar_event_id ?? null,
       status:        b.status ?? 'dopyt',
       phone:         b.customer_phone ?? null,
-      time:          b.start_time ? b.start_time.slice(0, 5) : '',
       expectedGuests: b.expected_guests != null ? b.expected_guests : '',
       estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : '',
       isVo:          !!b.is_vo,
@@ -447,7 +446,6 @@ export default function Diary() {
                         </span>
                         <span className="block text-xs text-gray-500 mt-0.5">
                           {formatDateSkYear(b.date)}
-                          {b.start_time && ` · ${b.start_time.slice(0, 5)}`}
                           <span className="font-bold ml-2" style={{ color: HALL_COLOR[b.hall] ?? '#4cbfb3' }}>
                             {HALL_LABEL[b.hall] ?? b.hall}
                           </span>

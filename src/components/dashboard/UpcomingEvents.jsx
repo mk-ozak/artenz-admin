@@ -43,12 +43,12 @@ export default function UpcomingEvents({ refreshKey }) {
     end.setDate(today.getDate() + 29)
     supabase
       .from('bookings')
-      .select('id, date, hall, customer_name, event_type, customer_phone, start_time, menu_created, is_vo, vo_order_no')
+      .select('id, date, hall, customer_name, event_type, customer_phone, menu_created, is_vo, vo_order_no')
       .is('deleted_at', null)
       .gte('date', toISO(today))
       .lte('date', toISO(end))
       .order('date')
-      .order('start_time', { ascending: true, nullsFirst: false })
+      .order('main_time', { ascending: true, nullsFirst: false })
       .then(({ data }) => setEvents(data ?? []))
   }, [refreshKey])
 
@@ -86,7 +86,6 @@ export default function UpcomingEvents({ refreshKey }) {
                     <span className="flex items-center gap-1 text-xs text-[#6a8898]">
                       <IconCalendar size={13} />
                       {formatDateSk(e.date)}
-                      {e.start_time && ` · ${e.start_time.slice(0, 5)}`}
                     </span>
                     <span className="text-xs font-bold" style={{ color }}>
                       {e.is_vo ? 'VO' : (HALL_LABEL[e.hall] ?? e.hall)}

@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { IconEraser, IconMicrophone, IconPlus, IconSettings, IconTemplate, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import MenuEditor from '../menu/MenuEditor'
+import TimeSelect from '../TimeSelect'
 import VoiceMenuDialog from './VoiceMenuDialog'
 import VoiceMenuSummary from './VoiceMenuSummary'
-import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
+import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, rautTotalOf, timeOf } from '../../lib/menuSummary'
 import { buildVoiceCatalog, planVoiceMenu } from '../../lib/voiceMenu'
 import { postVoice, useVoiceRecorder } from '../../hooks/useVoiceRecorder'
 import { VO_HIDDEN_GUEST_FIELDS, VO_LOCKED_QTY_BLOCKS } from '../../lib/vo'
@@ -53,8 +54,12 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   const [details, setDetails] = useState(null)
   // Je pre rezerváciu vytvorené menu? (null = načítava)
   const [menuCreated, setMenuCreated] = useState(null)
-  // Raut s prílohami — predvolene zapnutý; vypnutý skryje bloky rautu
-  const [rautOn, setRautOn] = useState(true)
+  // Hlavné jedlo a raut — predvolene zapnuté; vypnuté skryje svoje bloky
+  // (menu, kalkulácia aj tlač). Každý má svoj čas podávania ("HH:MM" | '').
+  const [mainOn, setMainOn]     = useState(true)
+  const [rautOn, setRautOn]     = useState(true)
+  const [mainTime, setMainTime] = useState('')
+  const [rautTime, setRautTime] = useState('')
   // Hlasové zadanie menu: otvorené okno nahrávania, zhrnutie posledného diktovania
   const [voiceOpen, setVoiceOpen]       = useState(false)
   const [voiceSummary, setVoiceSummary] = useState(null)
@@ -63,13 +68,16 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   function loadDetails() {
     return supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled, main_enabled, main_time, raut_time')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
         setDetails(detailsFromRow(data))
         setMenuCreated(!!data?.menu_created)
+        setMainOn(data?.main_enabled ?? true)
         setRautOn(data?.raut_enabled ?? true)
+        setMainTime(timeOf(data?.main_time))
+        setRautTime(timeOf(data?.raut_time))
       })
   }
 
@@ -85,7 +93,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       supabase.from('booking_menu_items')
         .select('*, menu_items(category_id), variant:menu_item_variants(name)')
         .eq('booking_id', bookingId),
-      supabase.from('bookings').select('notes, raut_enabled, menu_created').eq('id', bookingId).single(),
+      supabase.from('bookings').select('notes, raut_enabled, main_enabled, menu_created').eq('id', bookingId).single(),
     ])
     const loadErr = c.error || i.error || v.error || s.error || b.error
     if (loadErr) throw new Error(loadErr.message)
@@ -184,15 +192,27 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     if (error) setError(error.message)
   }
 
-  // Zapnutie / vypnutie rautu — ukladá sa hneď (optimisticky + návrat pri chybe)
-  async function toggleRaut() {
-    const next = !rautOn
-    setRautOn(next)
+  // Zapnutie / vypnutie hlavného jedla alebo rautu — ukladá sa hneď
+  // (optimisticky + návrat pri chybe)
+  async function toggleBlock(column, value, setValue) {
+    const next = !value
+    setValue(next)
     const { error } = await supabase
       .from('bookings')
-      .update({ raut_enabled: next })
+      .update({ [column]: next })
       .eq('id', bookingId)
-    if (error) { setError(error.message); setRautOn(!next) }
+    if (error) { setError(error.message); setValue(!next) }
+  }
+
+  // Čas podávania (hlavné jedlo / raut) — ukladá sa hneď po výbere
+  async function saveTime(column, value, setValue) {
+    const prev = column === 'main_time' ? mainTime : rautTime
+    setValue(value)
+    const { error } = await supabase
+      .from('bookings')
+      .update({ [column]: value || null })
+      .eq('id', bookingId)
+    if (error) { setError(error.message); setValue(prev) }
   }
 
   // Číselné okienko počtu hostí
@@ -217,16 +237,146 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   // Počet ľudí na raut = (dospelí + špeciály) + zaokrúhlené nahor(deti s jedlom / 2) + navyše/menej
   const rautTotal = rautTotalOf(details)
 
-  // Polia napevno navrchu blokov:
-  // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3, raut → blok 4
-  // (VO nemá „Dospelí bez jedla" ani „Deti bez jedla")
-  const menuBlockSlots = details ? {
-    1: (
-      <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        {numField('guestsAdults', 'Dospelí (bez špeciálov)')}
-        {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
+  // Požiadavky ku strave (alergény) — pri špeciáloch, pri vypnutom hlavnom
+  // jedle v bloku Hlavné jedlo (nesmú sa stratiť, tlačia sa vždy)
+  function notesField() {
+    return (
+      <div className="flex-1 min-w-0">
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">
+          Špeciálne požiadavky ku strave
+        </label>
+        <input
+          type="text"
+          value={details.notes}
+          disabled={!editable}
+          onChange={e => setDetails(d => ({ ...d, notes: e.target.value }))}
+          onBlur={() => saveDetail('notes')}
+          placeholder="Alergény, diéty, bezlepkové…"
+          className={detailInputCls}
+        />
       </div>
-    ),
+    )
+  }
+
+  // Čas podávania s popisom
+  function timeField(label, value, column, setValue) {
+    return (
+      <div className="min-w-0">
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
+        <TimeSelect
+          value={value}
+          disabled={!editable}
+          onChange={v => saveTime(column, v, setValue)}
+        />
+      </div>
+    )
+  }
+
+  // Zvýraznený blok s prepínačom (Hlavné jedlo / Raut) a jeho údajmi
+  function toggleCard({ title, on, onToggle, subtitle, children }) {
+    return (
+      <div className={`rounded-card border-2 overflow-hidden transition-colors
+                       ${on ? 'border-[#a8d9d3] bg-[#f1f9f8]' : 'border-[#e0e8ec] bg-[#f6f8f9]'}`}>
+        <div className="px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold text-[#1a2830]">{title}</p>
+            <p className="text-[11px] text-[#5d7d8e]">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={title}
+            onClick={onToggle}
+            disabled={!editable}
+            className={`relative w-11 h-6 shrink-0 rounded-full transition-colors disabled:opacity-60
+                        ${on ? 'bg-[#4cbfb3]' : 'bg-[#cfdbe2]'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow
+                              transition-transform ${on ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
+        {children && <div className="px-4 pb-3">{children}</div>}
+      </div>
+    )
+  }
+
+  // Bloky Hlavné jedlo (nad blokom 1) a Raut (nad blokom 4) — zobrazujú sa
+  // aj pri vypnutí (s prepínačom), bloky jedál pod nimi sa skryjú.
+  // Pri vypnutom hlavnom jedle ostávajú počty hostí (počíta s nimi raut)
+  // a požiadavky ku strave.
+  const toggleBlocks = details ? {
+    1: toggleCard({
+      title: 'Hlavné jedlo',
+      on: mainOn,
+      onToggle: () => toggleBlock('main_enabled', mainOn, setMainOn),
+      subtitle: mainOn
+        ? 'Hlavné jedlo (dospelí, deti, špeciály) je v menu'
+        : 'Bez hlavného jedla — nezobrazuje sa ani netlačí; počty hostí ostávajú pre raut',
+      children: mainOn ? (
+        <div className={`grid gap-3 items-end ${vo ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+          {numField('guestsAdults', 'Dospelí (bez špeciálov a bez detí)')}
+          {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
+          {timeField('Čas podávania', mainTime, 'main_time', setMainTime)}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-3 items-end">
+            {numField('guestsAdults', 'Dospelí (bez špeciálov a bez detí)')}
+            {numField('guestsKidsMeal', 'Deti s jedlom')}
+            {numField('guestsSpecials', 'Špeciály')}
+          </div>
+          {notesField()}
+        </div>
+      ),
+    }),
+    4: toggleCard({
+      title: 'Raut s prílohami',
+      on: rautOn,
+      onToggle: () => toggleBlock('raut_enabled', rautOn, setRautOn),
+      subtitle: rautOn
+        ? 'Raut a prílohy pre raut sú v menu'
+        : 'Bez rautu — raut sa nezobrazuje ani netlačí',
+      children: rautOn && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
+            <input type="text" readOnly value={rautTotal} className={`${detailInputCls} bg-gray-50`} />
+          </div>
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
+            <input
+              type="number"
+              placeholder="0"
+              value={details.rautExtra}
+              disabled={!editable}
+              onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
+              onBlur={() => saveDetail('rautExtra')}
+              className={detailInputCls}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Gramáž rautu (g)</label>
+            <input
+              type="number"
+              min="1"
+              placeholder="200"
+              value={details.rautGrams}
+              disabled={!editable || vo}
+              onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
+              onBlur={() => saveDetail('rautGrams')}
+              className={detailInputCls}
+            />
+          </div>
+          {timeField('Čas rautu', rautTime, 'raut_time', setRautTime)}
+        </div>
+      ),
+    }),
+  } : undefined
+
+  // Polia napevno navrchu blokov jedál: deti → blok 2, špeciály + požiadavky → blok 3
+  // (dospelí sú v bloku Hlavné jedlo, raut v bloku Raut; VO nemá „Deti bez jedla")
+  const menuBlockSlots = details ? {
     2: (
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
         {numField('guestsKidsMeal', 'Deti s jedlom')}
@@ -238,87 +388,21 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         <div className="w-20 shrink-0">
           {numField('guestsSpecials', 'Špeciály')}
         </div>
-        <div className="flex-1 min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">
-            Špeciálne požiadavky ku strave
-          </label>
-          <input
-            type="text"
-            value={details.notes}
-            disabled={!editable}
-            onChange={e => setDetails(d => ({ ...d, notes: e.target.value }))}
-            onBlur={() => saveDetail('notes')}
-            placeholder="Alergény, diéty, bezlepkové…"
-            className={detailInputCls}
-          />
-        </div>
-      </div>
-    ),
-    4: (
-      <div className="px-4 py-3 grid grid-cols-3 gap-3">
-        <div className="min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Počet ľudí na raut</label>
-          <input type="text" readOnly value={rautTotal} className={`${detailInputCls} bg-gray-50`} />
-        </div>
-        <div className="min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Raut navyše/menej</label>
-          <input
-            type="number"
-            placeholder="0"
-            value={details.rautExtra}
-            disabled={!editable}
-            onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
-            onBlur={() => saveDetail('rautExtra')}
-            className={detailInputCls}
-          />
-        </div>
-        <div className="min-w-0">
-          <label className="block text-xs font-medium text-gray-700 mb-1.5 min-h-[32px]">Gramáž rautu (g)</label>
-          <input
-            type="number"
-            min="1"
-            placeholder="200"
-            value={details.rautGrams}
-            disabled={!editable || vo}
-            onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
-            onBlur={() => saveDetail('rautGrams')}
-            className={detailInputCls}
-          />
-        </div>
+        {notesField()}
       </div>
     ),
   } : undefined
 
-  // Prepínač nad rautovou časťou (len pri úprave)
-  const rautToggle = editable ? {
-    [RAUT_BLOCKS[0]]: (
-      <div className="rounded-card border border-[#e0e8ec] bg-white px-4 py-3
-                      flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#1a2830]">Raut s prílohami</p>
-          <p className="text-[11px] text-[#5d7d8e]">
-            {rautOn ? 'Raut a prílohy pre raut sú v menu' : 'Bez rautu — raut sa nezobrazuje ani netlačí'}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={rautOn}
-          aria-label="Raut s prílohami"
-          onClick={toggleRaut}
-          className={`relative w-11 h-6 shrink-0 rounded-full transition-colors
-                      ${rautOn ? 'bg-[#4cbfb3]' : 'bg-[#cfdbe2]'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow
-                            transition-transform ${rautOn ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-    ),
-  } : undefined
-
-  // Konfigurácia zhrnutia — sekcie podľa blokov + množstvá z počtov hostí
-  // Konfigurácia zhrnutia/kalkulácie — spoločná s dashboardom (lib/menuSummary)
-  const menuSummary = details ? menuSummaryConfig(details, { printSubtitle, ticketInfo }) : undefined
+  // Konfigurácia zhrnutia/kalkulácie — spoločná s dashboardom (lib/menuSummary).
+  // Na lístku do kuchyne je v hlavičke čas hlavného jedla (bez hlavného jedla
+  // čas rautu), čas rautu je aj v nadpise sekcie Raut.
+  const menuSummary = details
+    ? menuSummaryConfig(details, {
+        printSubtitle,
+        ticketInfo: ticketInfo && { ...ticketInfo, time: mainOn ? mainTime : rautTime },
+        rautTime: rautOn ? rautTime : '',
+      })
+    : undefined
 
   async function openTemplates() {
     setShowTemplates(true)
@@ -488,8 +572,8 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           ownerId={bookingId}
           editable={editable && !busy}
           extraBeforeBlock={menuBlockSlots}
-          aboveBlock={rautToggle}
-          hiddenBlocks={rautOn ? [] : RAUT_BLOCKS}
+          aboveBlock={toggleBlocks}
+          hiddenBlocks={hiddenBlocksOf({ mainOn, rautOn })}
           summary={menuSummary}
           customerPrintTarget={customerPrintTarget}
           printMode={vo ? 'summary-a4' : 'all'}

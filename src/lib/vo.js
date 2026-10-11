@@ -43,7 +43,8 @@ export const voStatusOf = row => (row?.is_vo ? (row.vo_status ?? 'koncept') : nu
 export const VO_VISIBLE_FIELDS = [
   'customer_name', 'date', 'start_time', 'vo_status',
   'guests_adults', 'guests_specials', 'guests_kids_meal',
-  'raut_enabled', 'raut_extra', 'raut_grams', 'notes', 'menu_created',
+  'main_enabled', 'main_time', 'raut_enabled', 'raut_time',
+  'raut_extra', 'raut_grams', 'notes', 'menu_created',
 ]
 
 // Počty hostí, ktoré VO vo formulári nemá (ani ich nenadiktuje)

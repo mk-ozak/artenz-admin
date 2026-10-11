@@ -102,7 +102,6 @@ export default function BookingDetail() {
           phone:        data.customer_phone ?? '',
           date:         data.date,
           venue:        HALL_VENUE[data.hall] ?? data.hall.toLowerCase(),
-          time:         data.start_time ? data.start_time.slice(0, 5) : '',
           type:         data.event_type ?? 'oslava',
           status:       data.status ?? 'dopyt',
           expectedGuests: data.expected_guests != null ? data.expected_guests : '',
@@ -153,7 +152,6 @@ export default function BookingDetail() {
       phone:          form.phone,
       date:           form.date,
       venue:          form.venue,
-      time:           form.time,
       type:           form.type,
       status:         form.status,
       expectedGuests: form.expectedGuests,
@@ -322,7 +320,6 @@ export default function BookingDetail() {
 
               {/* Základné údaje rezervácie — informačne; editujú sa cez „Upraviť" */}
               <div className="flex items-end gap-x-5 gap-y-2 mt-3 pt-3 border-t border-[#eef3f6] flex-wrap">
-                <Fact label="Čas" value={form.time || '—'} />
                 <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
                 <Fact label="Cena na osobu" value={eur(form.estimatedPrice)} />
                 <Fact
@@ -375,7 +372,7 @@ export default function BookingDetail() {
               ticketInfo={{
                 title: `${typeLabel} – ${form.customerName}`,
                 date:  booking.date,
-                time:  form.time,  // '' = čas nevybratý („–" v okne Upraviť)
+                // čas v hlavičke lístka doplní menu (hlavné jedlo / raut)
                 hall:  isVo ? hallShortOf(booking) : (HALL_LABEL[booking.hall] ?? booking.hall),
                 hallShort: hallShortOf(booking),
                 notes: form.decoration,

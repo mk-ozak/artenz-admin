@@ -5,6 +5,22 @@
 // Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
 export const RAUT_BLOCKS = [4, 5]
 
+// Bloky hlavného jedla (dospelí, deti, špeciály) — pri vypnutom hlavnom jedle sa skryjú
+export const MAIN_BLOCKS = [1, 2, 3]
+
+// Skryté bloky podľa prepínačov Hlavné jedlo / Raut (menu, kalkulácia aj tlač)
+export function hiddenBlocksOf({ mainOn = true, rautOn = true }) {
+  return [...(mainOn ? [] : MAIN_BLOCKS), ...(rautOn ? [] : RAUT_BLOCKS)]
+}
+
+// "HH:MM:SS" z DB → "HH:MM", prázdne → ''
+export const timeOf = t => (t ? String(t).slice(0, 5) : '')
+
+// Čas v hlavičke lístka do kuchyne: čas hlavného jedla, bez hlavného jedla čas rautu
+export function ticketTimeOf(row) {
+  return row?.main_enabled === false ? timeOf(row?.raut_time) : timeOf(row?.main_time)
+}
+
 // Názvy blokov (sekcie kalkulácie a tlače; aj katalóg pre hlasové zadanie menu)
 export const BLOCK_TITLES = {
   1: 'Hlavné jedlo - dospelí',
@@ -39,10 +55,12 @@ export function rautTotalOf(details) {
 }
 
 // Konfigurácia zhrnutia — sekcie podľa blokov + množstvá z počtov hostí
-export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo } = {}) {
+// rautTime: čas rautu "HH:MM" — pridá sa k nadpisu sekcie Raut (obrazovka aj tlač);
+//   sumár jedál za viac akcií ho neposiela
+export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rautTime = '' } = {}) {
   const rautTotal = rautTotalOf(details)
   return {
-    titles: BLOCK_TITLES,
+    titles: rautTime ? { ...BLOCK_TITLES, 4: `${BLOCK_TITLES[4]} – ${rautTime}` } : BLOCK_TITLES,
     fixedQty: {
       1: Number(details.guestsAdults) || 0,
       // hlavné jedlo deti = zadaný počet detí (vzorec /2 platí len pre raut)

@@ -4,7 +4,7 @@
 // Diktovanie len dopĺňa: nič nemaže a položku, ktorá už v menu je, nechá
 // tak — doplní jej len nadiktované množstvo alebo chýbajúci variant.
 
-import { BLOCK_TITLES, RAUT_BLOCKS } from './menuSummary'
+import { BLOCK_TITLES, MAIN_BLOCKS, RAUT_BLOCKS } from './menuSummary'
 import { fmtQty } from './menuCalc'
 import { groupVariantsByItem, selCatId } from './menuVariants'
 
@@ -79,7 +79,7 @@ export function buildVoiceCatalog(categories, items, variants) {
 
 // Plán zmien z odpovede /api/parse-menu.
 // selections: doterajšie výbery menu (pri vytváraní menu prázdne pole)
-// booking:    { notes, raut_enabled } z bookings
+// booking:    { notes, raut_enabled, main_enabled } z bookings
 // Vracia inserts (riadky booking_menu_items bez booking_id), updates ({ id, patch }),
 // bookingPatch (stĺpce bookings), summary (do zhrnutia; položky ako { text, note },
 // note = kategória alebo dôvod) a recognized — false = z nahrávky sa nedalo použiť nič.
@@ -92,7 +92,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
   const bookingPatch = {}
   const summary = {
     added: [], updated: [], already: [], missingVariant: [],
-    unmatched: [], overLimit: [], guests: [], notes: null, raut: null,
+    unmatched: [], overLimit: [], guests: [], notes: null, raut: null, main: null,
     transcript: parsed.transcript ?? '',
   }
 
@@ -100,6 +100,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
   for (const sel of selections) catCount[selCatId(sel)] = (catCount[selCatId(sel)] ?? 0) + 1
   const seen = new Set()
   let touchesRaut = false
+  let touchesMain = false
 
   for (const it of parsed.items ?? []) {
     const hit = byRef[it.ref]
@@ -135,6 +136,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
           note: cat.name,
         })
         if (RAUT_BLOCKS.includes(cat.block)) touchesRaut = true
+        if (MAIN_BLOCKS.includes(cat.block)) touchesMain = true
       } else {
         summary.already.push({ text: name, note: cat.name })
       }
@@ -162,6 +164,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
       summary.missingVariant.push({ text: item.name, note: `chýba ${variantGroup.toLowerCase()}` })
     }
     if (RAUT_BLOCKS.includes(cat.block)) touchesRaut = true
+    if (MAIN_BLOCKS.includes(cat.block)) touchesMain = true
   }
 
   // Nenájdené jedlá bez duplicít
@@ -211,6 +214,13 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
   } else if (!rautOn && (parsed.raut_enabled === true || touchesRaut)) {
     bookingPatch.raut_enabled = true
     summary.raut = 'on'
+  }
+
+  // Hlavné jedlo: nadiktované jedlá dospelých, detí alebo špeciálov ho zapnú,
+  // inak by sa pri vypnutom hlavnom jedle nezobrazili
+  if ((booking.main_enabled ?? true) === false && touchesMain) {
+    bookingPatch.main_enabled = true
+    summary.main = 'on'
   }
 
   const recognized = inserts.length > 0 || updates.length > 0 ||
