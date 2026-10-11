@@ -317,7 +317,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         <div className={`grid gap-3 items-end ${vo ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
           {numField('guestsAdults', 'Dospelí (bez špeciálov a bez detí)')}
           {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
-          {timeField('Čas podávania', mainTime, 'main_time', setMainTime)}
+          {timeField('Čas', mainTime, 'main_time', setMainTime)}
         </div>
       ) : (
         <div className="space-y-3">

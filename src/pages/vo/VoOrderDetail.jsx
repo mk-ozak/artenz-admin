@@ -12,7 +12,7 @@ import VoStatusToggle from '../../components/vo/VoStatusToggle'
 import BookingMenu from '../../components/booking/BookingMenu'
 import BookingHistory from '../../components/booking/BookingHistory'
 
-const EMPTY_FORM = { date: '', name: '' }
+const EMPTY_FORM = { date: '', name: '', notes: '' }
 
 const inputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
   focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]`
@@ -69,6 +69,7 @@ export default function VoOrderDetail() {
     setForm({
       date: order.date,
       name: order.customer_name ?? '',
+      notes: order.decoration ?? '',
     })
     setError('')
     setEditing(true)
@@ -89,8 +90,9 @@ export default function VoOrderDetail() {
     }
     setSaving(true)
     setError('')
-    // čas podávania sa zadáva v menu (Hlavné jedlo / Raut)
-    const fields = { date: form.date }
+    // čas podávania sa zadáva v menu (Hlavné jedlo / Raut);
+    // Poznámky = spoločné pole s adminom (v diári „Poznámky")
+    const fields = { date: form.date, decoration: form.notes.trim() || null }
     const { data, error: err } = isNew
       ? await supabase
           .from('bookings')
@@ -185,6 +187,16 @@ export default function VoOrderDetail() {
                 className={inputCls}
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Poznámky</label>
+              <textarea
+                value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Dohody, špecifiká…"
+                rows={2}
+                className={`${inputCls} resize-none`}
+              />
+            </div>
             {error && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
                 {error}
@@ -231,6 +243,14 @@ export default function VoOrderDetail() {
                     {formatDateSkYear(order.date)}
                   </span>
                 </div>
+
+                {/* Poznámky — spoločné s adminom (v diári „Poznámky") */}
+                {order.decoration?.trim() && (
+                  <p className="mt-2 text-sm text-[#3a5160] whitespace-pre-wrap">
+                    <span className="font-semibold text-[#6a8898]">Poznámky: </span>
+                    {order.decoration}
+                  </p>
+                )}
 
                 <div className="mt-3 pt-3 border-t border-[#eef3f6] flex flex-col sm:flex-row sm:items-start gap-3">
                   <div className="sm:w-72">

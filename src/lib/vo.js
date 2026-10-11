@@ -39,9 +39,10 @@ export const bookingTitle = row => (row?.is_vo ? voTitle(row) : row?.customer_na
 export const voStatusOf = row => (row?.is_vo ? (row.vo_status ?? 'koncept') : null)
 
 // Polia objednávky, ktorých zmeny vidí VO v histórii — naše interné údaje
-// (cena, záloha, vyúčtovanie, poznámky, stav rezervácie…) mu neukazujeme
+// (cena, záloha, vyúčtovanie, stav rezervácie…) mu neukazujeme.
+// Poznámky (decoration) sú pri objednávke VO spoločné — píše ich VO aj admin.
 export const VO_VISIBLE_FIELDS = [
-  'customer_name', 'date', 'start_time', 'vo_status',
+  'customer_name', 'date', 'start_time', 'vo_status', 'decoration',
   'guests_adults', 'guests_specials', 'guests_kids_meal',
   'main_enabled', 'main_time', 'raut_enabled', 'raut_time',
   'raut_extra', 'raut_grams', 'notes', 'menu_created',
