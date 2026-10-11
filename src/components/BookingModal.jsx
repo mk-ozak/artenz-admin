@@ -9,7 +9,7 @@ import { postVoice, useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
-import { VO_STATUS_LABEL, VO_STATUS_STYLE } from '../lib/vo'
+import { VO_KITCHEN_NAME, VO_STATUS_LABEL, VO_STATUS_STYLE } from '../lib/vo'
 import SettlementPanel from './SettlementPanel'
 import RecordingOverlay from './RecordingOverlay'
 import DepositsModal from './DepositsModal'
@@ -118,7 +118,8 @@ export default function BookingModal() {
         guestsKidsMeal:   b.guestsKidsMeal ?? '',
         guestsKidsNoMeal: b.guestsKidsNoMeal ?? '',
         decoration:   b.decoration ?? '',
-        deposit:      b.deposit ?? '',   // ?? aby sa nestratila vedomá 0
+        // ?? aby sa nestratila vedomá 0; objednávka VO je vždy bez zálohy
+        deposit:      b.isVo ? 0 : (b.deposit ?? ''),
         deposits:     Array.isArray(b.deposits) ? b.deposits : [],
         notes:        b.notes ?? '',
         phone:        b.phone ?? '',
@@ -131,6 +132,9 @@ export default function BookingModal() {
   const isEdit = modalState.mode === 'edit'
   // Objednávka VO (veľkoobchod) — číslo a stav Koncept/FINAL
   const voOrder = isEdit && modalState.booking?.isVo ? modalState.booking : null
+  // Pri objednávke VO je zákazník vždy „ČIERNE" (názov od VO tu netreba);
+  // vo formulári ostáva pôvodný názov, takže sa uložením neprepíše
+  const shownName = voOrder ? VO_KITCHEN_NAME : (form.customerName ?? '')
   // Rezervácia v minulosti sa už nedá upravovať ani mazať (ani adminom).
   // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
   const isPastBooking = isEdit && form.date < toISO(new Date())
@@ -146,7 +150,7 @@ export default function BookingModal() {
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
   const nameMatches = (text) =>
     text.trim() !== '' &&
-    text.trim().toLowerCase() === (form.customerName ?? '').trim().toLowerCase()
+    text.trim().toLowerCase() === shownName.trim().toLowerCase()
   const canDelete = nameMatches(confirmText)
   const canMove   = nameMatches(moveText)
   // Sú evidované zaplatené zálohy → pole Záloha je ich súčet (upravuje sa cez modál)
@@ -426,8 +430,8 @@ export default function BookingModal() {
               <input
                 autoFocus={!isEdit}
                 type="text"
-                value={form.customerName}
-                disabled={ro}
+                value={shownName}
+                disabled={ro || !!voOrder}
                 onChange={e => { setNameMissing(false); set('customerName', e.target.value) }}
                 placeholder="Meno zákazníka / firmy"
                 className={`w-full border rounded-lg px-3 py-2 text-sm
@@ -504,7 +508,7 @@ export default function BookingModal() {
                   }}
                   onBlur={() => setDepositFocused(false)}
                   readOnly={hasPayments}
-                  disabled={ro}
+                  disabled={ro || !!voOrder}
                   title={hasPayments ? 'Súčet zaplatených záloh — uprav ich tlačidlom vedľa' : undefined}
                   placeholder=""
                   className={`w-full min-w-0 border rounded-lg px-3 py-2 text-sm
@@ -512,6 +516,7 @@ export default function BookingModal() {
                     disabled:opacity-60 disabled:cursor-not-allowed
                     ${hasPayments ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-gray-300'}`}
                 />
+                {!voOrder && (
                 <button
                   type="button"
                   onClick={() => setDepositsOpen(true)}
@@ -531,6 +536,7 @@ export default function BookingModal() {
                     </span>
                   )}
                 </button>
+                )}
               </div>
             </div>
           </div>
@@ -727,7 +733,7 @@ export default function BookingModal() {
               {/* Zhrnutie rezervácie */}
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 space-y-1.5">
                 <p className="font-semibold text-gray-900 text-sm">
-                  {form.customerName}
+                  {shownName}
                   <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-gray-400">
                     {typeLabel}
                   </span>
@@ -760,7 +766,7 @@ export default function BookingModal() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Pre potvrdenie prepíš meno zákazníka:{' '}
-                  <span className="font-semibold text-gray-900">{form.customerName}</span>
+                  <span className="font-semibold text-gray-900">{shownName}</span>
                 </label>
                 <input
                   autoFocus
@@ -819,7 +825,7 @@ export default function BookingModal() {
             <div className="p-5 space-y-4">
               <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 space-y-1.5">
                 <p className="font-semibold text-gray-900 text-sm">
-                  {form.customerName}
+                  {shownName}
                   <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-gray-400">
                     {typeLabel}
                   </span>
@@ -844,7 +850,7 @@ export default function BookingModal() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Pre potvrdenie prepíš meno zákazníka:{' '}
-                  <span className="font-semibold text-gray-900">{form.customerName}</span>
+                  <span className="font-semibold text-gray-900">{shownName}</span>
                 </label>
                 <input
                   autoFocus

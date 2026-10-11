@@ -106,6 +106,7 @@ export default function VoOrderDetail() {
             hall:          'CATERING',
             event_type:    'catering',
             status:        'potvrdene',
+            deposit_amount: 0,   // objednávka VO je vždy bez zálohy
           })
           .select()
           .single()

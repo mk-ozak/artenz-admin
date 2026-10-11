@@ -85,7 +85,8 @@ export function buildVoiceCatalog(categories, items, variants) {
 // note = kategória alebo dôvod) a recognized — false = z nahrávky sa nedalo použiť nič.
 // lockedQtyBlocks: bloky, v ktorých sa nadiktované množstvo ignoruje (VO nemení kg
 // rautu — nová položka dostane predvolené množstvo, gramáž rautu sa nemení).
-export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlocks = [] }) {
+// skipGuestFields: počty hostí, ktoré sa nezapisujú (VO nemá „bez jedla").
+export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlocks = [], skipGuestFields = [] }) {
   const inserts = []
   const updates = []
   const bookingPatch = {}
@@ -174,6 +175,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
   // Počty hostí — 0 sa berie ako „nezaznelo" (prázdne a 0 počítajú rovnako
   // a omylom vrátená 0 by prepísala skôr nadiktovaný počet)
   for (const [field, text] of Object.entries(GUEST_FIELDS)) {
+    if (skipGuestFields.includes(field)) continue
     const n = Math.round(Number(parsed[field]))
     if (parsed[field] == null || !Number.isFinite(n) || n <= 0 || n > 5000) continue
     bookingPatch[field] = n

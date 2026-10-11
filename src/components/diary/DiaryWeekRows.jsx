@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import DiaryEventBlock from './DiaryEventBlock'
-import { voStatusOf } from '../../lib/vo'
+import { bookingTitle, voStatusOf } from '../../lib/vo'
 import { toISO } from '../../utils/diaryWeeks'
 import { pressToAdd } from '../../utils/longPress'
 
@@ -47,7 +47,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
 
   return (
     <div className={`flex flex-col gap-px h-full ${className}`} style={{ padding: '2px' }}>
-      <DiaryEventBlock title={first.customer_name} hall="CATERING"
+      <DiaryEventBlock title={bookingTitle(first)} hall="CATERING"
                        status={first.status ?? 'dopyt'} size={size} past={settled(first)} vo={voStatusOf(first)}
                        onClick={() => onBookingClick(first)} />
       {rest.length > 0 && (
@@ -59,7 +59,7 @@ function CateringContent({ evts, size, past, onBookingClick, onAddClick, classNa
             {expanded ? '▲ skryť' : `+${rest.length} ďalšia ▾`}
           </button>
           {expanded && rest.map((e, i) => (
-            <DiaryEventBlock key={i} title={e.customer_name} hall="CATERING"
+            <DiaryEventBlock key={i} title={bookingTitle(e)} hall="CATERING"
                              status={e.status ?? 'dopyt'} size={size} past={settled(e)} vo={voStatusOf(e)}
                              onClick={() => onBookingClick(e)} />
           ))}
@@ -161,7 +161,7 @@ function WeekdayHallCell({ mon, tue, wed, thu, year, month, todayISO, hall, book
                  {...(canAdd ? pressToAdd(() => onEmptyClick(date, hall)) : {})}
             >
               {evt && (
-                <DiaryEventBlock title={evt.customer_name} hall={hall}
+                <DiaryEventBlock title={bookingTitle(evt)} hall={hall}
                                  status={evt.status ?? 'dopyt'} size="sm" past={settled(evt)} vo={voStatusOf(evt)}
                                  onClick={() => onBookingClick(evt)} />
               )}
@@ -234,7 +234,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
         <td key={hall} className="hc border-r last:border-r-0 border-b border-[#e8eef2]"
             style={{ padding: '3px', ...bg }}>
           {evt ? (
-            <DiaryEventBlock title={evt.customer_name} hall={hall}
+            <DiaryEventBlock title={bookingTitle(evt)} hall={hall}
                              status={evt.status ?? 'dopyt'} size={size} past={settled(evt)} vo={voStatusOf(evt)}
                              onClick={() => onBookingClick(evt)} />
           ) : past ? (
@@ -291,7 +291,7 @@ export default function DiaryWeekRows({ week, year, month, todayISO, bookings, o
           style={{ padding: 0, ...bg }}>
         <div className="sat-inner">
           <div className="evl">
-            <DiaryEventBlock title={evt.customer_name} hall={hall}
+            <DiaryEventBlock title={bookingTitle(evt)} hall={hall}
                              status={evt.status ?? 'dopyt'} size="lg" past={settled(evt)} vo={voStatusOf(evt)}
                              onClick={() => onBookingClick(evt)} />
           </div>

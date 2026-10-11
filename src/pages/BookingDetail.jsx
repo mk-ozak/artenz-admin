@@ -14,7 +14,7 @@ import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
 import BookingHistory from '../components/booking/BookingHistory'
 import { hallShortOf } from '../utils/kitchenTicket'
-import { VO_COLOR, voLabel } from '../lib/vo'
+import { VO_COLOR, voLabel, voTitle } from '../lib/vo'
 import VoStatusToggle from '../components/vo/VoStatusToggle'
 
 const HALL_COLOR = {
@@ -259,11 +259,14 @@ export default function BookingDetail() {
             <div className="relative rounded-card bg-white border border-[#e0e8ec] px-4 py-3 pl-5 overflow-hidden">
               <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
               <div className="flex items-start justify-between gap-3">
+                {/* Objednávka VO: „ČIERNE - 12" namiesto názvu od VO (číslo je v názve) */}
                 <p className="text-[17px] font-semibold text-[#1a2830]">
-                  {form.customerName}
-                  <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
-                    {typeLabel}
-                  </span>
+                  {isVo ? voTitle(booking) : form.customerName}
+                  {!isVo && (
+                    <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
+                      {typeLabel}
+                    </span>
+                  )}
                 </p>
                 {!isVo && (
                 <span className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full"

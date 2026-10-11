@@ -6,7 +6,7 @@ import { useBookingsStore } from '../../store/bookings'
 import { formatDateSk, formatDateSkYear } from '../../utils/format'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { toISO } from '../../utils/diaryWeeks'
-import { VO_COLOR, voLabel } from '../../lib/vo'
+import { VO_COLOR, bookingTitle } from '../../lib/vo'
 
 const STRIPE = {
   ARTENZ_PLUS: '#4cbfb3',
@@ -65,9 +65,9 @@ export default function UpcomingEvents({ refreshKey }) {
       ) : (
         <ul className="divide-y divide-[#eef3f6]">
           {events.map(e => {
-            // Objednávka VO: farba VO, číslo objednávky namiesto typu akcie
+            // Objednávka VO: farba VO, názov „ČIERNE - 12" (číslo je v názve, typ akcie netreba)
             const color     = e.is_vo ? VO_COLOR : (STRIPE[e.hall] ?? '#4cbfb3')
-            const typeLabel = e.is_vo ? voLabel(e) : (EVENT_LABEL[e.event_type] ?? e.event_type ?? '')
+            const typeLabel = e.is_vo ? '' : (EVENT_LABEL[e.event_type] ?? e.event_type ?? '')
             const phone     = e.customer_phone?.replace(/\s+/g, '')
             return (
               <li key={e.id}
@@ -77,7 +77,7 @@ export default function UpcomingEvents({ refreshKey }) {
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold text-[#1a2830] truncate">
-                    {e.customer_name}
+                    {bookingTitle(e)}
                     <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-[#9ab0ba]">
                       {typeLabel}
                     </span>

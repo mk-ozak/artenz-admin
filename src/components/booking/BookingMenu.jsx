@@ -8,7 +8,7 @@ import VoiceMenuSummary from './VoiceMenuSummary'
 import { RAUT_BLOCKS, detailsFromRow, menuSummaryConfig, rautTotalOf } from '../../lib/menuSummary'
 import { buildVoiceCatalog, planVoiceMenu } from '../../lib/voiceMenu'
 import { postVoice, useVoiceRecorder } from '../../hooks/useVoiceRecorder'
-import { VO_LOCKED_QTY_BLOCKS } from '../../lib/vo'
+import { VO_HIDDEN_GUEST_FIELDS, VO_LOCKED_QTY_BLOCKS } from '../../lib/vo'
 
 const headerBtnCls = `w-9 h-9 rounded-lg flex items-center justify-center
   transition-colors hover:bg-white/10`
@@ -100,6 +100,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       selections: creating ? [] : (s.data ?? []),
       booking: b.data ?? {},
       lockedQtyBlocks: vo ? VO_LOCKED_QTY_BLOCKS : [],
+      skipGuestFields: vo ? VO_HIDDEN_GUEST_FIELDS : [],
     })
     if (!plan.recognized) {
       const missing = plan.summary.unmatched
@@ -218,17 +219,18 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
 
   // Polia napevno navrchu blokov:
   // dospelí → blok 1, deti → blok 2, špeciály + požiadavky → blok 3, raut → blok 4
+  // (VO nemá „Dospelí bez jedla" ani „Deti bez jedla")
   const menuBlockSlots = details ? {
     1: (
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
         {numField('guestsAdults', 'Dospelí (bez špeciálov)')}
-        {numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
+        {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
       </div>
     ),
     2: (
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
         {numField('guestsKidsMeal', 'Deti s jedlom')}
-        {numField('guestsKidsNoMeal', 'Deti bez jedla')}
+        {!vo && numField('guestsKidsNoMeal', 'Deti bez jedla')}
       </div>
     ),
     3: (
