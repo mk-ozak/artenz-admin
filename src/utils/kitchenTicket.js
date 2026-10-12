@@ -72,12 +72,18 @@ function sectionTitle(sec, summary) {
 // summary:   konfigurácia z BookingMenu (titles, calc, ticket = údaje akcie a počty osôb)
 export function buildKitchenTicket({ sections, selsByCat, summary }) {
   const t = summary.ticket
-  const specialNotes = (t.specialNotes ?? '').trim()
   const toastIds = new Set(TOAST_CATEGORIES.map(c => c.id))
 
-  // Vyplnené požiadavky ku strave sa tlačia vždy — aj keď špeciály nemajú položky
-  const secs = specialNotes && !sections.some(s => s.block === SPECIAL_BLOCK)
-    ? [...sections, { block: SPECIAL_BLOCK, items: [] }].sort((a, b) => a.block - b.block)
+  // Text pod položkami sekcie: požiadavky ku strave pri špeciáloch, poznámky
+  // blokov Hlavné jedlo (sekcia 1) a Raut (sekcia 4)
+  const notesByBlock = { ...t.blockNotes, [SPECIAL_BLOCK]: t.specialNotes }
+  const notesOf = block => (notesByBlock[block] ?? '').trim()
+
+  // Vyplnené požiadavky a poznámky sa tlačia vždy — aj keď sekcia nemá položky
+  const missing = Object.keys(notesByBlock).map(Number)
+    .filter(block => notesOf(block) && !sections.some(s => s.block === block))
+  const secs = missing.length
+    ? [...sections, ...missing.map(block => ({ block, items: [] }))].sort((a, b) => a.block - b.block)
     : sections
 
   const out = []
@@ -111,7 +117,7 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
         unit:    line.unit,
       }]
     })
-    const notes = sec.block === SPECIAL_BLOCK ? specialNotes : ''
+    const notes = notesOf(sec.block)
     if (!items.length && !notes) continue
     out.push({
       block:   sec.block,
@@ -529,7 +535,7 @@ function drawItem(s, it, L, R) {
 }
 
 // Sekcia: pruh + položky oddelené čiarou 2 px. Špeciály sú celé v rámčeku
-// 4 px a pod položkami majú požiadavky ku strave.
+// 4 px a pod položkami majú požiadavky ku strave, hlavné jedlo a raut poznámky.
 function drawSection(s, sec, numbered, b) {
   const top = s.y
   const pad = sec.special ? 14 : 0
@@ -543,7 +549,7 @@ function drawSection(s, sec, numbered, b) {
   if (sec.notes) {
     if (sec.items.length) { s.rect(L, s.y, R - L, 2); s.y += 2 }
     s.y += 8
-    s.line('Požiadavky:', L, 24, 400)
+    s.line(sec.special ? 'Požiadavky:' : 'Poznámky:', L, 24, 400)
     s.para([{ text: sec.notes, weight: 700 }], L, R - L, 30)
     s.y += 6
   }

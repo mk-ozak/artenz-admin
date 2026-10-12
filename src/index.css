@@ -19,6 +19,10 @@
   --color-month-odd:       #f4f7f9;
   --color-month-odd-date:  #ebeff3;
 
+  /* Pole, ktoré sa nedá upravovať (zamknuté / vypočítané) — editovateľné je biele */
+  --color-field-locked:        #e4eaee;
+  --color-field-locked-border: #d2dce2;
+
   /* Dopyty z webu — stavy (nesúvisia so stavmi rezervácií) */
   --color-inq-new:          #e6f1fb;
   --color-inq-new-ink:      #1f6ba8;

@@ -5,7 +5,8 @@ const MINUTES = ['00', '15', '30', '45']
 
 const selectCls = `bg-white border border-gray-300 rounded-lg px-2 py-2 text-sm font-semibold
   text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500
-  disabled:opacity-60 disabled:cursor-not-allowed`
+  disabled:bg-field-locked disabled:border-field-locked-border disabled:text-gray-500
+  disabled:cursor-not-allowed`
 
 export default function TimeSelect({ value, onChange, disabled = false }) {
   const hh = value ? value.slice(0, 2) : ''

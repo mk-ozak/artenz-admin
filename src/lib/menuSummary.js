@@ -42,6 +42,8 @@ export function detailsFromRow(row) {
     rautExtra:          row?.raut_extra ?? '',
     rautGrams:          row?.raut_grams ?? 200,
     notes:              row?.notes ?? '',
+    mainNotes:          row?.main_notes ?? '',
+    rautNotes:          row?.raut_notes ?? '',
   }
 }
 
@@ -57,7 +59,9 @@ export function rautTotalOf(details) {
 // Konfigurácia zhrnutia — sekcie podľa blokov + množstvá z počtov hostí
 // rautTime: čas rautu "HH:MM" — pridá sa k nadpisu sekcie Raut (obrazovka aj tlač);
 //   sumár jedál za viac akcií ho neposiela
-export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rautTime = '' } = {}) {
+// mainNotes / rautNotes: poznámky blokov Hlavné jedlo / Raut pre lístok do kuchyne
+//   (posiela ich len zapnutý blok)
+export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rautTime = '', mainNotes = '', rautNotes = '' } = {}) {
   const rautTotal = rautTotalOf(details)
   return {
     titles: rautTime ? { ...BLOCK_TITLES, 4: `${BLOCK_TITLES[4]} – ${rautTime}` } : BLOCK_TITLES,
@@ -114,6 +118,8 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
         4: rautTotal,
       },
       specialNotes: details.notes,
+      // Poznámky blokov — tlačia sa v sekcii 1 (hlavné jedlo) a 4 (raut)
+      blockNotes: { 1: mainNotes, 4: rautNotes },
     },
   }
 }

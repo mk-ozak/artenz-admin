@@ -19,7 +19,7 @@ const WEEKDAYS = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne']
 // Stĺpce rezervácie potrebné na kalkuláciu (počty osôb, raut, požiadavky)
 const BOOKING_COLS = `id, date, hall, customer_name, event_type, menu_created, raut_enabled, main_enabled, main_time, raut_time, is_vo, vo_order_no,
   guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal,
-  raut_extra, raut_grams, notes`
+  raut_extra, raut_grams, notes, main_notes, raut_notes`
 // Výbery menu ako v MenuEditor (živý názov + kategória z katalógu, variant)
 const SEL_COLS =
   '*, menu_items(name, category_id, has_variants, variant_group_name), variant:menu_item_variants(name)'
@@ -108,14 +108,19 @@ export default function DaySummary({ refreshKey }) {
       const time = ticketTimeOf(r)
       const event = { hallShort: hallShortOf(r), date: r.date, time, title, model: null }
       if (!r.menu_created) return event
+      const mainOn = r.main_enabled !== false
+      const rautOn = r.raut_enabled !== false
       const summary = menuSummaryConfig(detailsFromRow(r), {
         ticketInfo: { title, date: r.date, time, hall: r.hall, hallShort: event.hallShort, notes: '' },
+        // poznámky blokov — sumár ich vypíše pri sekcii s označením akcie
+        mainNotes: mainOn ? r.main_notes ?? '' : '',
+        rautNotes: rautOn ? r.raut_notes ?? '' : '',
       })
       const { sections, selsByCat } = buildMenuSections({
         categories:   c.data ?? [],
         selections:   (s.data ?? []).filter(x => x.booking_id === r.id),
         summary,
-        hiddenBlocks: hiddenBlocksOf({ mainOn: r.main_enabled !== false, rautOn: r.raut_enabled !== false }),
+        hiddenBlocks: hiddenBlocksOf({ mainOn, rautOn }),
       })
       return { ...event, model: buildKitchenTicket({ sections, selsByCat, summary }) }
     })

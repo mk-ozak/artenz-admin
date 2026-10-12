@@ -27,9 +27,18 @@ const DETAIL_COLS = {
   rautExtra:          'raut_extra',
   rautGrams:          'raut_grams',
   notes:              'notes',
+  mainNotes:          'main_notes',
+  rautNotes:          'raut_notes',
 }
-const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-  focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500`
+// Textové polia (prázdne → NULL), ostatné sú čísla
+const TEXT_DETAILS = ['notes', 'mainNotes', 'rautNotes']
+// Editovateľné pole je biele, zamknuté šedé
+const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
+  focus:outline-none focus:ring-2 focus:ring-indigo-500
+  disabled:bg-field-locked disabled:border-field-locked-border disabled:text-gray-500`
+// Vypočítané pole (len na čítanie) — šedé ako zamknuté
+const computedInputCls = `w-full border border-field-locked-border rounded-lg px-3 py-2 text-sm
+  bg-field-locked text-gray-600 focus:outline-none`
 
 // MENU rezervácie: hlavička s akciami (načítať šablónu, reset, tlač)
 // + spoločný editor menu. Zmeny sa ukladajú okamžite.
@@ -68,7 +77,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   function loadDetails() {
     return supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled, main_enabled, main_time, raut_time')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled, main_enabled, main_time, raut_time, main_notes, raut_notes')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -182,7 +191,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
 
   async function saveDetail(field) {
     const raw = details[field]
-    const value = field === 'notes'
+    const value = TEXT_DETAILS.includes(field)
       ? (raw.trim() || null)
       : (raw === '' ? null : Number(raw))
     const { error } = await supabase
@@ -258,6 +267,24 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     )
   }
 
+  // Poznámky k bloku Hlavné jedlo / Raut (na celú šírku karty)
+  function blockNotesField(field, placeholder) {
+    return (
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1.5">Poznámky</label>
+        <textarea
+          rows={2}
+          value={details[field]}
+          disabled={!editable}
+          onChange={e => setDetails(d => ({ ...d, [field]: e.target.value }))}
+          onBlur={() => saveDetail(field)}
+          placeholder={placeholder}
+          className={`${detailInputCls} resize-y`}
+        />
+      </div>
+    )
+  }
+
   // Čas podávania s popisom
   function timeField(label, value, column, setValue) {
     return (
@@ -314,10 +341,13 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         ? 'Hlavné jedlo (dospelí, deti, špeciály) je v menu'
         : 'Bez hlavného jedla — nezobrazuje sa ani netlačí; počty hostí ostávajú pre raut',
       children: mainOn ? (
-        <div className={`grid gap-3 items-end ${vo ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
-          {numField('guestsAdults', 'Dospelí (bez špeciálov a bez detí)')}
-          {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
-          {timeField('Čas', mainTime, 'main_time', setMainTime)}
+        <div className="space-y-3">
+          <div className={`grid gap-3 items-end ${vo ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+            {numField('guestsAdults', 'Dospelí (bez špeciálov a bez detí)')}
+            {!vo && numField('guestsAdultsNoMeal', 'Dospelí bez jedla')}
+            {timeField('Čas', mainTime, 'main_time', setMainTime)}
+          </div>
+          {blockNotesField('mainNotes', 'Poznámky k hlavnému jedlu…')}
         </div>
       ) : (
         <div className="space-y-3">
@@ -338,37 +368,40 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
         ? 'Raut a prílohy pre raut sú v menu'
         : 'Bez rautu — raut sa nezobrazuje ani netlačí',
       children: rautOn && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
-          <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
-            <input type="text" readOnly value={rautTotal} className={`${detailInputCls} bg-gray-50`} />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
+              <input type="text" readOnly value={rautTotal} className={computedInputCls} />
+            </div>
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
+              <input
+                type="number"
+                placeholder="0"
+                value={details.rautExtra}
+                disabled={!editable}
+                onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
+                onBlur={() => saveDetail('rautExtra')}
+                className={detailInputCls}
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Gramáž rautu (g)</label>
+              <input
+                type="number"
+                min="1"
+                placeholder="200"
+                value={details.rautGrams}
+                disabled={!editable || vo}
+                onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
+                onBlur={() => saveDetail('rautGrams')}
+                className={detailInputCls}
+              />
+            </div>
+            {timeField('Čas rautu', rautTime, 'raut_time', setRautTime)}
           </div>
-          <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
-            <input
-              type="number"
-              placeholder="0"
-              value={details.rautExtra}
-              disabled={!editable}
-              onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
-              onBlur={() => saveDetail('rautExtra')}
-              className={detailInputCls}
-            />
-          </div>
-          <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Gramáž rautu (g)</label>
-            <input
-              type="number"
-              min="1"
-              placeholder="200"
-              value={details.rautGrams}
-              disabled={!editable || vo}
-              onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
-              onBlur={() => saveDetail('rautGrams')}
-              className={detailInputCls}
-            />
-          </div>
-          {timeField('Čas rautu', rautTime, 'raut_time', setRautTime)}
+          {blockNotesField('rautNotes', 'Poznámky k rautu…')}
         </div>
       ),
     }),
@@ -395,12 +428,15 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
 
   // Konfigurácia zhrnutia/kalkulácie — spoločná s dashboardom (lib/menuSummary).
   // Na lístku do kuchyne je v hlavičke čas hlavného jedla (bez hlavného jedla
-  // čas rautu), čas rautu je aj v nadpise sekcie Raut.
+  // čas rautu), čas rautu je aj v nadpise sekcie Raut. Poznámky blokov idú
+  // na lístok len pri zapnutom bloku.
   const menuSummary = details
     ? menuSummaryConfig(details, {
         printSubtitle,
         ticketInfo: ticketInfo && { ...ticketInfo, time: mainOn ? mainTime : rautTime },
         rautTime: rautOn ? rautTime : '',
+        mainNotes: mainOn ? details.mainNotes : '',
+        rautNotes: rautOn ? details.rautNotes : '',
       })
     : undefined
 
