@@ -4,7 +4,9 @@
 // s adminom. Lístok sa kreslí
 // cez Canvas 2D a do tlačiarne ide ako obrázok (utils/escpos) — textový režim
 // tlačiarne má čínsku znakovú sadu a slovenskú diakritiku by rozsypal.
-import { calcCount, calcLine, fmtQty, sectionHeadCount } from '../lib/menuCalc'
+import {
+  SOUP_CATEGORY, SPECIAL_SOUP_CATEGORY, calcCount, calcLine, fmtQty, sectionHeadCount,
+} from '../lib/menuCalc'
 import { selLabel } from '../lib/menuVariants'
 import { RAUT_BLOCKS } from '../lib/menuSummary'
 import { DAYS_LONG, DAYS_SHORT } from './format'
@@ -29,11 +31,11 @@ const TOAST_CATEGORIES = [
   { id: 'ca3b1eec-d8eb-4323-a227-d8171750d9aa', label: 'Prípitok deti' }, // Detský prípitok
 ]
 
-// Polievka — na lístku ide zo sekcií (dospelí + automaticky deti) do bloku 0
-// navrchu ako súčet; každá jej položka dostane zložky
-const SOUP_CATEGORY = '3d7811c8-e75e-4e6e-a216-ae524365ad2c'
+// Polievka (SOUP_CATEGORY) — na lístku ide zo sekcií (dospelí + automaticky
+// deti) do bloku 0 navrchu ako súčet, pripočíta sa k nej aj Polievka špeciál
+// (SPECIAL_SOUP_CATEGORY, výnimka v lib/menuCalc); každá jej položka dostane zložky.
 // Kto polievku v sekcii je — pre rozpis súčtu („dospelí 33 L + deti 3,63 L")
-const SOUP_WHO = { 1: 'dospelí', 2: 'deti' }
+const SOUP_WHO = { 1: 'dospelí', 2: 'deti', 3: 'špeciály' }
 
 // Zložky polievky v gramoch na osobu — len na lístku, nie na obrazovke ani v DB
 const SOUP_PARTS = [
@@ -88,6 +90,7 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
 
   const out = []
   const soups = new Map()  // polievka → riadky kalkulácie zo sekcií (dospelí, deti)
+  const specialSoups = []  // Polievka špeciál — objem ide aj do bloku 0
   const toastLines = []    // prípitky s množstvom (pre sumár jedál)
   for (const sec of secs) {
     // Počet v pruhu sekcie; násobí sa tým istým počtom ako na obrazovke
@@ -104,6 +107,8 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
         soups.get(sel.id).from.push({ block: sec.block, title: sectionTitle(sec, summary), count: blockCount, line })
         return []
       }
+      // na lístku ostáva aj v sekcii špeciálov (ktorá polievka, koľko ks)
+      if (cat.id === SPECIAL_SOUP_CATEGORY) specialSoups.push({ sel, cat })
       if (line.amount === 0) return []
       return [{
         name:    selLabel(sel),
@@ -130,9 +135,20 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
   }
 
   // Blok 0 — polievka navrchu: súčet množstiev zo sekcií tak, ako ich ukazuje
-  // admin (dospelí + deti), zložky pre súčet osôb
+  // admin (dospelí + deti), k prvej polievke aj Polievka špeciál (ks × porcia,
+  // bez ohľadu na to, ktorá je vybratá); zložky pre súčet osôb
   let soupPeople = null
-  const soupItems = [...soups.values()].flatMap(({ sel, cat, from }) => {
+  const soupItems = [...soups.values()].flatMap(({ sel, cat, from: sectionFrom }, i) => {
+    let from = sectionFrom
+    if (i === 0 && specialSoups.length) {
+      const count = specialSoups.reduce((n, x) => n + (Number(x.sel.quantity) || 0), 0)
+      const amount = Math.round(specialSoups.reduce((a, x) =>
+        a + (Number(x.sel.quantity) || 0) * Number(x.cat.default_amount ?? cat.default_amount ?? 0), 0) * 100) / 100
+      const unit = cat.default_unit ? ` ${cat.default_unit}` : ''
+      if (count > 0) {
+        from = [...from, { block: SPECIAL_BLOCK, count, line: { amount, mnozstvo: `${fmtQty(amount)}${unit}` } }]
+      }
+    }
     const people = from.reduce((n, f) => n + (f.count ?? 0), 0)
     const amounts = from.map(f => f.line.amount).filter(a => a != null)
     const amount = amounts.length ? Math.round(amounts.reduce((a, b) => a + b, 0) * 100) / 100 : null
@@ -276,7 +292,12 @@ class Sheet {
   }
 
   text(text, x, y, size, weight, { color = '#000', align = 'left' } = {}) {
-    this.ops.push({ op: 'text', text, x: Math.round(x), y, font: this.font(size, weight), color, align })
+    this.ops.push({ op: 'text', text, x: Math.round(x), y, size, font: this.font(size, weight), color, align })
+  }
+
+  // Príkazy iného hárku posunuté o dy (skladanie strán A5 z riadkov)
+  put(other, dy) {
+    for (const o of other.ops) this.ops.push({ ...o, y: o.y + dy })
   }
 
   // Jeden riadok textu od this.y; posunie y o výšku riadku
@@ -331,8 +352,8 @@ class Sheet {
   }
 
   // Plátno s nakreslenými príkazmi: predvolene termo šírka a presná výška,
-  // pre A5 pevná veľkosť strany a mierka (rozloženie je v bodoch termo lístka)
-  paint({ width = W, height = Math.ceil(this.y), scale = 1 } = {}) {
+  // pre A5 pevná veľkosť strany, mierka a okraj (rozloženie je v bodoch termo lístka)
+  paint({ width = W, height = Math.ceil(this.y), scale = 1, origin = 0 } = {}) {
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -340,6 +361,7 @@ class Sheet {
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, width, height)
     ctx.scale(scale, scale)
+    ctx.translate(origin, origin)
     for (const o of this.ops) {
       ctx.fillStyle = o.color
       if (o.op === 'rect') {
@@ -359,6 +381,9 @@ function fitSize(s, text, size, weight, maxW) {
   while (size > 12 && s.width(text, size, weight) > maxW) size--
   return size
 }
+
+// „16. 10. 2026"
+const dmy = d => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`
 
 // Hlavička: čierny pruh, vľavo dátum, vpravo biele okienko s časom (bez času
 // ostane prázdne — dopíše sa ručne; timeBox: false = bez okienka).
@@ -380,7 +405,7 @@ function drawHeader(s, model, b, { timeBox = true, hall = '', inline = false } =
   const white = { color: '#fff' }
   const d = model.date ? new Date(`${model.date}T00:00:00`) : null
   const day = d ? DAYS_LONG[d.getDay()].toLocaleUpperCase('sk') : ''
-  const date = d ? `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}` : ''
+  const date = d ? dmy(d) : ''
   let x = b.x + 16
   if (stacked) {
     // Sála a pod ňou dátum v jednom riadku — do šírky vľavo od okienka
@@ -481,8 +506,9 @@ function drawSectionBar(s, sec, numbered, b) {
 }
 
 // Položka: vľavo názov (zalamuje sa, nezasahuje do stĺpca množstva), vpravo
-// množstvo spolu; pod názvom porcia na osobu a pri polievke jej zložky
-function drawItem(s, it, L, R) {
+// množstvo spolu; pod názvom porcia na osobu a pri polievke jej zložky.
+// inlineMeta: porcia a rozpis súčtu hneď za názvom (keď sa tam zmestia)
+function drawItem(s, it, L, R, { inlineMeta = false } = {}) {
   s.y += 10
   const top = s.y
   const qtyW = it.total ? Math.ceil(s.width(it.total, 38, 700)) : 0
@@ -497,9 +523,11 @@ function drawItem(s, it, L, R) {
   // Prvý riadok: názov a množstvo na spoločnom účiarí
   const row1 = it.total ? Math.max(nameH, lineH(38)) : nameH
   const b1 = it.total ? s.base(top, row1, 38, 700) : s.base(top, row1, 32, 600)
+  let lastBase = b1
   lines.forEach((ln, i) => {
     const b = i === 0 ? b1 : s.base(top + row1 + (i - 1) * nameH, nameH, 32, 600)
     s.text(ln.words.map(wd => wd.text).join(' '), x, b, 32, 600)
+    lastBase = b
   })
   if (it.total) s.text(it.total, R, b1, 38, 700, { align: 'right' })
   if (badge) {
@@ -510,12 +538,36 @@ function drawItem(s, it, L, R) {
   }
   s.y = top + row1 + (lines.length - 1) * nameH
 
-  if (it.portion) {
-    const note = it.portionNote ? ` (${it.portionNote})` : ''
-    s.para([{ text: `${it.portion} / os.${note}`, weight: 400 }], x, R - x, 24)
+  const portion = it.portion ? `${it.portion} / os.${it.portionNote ? ` (${it.portionNote})` : ''}` : ''
+  // Za názvom: „0,33 L / os.  |  dospelí 14,19 L (43 os.) + deti 1,32 L (4 os.)"
+  // na účiarí posledného riadku názvu (prvý riadok končí pred množstvom)
+  let inline = false
+  const meta = [portion, it.breakdown].filter(Boolean)
+  if (inlineMeta && meta.length) {
+    const last = lines[lines.length - 1]
+    const gap = 16
+    const sepW = gap + s.width('|', 24, 400) + gap
+    const widths = meta.map(t => s.width(t, 24, 400))
+    const metaW = widths.reduce((a, b) => a + b, 0) + (meta.length - 1) * sepW
+    let mx = x + Math.ceil(last.w) + 24
+    const maxX = lines.length === 1 && qtyW ? R - qtyW - 16 : R
+    if (mx + metaW <= maxX) {
+      inline = true
+      meta.forEach((t, i) => {
+        if (i > 0) {
+          s.text('|', mx + gap, lastBase, 24, 400)
+          mx += sepW
+        }
+        s.text(t, mx, lastBase, 24, 400)
+        mx += widths[i]
+      })
+    }
   }
-  // Rozpis súčtu polievky (dospelí + deti) tak, ako ho ukazuje admin
-  if (it.breakdown) s.para([{ text: it.breakdown, weight: 400 }], x, R - x, 24)
+  if (!inline) {
+    if (portion) s.para([{ text: portion, weight: 400 }], x, R - x, 24)
+    // Rozpis súčtu polievky (dospelí + deti) tak, ako ho ukazuje admin
+    if (it.breakdown) s.para([{ text: it.breakdown, weight: 400 }], x, R - x, 24)
+  }
 
   // Zložky polievky: odsadené, vľavo názov s porciou, vpravo súčet
   for (const p of it.parts) {
@@ -536,7 +588,8 @@ function drawItem(s, it, L, R) {
 
 // Sekcia: pruh + položky oddelené čiarou 2 px. Špeciály sú celé v rámčeku
 // 4 px a pod položkami majú požiadavky ku strave, hlavné jedlo a raut poznámky.
-function drawSection(s, sec, numbered, b) {
+// itemOpts: voľby pre drawItem (napr. inlineMeta)
+function drawSection(s, sec, numbered, b, itemOpts) {
   const top = s.y
   const pad = sec.special ? 14 : 0
   const L = b.x + pad
@@ -544,7 +597,7 @@ function drawSection(s, sec, numbered, b) {
   drawSectionBar(s, sec, numbered, b)
   sec.items.forEach((it, i) => {
     if (i > 0) { s.rect(L, s.y, R - L, 2); s.y += 2 }
-    drawItem(s, it, L, R)
+    drawItem(s, it, L, R, itemOpts)
   })
   if (sec.notes) {
     if (sec.items.length) { s.rect(L, s.y, R - L, 2); s.y += 2 }
@@ -569,9 +622,8 @@ function drawPrinted(s, at, b) {
   s.line(printedText(at), b.x + b.w, 22, 400, { align: 'right' })
 }
 
-// Box POZNÁMKY — vždy na konci lístka 1: poznámky k akcii + bodkované riadky
-// na ručné dopisovanie (bodky 3 px s medzerou 6 px, riadky po 64 px = 8 mm;
-// termo 1 riadok, A5 2)
+// Box POZNÁMKY — vždy na konci termo lístka 1: poznámky k akcii + bodkované
+// riadky na ručné dopisovanie (bodky 3 px s medzerou 6 px, riadky po 64 px = 8 mm)
 // printedAt = „Vytlačené" vpravo hore v rámčeku, na riadku s nadpisom
 function drawNotes(s, notes, b, lines, printedAt) {
   const top = s.y
@@ -880,76 +932,255 @@ export async function renderDaySummary(model) {
   return [s.paint({ height: Math.ceil(s.y * SUMMARY_SCALE), scale: SUMMARY_SCALE })]
 }
 
-// ── Kuchyňa na A5 (BOLD PNG a tlač na A4) ────────────────────────────────
-// Ten istý lístok do kuchyne rozložený na šírku strany A5 na výšku: dva
-// stĺpce, dvojice sekcií vedľa seba. Vždy jedna strana — veľké menu sa
-// zmenší (stĺpce sa rozširujú, kým sa obsah nezmestí).
-const A5_MM     = { w: 148, h: 210 }     // A5 na výšku
-const A5_MARGIN = 6                      // okraj strany v mm
-const A5_PX_MM  = 300 / 25.4             // PNG v 300 dpi
-const A5_GAP    = 24                     // medzera medzi stĺpcami (body termo lístka)
-// Dvojice sekcií vedľa seba: hlavné jedlo dospelí | deti, špeciál | studená
-// kuchyňa, raut | prílohy pre raut. Sekcia bez dvojice ide cez celú šírku —
-// okrem špeciálu, ten ostáva vždy v ľavom stĺpci. POZNÁMKY cez celú šírku
-// naspodu, len s 2 riadkami na dopisovanie.
-const A5_PAIRS = [[1, 2], [SPECIAL_BLOCK, COLD_BLOCK], [4, 5]]
+// ── Kuchyňa na A5 (BOLD PNG a LUNA A5) ───────────────────────────────────
+// Ten istý lístok do kuchyne na stranu A5 na výšku (LUNA A5 = ľavá polovica
+// A4 na šírku). Písmo má vždy rovnakú veľkosť: rozloženie je v bodoch termo
+// lístka s pevnou šírkou stĺpca. Čo sa na stranu nezmestí, pokračuje na
+// ďalšej strane A5 — písmo sa nikdy nezmenšuje.
+const A5_MM      = { w: 148, h: 210 }    // A5 na výšku
+const A5_MARGIN  = 5                     // úzke okraje strany v mm
+const A5_PX_MM   = 300 / 25.4            // PNG v 300 dpi
+const A5_GAP     = 24                    // medzera medzi stĺpcami (body termo lístka)
+const A5_COL     = 736                   // šírka stĺpca v bodoch = pevná veľkosť písma (menu z nástenky sa zmestí s rezervou ~12 mm)
+const A5_CONTENT = 2 * A5_COL + A5_GAP
+const A5_PT_MM   = A5_CONTENT / (A5_MM.w - 2 * A5_MARGIN)  // bodov na mm
+// Sekcie v dvoch stĺpcoch (podľa lístka na nástenke): vľavo hlavné jedlo
+// dospelí, vpravo deti a pod nimi špeciál; vľavo raut, vpravo prílohy pre
+// raut a pod nimi studená kuchyňa. Bez ľavej sekcie ide doľava prvá z pravých.
+// Sekcia bez dvojice ide cez celú šírku — okrem špeciálu, ten ostáva v ľavom
+// stĺpci. Polievka a nové bloky cez celú šírku.
+const A5_COLUMNS = [
+  { left: [1], right: [2, SPECIAL_BLOCK] },
+  { left: [4], right: [5, COLD_BLOCK] },
+]
 
-// Rozloženie pri šírke stĺpca cw (v bodoch termo lístka) → hárok + rozmery strany
-function layoutA5(family, model, cw) {
-  const content = 2 * cw + A5_GAP
-  const margin = content * A5_MARGIN / (A5_MM.w - 2 * A5_MARGIN)
-  const full  = { x: margin, w: content }
-  const left  = { x: margin, w: cw }
-  const right = { x: margin + cw + A5_GAP, w: cw }
-  const s = new Sheet(family)
-  s.y = margin
-
-  // Dva bloky vedľa seba od rovnakej výšky; pokračuje sa pod vyšším
-  const sideBySide = (drawLeft, drawRight) => {
-    const y0 = s.y
-    drawLeft(left)
-    const y1 = s.y
-    s.y = y0
-    drawRight(right)
-    s.y = Math.max(y1, s.y)
-  }
-
-  drawHeader(s, model, full, { hall: model.hallShort, inline: true })
-  drawTitle(s, model, full)
-  s.y += 4
-  for (const t of model.toasts) drawLabeled(s, t.label, t.names.join(', '), 30, full)
-  s.y += 16
-  drawCounts(s, model.counts, model.hasRaut, full, 4)
-  s.y += 24
-
-  const byBlock = new Map(model.sections.map(sec => [sec.block, sec]))
-  for (const sec of model.sections) {
-    const pair = A5_PAIRS.find(p => p.includes(sec.block))
-    const mate = pair && byBlock.get(pair[0] === sec.block ? pair[1] : pair[0])
-    if (mate && pair[1] === sec.block) continue  // druhý z dvojice už nakreslený vpravo
-    if (mate) {
-      sideBySide(b => drawSection(s, sec, true, b), b => drawSection(s, mate, true, b))
-    } else {
-      drawSection(s, sec, true, sec.block === SPECIAL_BLOCK ? left : full)
+// POZNÁMKY na A5: jeden riadok bez rámčeka — „Poznámky:" a poznámka akcie
+// (dlhá sa zalomí), za ňou bodky na dopísanie, vpravo „Vytlačené"
+function drawNotesLine(s, notes, b, printedAt) {
+  const L = b.x
+  const printed = printedText(printedAt)
+  const R = b.x + b.w - Math.ceil(s.width(printed, 22, 400)) - 24  // koniec textu a bodiek
+  const h = lineH(26)
+  const lines = s.wrap([{ text: 'Poznámky:', weight: 400 }, { text: notes, weight: 700 }], R - L, 26)
+  s.y += 20  // miesto na písanie nad bodkami
+  lines.forEach((ln, i) => {
+    const bl = s.base(s.y, h, 26, 700)
+    if (i === 0) s.text(printed, b.x + b.w, bl, 22, 400, { align: 'right' })
+    for (const wd of ln.words) s.text(wd.text, L + wd.x, bl, 26, wd.weight)
+    // bodky na dopísanie — len keď je na ne za textom aspoň kúsok miesta
+    const dots = L + Math.ceil(ln.w) + 16
+    if (i === lines.length - 1 && R - dots >= 64) {
+      for (let x = dots; x + 3 <= R; x += 9) s.rect(x, bl + 1, 3, 3)
     }
-    s.y += 20
-  }
-  drawNotes(s, model.notes, full, 2, model.printedAt)
-  s.y += margin
-
-  const width = content + 2 * margin
-  return { s, width, height: width * A5_MM.h / A5_MM.w }
+    s.y += h
+  })
 }
 
-// Vykreslí kuchyňu na jednu stranu A5 (PNG 300 dpi, nie 1-bit)
+// Prípitky na A5 v jednom riadku: „Prípitok: Prosecco  |  Prípitok deti: …";
+// keď sa nezmestia, každý na samostatnom riadku ako na termo lístku
+function drawToastsLine(s, toasts, b, size) {
+  const gap = 24
+  const sepW = gap + s.width('|', size, 400) + gap
+  const parts = toasts.map(t => {
+    const label = `${t.label}:`
+    const value = t.names.join(', ')
+    const lw = s.width(label, size, 400) + s.width(' ', size, 700)
+    return { label, value, lw, w: lw + s.width(value, size, 700) }
+  })
+  if (parts.reduce((n, p) => n + p.w, 0) + (parts.length - 1) * sepW > b.w) {
+    for (const t of toasts) drawLabeled(s, t.label, t.names.join(', '), size, b)
+    return
+  }
+  const h = lineH(size)
+  const bl = s.base(s.y, h, size, 700)
+  let x = b.x
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      s.text('|', x + gap, bl, size, 400)
+      x += sepW
+    }
+    s.text(p.label, x, bl, size, 400)
+    s.text(p.value, x + p.lw, bl, size, 700)
+    x += p.w
+  })
+  s.y += h
+}
+
+// Riadky strany A5, každý vo vlastnom hárku od y = 0: [{ s, gap, bottom }]
+// (gap = medzera nad riadkom, na začiatku strany sa vynechá; bottom = pri
+// jednej strane úplne dole — POZNÁMKY)
+function a5Rows(family, model) {
+  const full  = { x: 0, w: A5_CONTENT }
+  const left  = { x: 0, w: A5_COL }
+  const right = { x: A5_COL + A5_GAP, w: A5_COL }
+  const rows = []
+  const row = (gap, draw, opts) => {
+    const s = new Sheet(family)
+    draw(s)
+    rows.push({ s, gap, ...opts })
+  }
+  const column = (s, secs, b) => secs.forEach((sec, i) => {
+    if (i > 0) s.y += 20
+    drawSection(s, sec, true, b)
+  })
+
+  row(0, s => {
+    drawHeader(s, model, full, { hall: model.hallShort, inline: true })
+    drawTitle(s, model, full)
+    s.y += 4
+    if (model.toasts.length) drawToastsLine(s, model.toasts, full, 30)
+    s.y += 16
+    drawCounts(s, model.counts, model.hasRaut, full, 4)
+  })
+
+  const byBlock = new Map(model.sections.map(sec => [sec.block, sec]))
+  const done = new Set()
+  model.sections.forEach((sec, i) => {
+    if (done.has(sec.block)) return
+    const gap = i === 0 ? 24 : 20
+    const group = A5_COLUMNS.find(g => [...g.left, ...g.right].includes(sec.block))
+    if (!group) {
+      // polievka: porcia a rozpis dospelí + deti hneď za názvom
+      row(gap, s => drawSection(s, sec, true, full, { inlineMeta: sec.block === 0 }))
+      return
+    }
+    let l = group.left.map(b => byBlock.get(b)).filter(Boolean)
+    let r = group.right.map(b => byBlock.get(b)).filter(Boolean)
+    for (const x of [...l, ...r]) done.add(x.block)
+    if (!l.length) {
+      l = r.slice(0, 1)
+      r = r.slice(1)
+    }
+    if (!r.length) {
+      row(gap, s => drawSection(s, l[0], true, l[0].special ? left : full))
+      return
+    }
+    row(gap, s => {
+      column(s, l, left)
+      const y1 = s.y
+      s.y = 0
+      column(s, r, right)
+      s.y = Math.max(y1, s.y)
+    })
+  })
+
+  row(20, s => drawNotesLine(s, model.notes, full, model.printedAt), { bottom: true })
+  return rows
+}
+
+// Najnižšie miesto (≤ maxY), kde sa dá riadok rozdeliť medzi dve strany bez
+// prerezania textu či pruhu — zvislé čiary rámčekov sa prerezať môžu.
+// 0 = také miesto nie je.
+function safeCut(s, maxY) {
+  const spans = s.ops
+    .filter(o => !(o.op === 'rect' && o.w <= 4 && o.h > 8))
+    .map(o => (o.op === 'rect' ? [o.y, o.y + o.h] : [o.y - o.size, o.y + o.size * 0.3]))
+  let cut = 0
+  for (const [, y] of spans) {
+    if (y > cut && y <= maxY && !spans.some(([t, b]) => t < y && y < b)) cut = y
+  }
+  return cut
+}
+
+// Rozdelí hárok na mieste cut: [príkazy nad ním, hárok pod ním od y = 0]
+function splitSheet(s, cut) {
+  const head = new Sheet(s.family)
+  const tail = new Sheet(s.family)
+  for (const o of s.ops) {
+    const top = o.op === 'rect' ? o.y : o.y - o.size
+    if (o.op === 'rect' && o.y < cut && o.y + o.h > cut) {
+      head.ops.push({ ...o, h: cut - o.y })
+      tail.ops.push({ ...o, y: 0, h: o.y + o.h - cut })
+    } else if (top < cut) {
+      head.ops.push(o)
+    } else {
+      tail.ops.push({ ...o, y: o.y - cut })
+    }
+  }
+  tail.y = s.y - cut
+  return [head, tail]
+}
+
+// Rozloží riadky na strany A5 s výškou obsahu pageH (body). Riadok, ktorý sa
+// nezmestí na zvyšok strany, ide celý na ďalšiu; vyšší ako celá strana sa
+// rozdelí. pinBottom: riadok s bottom ide úplne dole na stranu (len keď je
+// všetko na jednej strane). Strany 2+ začínajú pruhom so sálou, dátumom
+// a názvom akcie.
+function paginateA5(family, model, rows, pageH, pinBottom) {
+  const d = model.date ? new Date(`${model.date}T00:00:00`) : null
+  const contTitle = [model.hallShort, d && dmy(d), model.title].filter(Boolean).join(' · ')
+  const continued = sheet => {
+    drawSectionBar(sheet, { title: contTitle, count: null }, false, { x: 0, w: A5_CONTENT })
+    sheet.y += 16
+  }
+  const probe = new Sheet(family)
+  continued(probe)
+  const contTop = probe.y  // kde začína obsah strany 2+
+
+  const pages = []
+  let page
+  let pageTop = 0
+  const newPage = () => {
+    page = new Sheet(family)
+    pages.push(page)
+    if (pages.length > 1) continued(page)
+    pageTop = page.y
+  }
+  newPage()
+  for (const r of rows) {
+    let s = r.s
+    let top = page.y > pageTop ? page.y + r.gap : page.y
+    if (top + s.y > pageH && page.y > pageTop && s.y <= pageH - contTop) {
+      newPage()
+      top = page.y
+    }
+    while (top + s.y > pageH) {
+      let cut = safeCut(s, pageH - top)
+      if (!cut && page.y > pageTop) {
+        newPage()
+        top = page.y
+        continue
+      }
+      if (!cut) cut = pageH - top  // nič bezpečné — rez natvrdo
+      const [head, tail] = splitSheet(s, cut)
+      page.put(head, top)
+      newPage()
+      s = tail
+      top = page.y
+    }
+    if (r.bottom && pinBottom) top = Math.max(top, pageH - s.y)
+    page.put(s, top)
+    page.y = top + s.y
+  }
+  return pages
+}
+
+// Strany A5 (hárky v bodoch, obsah od 0 bez okrajov); pri viacerých stranách
+// je dole „strana 1/2 – pokračuje →"
+function layoutA5(family, model) {
+  const rows = a5Rows(family, model)
+  const pageH = A5_MM.h * A5_PT_MM - 2 * A5_MARGIN * A5_PT_MM
+  let pages = paginateA5(family, model, rows, pageH, true)
+  if (pages.length > 1) {
+    const footH = lineH(24) + 8
+    pages = paginateA5(family, model, rows, pageH - footH, false)
+    pages.forEach((p, i) => {
+      const text = `strana ${i + 1}/${pages.length}${i < pages.length - 1 ? ' – pokračuje →' : ''}`
+      p.text(text, A5_CONTENT, p.base(pageH - lineH(24), lineH(24), 24, 700), 24, 700, { align: 'right' })
+    })
+  }
+  return pages
+}
+
+// Vykreslí kuchyňu na strany A5 (PNG 300 dpi, nie 1-bit): [strana, …] —
+// väčšinou jedna, dlhé menu pokračuje na ďalšej
 export async function renderKitchenA5(model) {
   const family = await ticketFont()
-  let page = layoutA5(family, model, W)
-  for (let cw = W + 32; page.s.y > page.height && cw < 8 * W; cw += 32) {
-    page = layoutA5(family, model, cw)
-  }
-  const width = Math.round(A5_MM.w * A5_PX_MM)
-  return page.s.paint({ width, height: Math.round(A5_MM.h * A5_PX_MM), scale: width / page.width })
+  const width  = Math.round(A5_MM.w * A5_PX_MM)
+  const height = Math.round(A5_MM.h * A5_PX_MM)
+  const scale  = width / (A5_MM.w * A5_PT_MM)
+  return layoutA5(family, model).map(p =>
+    p.paint({ width, height, scale, origin: A5_MARGIN * A5_PT_MM }))
 }
 
 // Stiahnutie plátna ako PNG

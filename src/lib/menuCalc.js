@@ -19,6 +19,17 @@ const isCookedRice = (sel, cat) => COOKED_RICE.some(r => r.category === cat.id &
 // Prípitok dospelých pijú aj špeciáli — násobí sa dospelými + špeciálmi
 const TOAST_CATEGORY = 'e9d6904c-5fa5-464a-ab00-5fea29f52b49' // Prípitok
 
+// Polievka dospelých (blok 1; deťom ju pridáva zrkadlenie) — podľa ID kategórie
+export const SOUP_CATEGORY = '3d7811c8-e75e-4e6e-a216-ae524365ad2c'
+
+// VÝNIMKA NATVRDO: Polievka špeciál (blok 3). Bez ohľadu na to, ktorá polievka
+// je vybratá, jej objem (naklikané ks × porcia kategórie, 0,33 L) sa na lístku
+// do kuchyne pripočíta k polievke v bloku 0 (dospelí + deti + špeciály).
+// Objem sa vedome neprepočítava na vývar a iné polievky — user to nechce
+// komplikovať, nevadí, keď sa vývaru nachystá viac (13. 10. 2026).
+// V bloku špeciál má vlastný kontrolný súčet (jedlá a polievky zvlášť).
+export const SPECIAL_SOUP_CATEGORY = 'd4de68bb-658b-4c07-8501-08761f48897c' // Polievka špeciál
+
 // Počet osôb, ktorým sa v kalkulácii násobí porcia položky kategórie cat
 // v bloku (null = blok sa nenásobí, berie sa naklikané množstvo)
 export function calcCount(summary, block, cat) {

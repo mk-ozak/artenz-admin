@@ -8,7 +8,9 @@ import { supabase } from '../../lib/supabase'
 import {
   groupVariantsByItem, incompleteMessage, needsVariant, selLabel, variantGroupLabel,
 } from '../../lib/menuVariants'
-import { buildMenuSections, calcCount, calcLine, fmtQty, sectionHeadCount } from '../../lib/menuCalc'
+import {
+  SOUP_CATEGORY, SPECIAL_SOUP_CATEGORY, buildMenuSections, calcCount, calcLine, fmtQty, sectionHeadCount,
+} from '../../lib/menuCalc'
 import {
   buildKitchenTicket, buildRautLabels, buildSummaryTicket, downloadPng, renderKitchenA5,
   renderKitchenTickets, renderRautLabels, renderSummaryTicket,
@@ -388,38 +390,46 @@ export default function MenuEditor({
     }[kind])
   }
 
-  // Kuchyňa na jednu stranu A5 (grafika ako termo lístok, sekcie vo dvojiciach)
+  // Kuchyňa na strany A5 (grafika ako termo lístok, sekcie v dvoch stĺpcoch,
+  // pevné písmo — dlhé menu pokračuje na ďalšej strane)
   function kitchenA5() {
     return renderKitchenA5(buildKitchenTicket({ sections: summarySections, selsByCat, summary }))
   }
 
-  // BOLD PNG — kuchyňa na A5 ako obrázok
+  // BOLD PNG — kuchyňa na A5 ako obrázok (pri viacerých stranách obrázok na stranu)
   async function downloadKitchenPng() {
     if (incomplete.length > 0) {
       setError(incompleteMessage(incomplete))
       return
     }
-    downloadPng(await kitchenA5(), `${summary.ticket.date}_kuchyna_A5.png`)
+    const pages = await kitchenA5()
+    pages.forEach((canvas, i) => downloadPng(canvas,
+      `${summary.ticket.date}_kuchyna_A5${pages.length > 1 ? `_${i + 1}` : ''}.png`))
   }
 
-  // Tlač do kuchyne na A4: grafika A5 v ľavej polovici A4 na šírku.
+  // LUNA A5 — tlač do kuchyne na A4 na šírku: strana A5 v ľavej polovici,
+  // pokračovanie dlhého menu v pravej (ďalší hárok A4 až pri 3+ stranách).
   // Okno sa otvára pred vykreslením, aby ho prehliadač nezablokoval ako popup.
-  async function printKitchenA4() {
+  async function printKitchenA5() {
     if (incomplete.length > 0) {
       setError(incompleteMessage(incomplete))
       return
     }
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const canvas = await kitchenA5()
+    const imgs = (await kitchenA5()).map(c => `<img src="${c.toDataURL('image/png')}" alt="">`)
+    const sheets = []
+    for (let i = 0; i < imgs.length; i += 2) sheets.push(`<div class="sheet">${imgs.slice(i, i + 2).join('')}</div>`)
     win.document.write(`<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Tlač do kuchyne</title>
 <style>
   @page { size: A4 landscape; margin: 0; }
   html, body { margin: 0; }
+  .sheet { display: flex; }
+  .sheet + .sheet { break-before: page; }
   img { display: block; width: 148mm; height: 210mm; }
-</style></head><body><img src="${canvas.toDataURL('image/png')}" alt=""></body></html>`)
+</style></head><body>${sheets.join('')}</body></html>`)
     win.document.close()
-    await win.document.querySelector('img').decode().catch(() => {})
+    await Promise.all([...win.document.images].map(img => img.decode().catch(() => {})))
     win.focus()
     win.print()
   }
@@ -682,15 +692,28 @@ export default function MenuEditor({
             // Kontrola súčtu množstiev v bloku — pod jedlami bloku
             let check = null
             if (summary && summary.checkBlock === block) {
-              // Špeciály: súčet naklikaných množstiev vs počet špeciálov
-              const sum = renderCats
-                .filter(c => c.block === block)
-                .reduce((s, c) => s + (selsByCat[c.id] ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0), 0)
-              const ok = sum === summary.checkTarget
+              // Špeciály: súčet naklikaných množstiev vs počet špeciálov — jedlá
+              // a Polievka špeciál zvlášť; polievka len keď je v menu polievka
+              // dospelých alebo je nejaká polievka špeciál vybratá
+              const qtyOf = c => (selsByCat[c.id] ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0)
+              const cats = renderCats.filter(c => c.block === block)
+              const soupCat = visibleCats.find(c => c.block === block && c.id === SPECIAL_SOUP_CATEGORY)
+              const withSoup = !!soupCat && (qtyOf(soupCat) > 0 || (selsByCat[SOUP_CATEGORY]?.length ?? 0) > 0)
+              const rows = [
+                { label: withSoup ? 'Jedlá' : 'Súčet', sum: cats.filter(c => c.id !== SPECIAL_SOUP_CATEGORY).reduce((s, c) => s + qtyOf(c), 0), target: 'Špeciály' },
+                ...(withSoup ? [{ label: soupCat.name, sum: qtyOf(soupCat), target: 'Špeciálna polievka' }] : []),
+              ]
               check = (
-                <p className={`px-4 pb-2 text-[11px] font-medium ${ok ? 'text-[#2a8d83]' : 'text-[#a87d20]'}`}>
-                  Súčet: {sum} / Špeciály: {summary.checkTarget}{ok ? ' ✓' : ' — nesedí'}
-                </p>
+                <div className="px-4 pb-2 space-y-0.5">
+                  {rows.map(({ label, sum, target }) => {
+                    const ok = sum === summary.checkTarget
+                    return (
+                      <p key={label} className={`text-[11px] font-medium ${ok ? 'text-[#2a8d83]' : 'text-[#a87d20]'}`}>
+                        {label}: {sum} / {target}: {summary.checkTarget}{ok ? ' ✓' : ' — nesedí'}
+                      </p>
+                    )
+                  })}
+                </div>
               )
             } else if (summary?.weightCheck?.blocks?.includes(block) && !lockedQtyBlocks?.includes(block)) {
               // Raut: súčet naklikaných kg vs počet ľudí na raut × 0,2 kg
@@ -784,9 +807,9 @@ export default function MenuEditor({
               {printMode !== 'summary-a4' && (
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
                 {summary.ticket && printRow('Tlač do kuchyne', [
-                  { icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen'), accent: true },
+                  { icon: IconPrinter, text: 'LUNA A5', title: 'Tlač na A4 — strana A5 v ľavej polovici', onClick: printKitchenA5, accent: true },
+                  { icon: IconReceipt, text: 'TERMO PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen'), accent: true },
                   { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
-                  { icon: IconPrinter, text: 'A4', title: 'Tlač na A4 (grafika A5)', onClick: printKitchenA4 },
                   // Štítky na plechy — len keď je v raute niečo vybraté
                   ...(buildRautLabels({ sections: summarySections, selsByCat, summary }).labels.length
                     ? [{ icon: IconTag, text: 'RAUT', title: 'Štítky na plechy rautu (termotlačiareň)', onClick: () => openThermal('raut') }]
@@ -828,7 +851,7 @@ export default function MenuEditor({
             <p className="text-sm text-gray-500">Menu bez množstiev pre kuchyňu.</p>
             {printButtons([
               ...(summary.ticket && printMode !== 'summary-a4'
-                ? [{ icon: IconReceipt, text: 'LUNA PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
+                ? [{ icon: IconReceipt, text: 'TERMO PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('summary') }]
                 : []),
               { icon: IconPrinter, text: 'A4', title: 'Tlač na A4', onClick: printSummary },
             ])}
