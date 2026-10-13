@@ -616,6 +616,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           customerPrintTitle={vo ? 'Sumár objednávky' : undefined}
           lockedQtyBlocks={vo ? VO_LOCKED_QTY_BLOCKS : undefined}
           canAddCatalog={!vo}
+          canAddCustom={vo}
         />
       )}
 

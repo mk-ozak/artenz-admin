@@ -139,7 +139,9 @@ const GUIDE = [
     (meno zákazníka) a poznámky → „Vytvoriť objednávku“.</>,
   <><b>Menu:</b> ťuknite na „Vytvoriť menu“ a vyberte šablónu, prázdne menu alebo ho nadiktujte.
     V blokoch Hlavné jedlo a Raut zadajte počty osôb a čas (čo nechcete, vypnite vypínačom).
-    Jedlá pridáte ťuknutím na názov kategórie. Všetko sa ukladá automaticky.
+    Jedlá pridáte ťuknutím na názov kategórie. Ak jedlo v zozname nenájdete, napíšte ho
+    do riadku „Iné jedlo“ dole v okne — pridá sa do objednávky ako <b>vlastná</b> položka.
+    Všetko sa ukladá automaticky.
     Množstvá (kg) pri raute určuje naša kuchyňa.</>,
   <><b>Dokončenie:</b> keď je objednávka hotová, prepnite ju na <b>FINAL</b> — zamkne sa.
     Ak ju potrebujete zmeniť, prepnite ju späť na <b>Koncept</b>.</>,

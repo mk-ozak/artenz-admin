@@ -38,6 +38,18 @@ function darken(hex, f = 0.6) {
   return `rgb(${r}, ${g}, ${b})`
 }
 
+// Štítok vlastnej položky — dopísaná textom, nie je v katalógu (VO)
+function CustomBadge() {
+  return (
+    <span
+      title="Dopísaná položka — nie je v katalógu"
+      className="shrink-0 text-[10px] font-semibold text-[#a87d20] bg-[#fdf3dc] rounded px-1 py-px"
+    >
+      vlastná
+    </span>
+  )
+}
+
 const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justify-center
   text-white hover:bg-[#bd7c7c] active:bg-[#ad6b6b] transition-colors`
 
@@ -56,9 +68,12 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // customerPrintTitle: nadpis bloku zhrnutia a tlače (predvolene „Zhrnutie pre zákazníka")
 // lockedQtyBlocks: [čísla blokov] — množstvá len na čítanie (VO nemení kg rautu)
 // canAddCatalog: false = v okne výberu sa nedá pridať nová položka do katalógu
+// canAddCustom: true = (bez katalógu) v okne výberu sa dá dopísať vlastná položka —
+//   len text v tomto menu (item_id = null), do katalógu ju pridá admin (VO)
 export default function MenuEditor({
   table, ownerColumn, ownerId, editable, extraBeforeBlock, aboveBlock, hiddenBlocks, summary,
   customerPrintTarget, printMode = 'all', customerPrintTitle, lockedQtyBlocks, canAddCatalog = true,
+  canAddCustom = false,
 }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
@@ -67,7 +82,7 @@ export default function MenuEditor({
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [pickerCatId, setPickerCatId] = useState(null)
-  // Pridanie novej položky do katalógu priamo z výberu
+  // Pridanie novej položky do katalógu (alebo vlastnej položky) priamo z výberu
   const [newItemName, setNewItemName] = useState('')
   const [addingItem, setAddingItem]   = useState(false)
   // Náhľad lístka pre termotlačiareň { title, ticket, render, file }, null = zavretý
@@ -111,7 +126,11 @@ export default function MenuEditor({
   const renderCats = visibleCats.filter(c => editable || (selsByCat[c.id]?.length > 0))
 
   const pickerCat = pickerCatId ? categories.find(c => c.id === pickerCatId) : null
+  // Vlastná položka (VO) sa nad limit kategórie nepridá — do katalógu áno
+  const customFull = !canAddCatalog && pickerCat?.max_items != null &&
+    (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
 
+  // Vráti true, keď sa výber uložil
   async function addItem(cat, item) {
     const { data, error } = await supabase
       .from(table)
@@ -124,8 +143,9 @@ export default function MenuEditor({
       })
       .select(SEL_COLS)
       .single()
-    if (error) { setError(error.message); return }
+    if (error) { setError(error.message); return false }
     setSelections(s => [...s, data])
+    return true
   }
 
   // Nová položka do katalógu (menu_items) pre práve otvorenú kategóriu.
@@ -149,6 +169,16 @@ export default function MenuEditor({
     const limitFull = pickerCat.max_items != null &&
       (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
     if (!limitFull) await addItem(pickerCat, data)
+    setAddingItem(false)
+  }
+
+  // Vlastná položka (VO) — len text v tomto menu, katalóg sa nemení
+  async function addCustomItem(e) {
+    e.preventDefault()
+    const name = newItemName.trim()
+    if (!name || !pickerCat) return
+    setAddingItem(true)
+    if (await addItem(pickerCat, { id: null, name })) setNewItemName('')
     setAddingItem(false)
   }
 
@@ -476,6 +506,7 @@ export default function MenuEditor({
               <span className={`text-sm font-medium ${missingVariant ? 'text-[#c0393d]' : 'text-[#1a2830]'}`}>
                 {selLabel(sel)}
               </span>
+              {!sel.item_id && <CustomBadge />}
             </>
           )
           return (
@@ -914,32 +945,56 @@ export default function MenuEditor({
                   </div>
                 )
               })}
-              {items.filter(i => i.category_id === pickerCat.id).length === 0 && (
+              {/* Vlastné položky (mimo katalógu) — klik ich odoberie */}
+              {(selsByCat[pickerCat.id] ?? []).filter(sel => !sel.item_id).map(sel => (
+                <button
+                  key={sel.id}
+                  type="button"
+                  onClick={() => removeSelection(sel)}
+                  className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left text-sm
+                             bg-[#eaf7f5] border-l-[6px] border-transparent"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-[#1a6e66] font-medium">{selLabel(sel)}</span>
+                    <CustomBadge />
+                  </span>
+                  <span className="w-7 h-7 shrink-0 rounded-full border flex items-center justify-center
+                                   bg-[#4cbfb3] border-[#4cbfb3] text-white">
+                    <IconCheck size={15} stroke={2.5} />
+                  </span>
+                </button>
+              ))}
+              {items.filter(i => i.category_id === pickerCat.id).length === 0 &&
+                !(selsByCat[pickerCat.id] ?? []).some(sel => !sel.item_id) && (
                 <p className="px-5 py-6 text-sm text-gray-400 text-center">
                   {canAddCatalog
                     ? 'Kategória zatiaľ nemá žiadne položky — pridajte novú vyššie.'
-                    : 'Kategória zatiaľ nemá žiadne položky.'}
+                    : canAddCustom
+                      ? 'Kategória zatiaľ nemá žiadne položky — jedlo môžete dopísať nižšie.'
+                      : 'Kategória zatiaľ nemá žiadne položky.'}
                 </p>
               )}
             </div>
 
-            {/* Pridať novú položku rovno do katalógu tejto kategórie */}
-            {canAddCatalog && (
+            {/* Pridať novú položku rovno do katalógu tejto kategórie; VO len
+                vlastnú položku do tohto menu (text, katalóg sa nemení) */}
+            {(canAddCatalog || canAddCustom) && (
             <form
-              onSubmit={addCatalogItem}
+              onSubmit={canAddCatalog ? addCatalogItem : addCustomItem}
               className="flex gap-2 px-5 py-3 bg-gray-50 border-t border-gray-100 shrink-0"
             >
               <input
                 value={newItemName}
                 onChange={e => setNewItemName(e.target.value)}
-                placeholder="Nová položka do katalógu…"
-                disabled={addingItem}
+                placeholder={canAddCatalog ? 'Nová položka do katalógu…' : 'Iné jedlo — napíšte názov…'}
+                disabled={addingItem || customFull}
                 className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
-                           focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]"
+                           focus:outline-none focus:ring-2 focus:ring-[#4cbfb3]
+                           disabled:bg-field-locked disabled:border-field-locked-border"
               />
               <button
                 type="submit"
-                disabled={!newItemName.trim() || addingItem}
+                disabled={!newItemName.trim() || addingItem || customFull}
                 className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-bold shrink-0
                            transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ background: '#4cbfb3', color: '#0a2d2a' }}
