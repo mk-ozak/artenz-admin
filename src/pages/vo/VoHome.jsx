@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { formatDateSkYear, formatTodaySk } from '../../utils/format'
 import { getNameDay } from '../../utils/meniny'
 import { toISO } from '../../utils/diaryWeeks'
-import { VO_COLOR, VO_STATUS_LABEL, VO_STATUS_STYLE } from '../../lib/vo'
+import { VO_COLOR, VO_STATUS_LABEL, VO_STATUS_STYLE, voNumber } from '../../lib/vo'
 import VoHeader from '../../components/vo/VoHeader'
 
 // Hlavná stránka VO — objednávky od najnovšieho dátumu po najstarší,
@@ -86,7 +86,7 @@ export default function VoHome() {
                       <p className={`text-[14px] font-semibold truncate ${past ? 'text-[#7a8893]' : 'text-[#1a2830]'}`}>
                         {o.customer_name}
                         <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-[#9ab0ba]">
-                          č. {o.vo_order_no}
+                          č. {voNumber(o)}
                         </span>
                       </p>
                       <div className="flex gap-3 mt-1 items-center">

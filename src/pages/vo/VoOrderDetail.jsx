@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/auth'
 import { formatDateSk, formatDateSkYear } from '../../utils/format'
 import { toISO } from '../../utils/diaryWeeks'
 import { hallShortOf } from '../../utils/kitchenTicket'
-import { VO_COLOR, voLabel } from '../../lib/vo'
+import { VO_COLOR, VO_DEFAULT_NAME, voCustomName, voLabelWithName, voNumber } from '../../lib/vo'
 import VoHeader from '../../components/vo/VoHeader'
 import VoStatusToggle from '../../components/vo/VoStatusToggle'
 import BookingMenu from '../../components/booking/BookingMenu'
@@ -68,7 +68,7 @@ export default function VoOrderDetail() {
   function startEdit() {
     setForm({
       date: order.date,
-      name: order.customer_name ?? '',
+      name: voCustomName(order),
       notes: order.decoration ?? '',
     })
     setError('')
@@ -98,8 +98,8 @@ export default function VoOrderDetail() {
           .from('bookings')
           .insert({
             ...fields,
-            // prázdny názov doplní databáza na „Objednávka č. N"
-            customer_name: form.name.trim(),
+            // bez názvu „Objednávka" (číslo sa k názvu nepridáva)
+            customer_name: form.name.trim() || VO_DEFAULT_NAME,
             is_vo:         true,
             vo_status:     'koncept',
             hall:          'CATERING',
@@ -111,7 +111,7 @@ export default function VoOrderDetail() {
           .single()
       : await supabase
           .from('bookings')
-          .update({ ...fields, customer_name: form.name.trim() || `Objednávka č. ${order.vo_order_no}` })
+          .update({ ...fields, customer_name: form.name.trim() || VO_DEFAULT_NAME })
           .eq('id', order.id)
           .select()
           .single()
@@ -161,7 +161,7 @@ export default function VoOrderDetail() {
                 className="relative rounded-card bg-white border border-[#e0e8ec] px-4 py-3 pl-5 overflow-hidden space-y-3">
             <div className="absolute left-0 inset-y-0 w-1" style={{ background: VO_COLOR }} />
             <p className="text-[10px] text-[#8aaabb] tracking-widest uppercase">
-              {isNew ? 'Nová objednávka' : `Upraviť objednávku č. ${order.vo_order_no}`}
+              {isNew ? 'Nová objednávka' : `Upraviť objednávku č. ${voNumber(order)}`}
             </p>
             <div className="sm:w-1/2">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
@@ -183,7 +183,7 @@ export default function VoOrderDetail() {
                 type="text"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder={isNew ? 'Nepovinné' : `Objednávka č. ${order.vo_order_no}`}
+                placeholder="Nepovinné"
                 className={inputCls}
               />
             </div>
@@ -232,10 +232,13 @@ export default function VoOrderDetail() {
               <div className="relative rounded-card bg-white border border-[#e0e8ec] px-4 py-3 pl-5 overflow-hidden">
                 <div className="absolute left-0 inset-y-0 w-1" style={{ background: VO_COLOR }} />
                 <p className="text-[17px] font-semibold text-[#1a2830]">
-                  {order.customer_name}
-                  <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
-                    Objednávka č. {order.vo_order_no}
-                  </span>
+                  {/* Bez názvu od VO len „Objednávka č. …" */}
+                  {voCustomName(order) || `${VO_DEFAULT_NAME} č. ${voNumber(order)}`}
+                  {voCustomName(order) && (
+                    <span className="ml-2 text-[12px] font-normal uppercase tracking-wider text-[#9ab0ba]">
+                      Objednávka č. {voNumber(order)}
+                    </span>
+                  )}
                 </p>
                 <div className="flex gap-4 mt-2 items-center flex-wrap">
                   <span className="flex items-center gap-1 text-xs text-[#6a8898]">
@@ -310,9 +313,9 @@ export default function VoOrderDetail() {
               bookingId={order.id}
               editable={canEdit && !editing}
               vo={isVoUser}
-              printSubtitle={`Objednávka č. ${order.vo_order_no} – ${order.customer_name}, ${formatDateSk(order.date)}`}
+              printSubtitle={`${[`Objednávka č. ${voNumber(order)}`, voCustomName(order)].filter(Boolean).join(' – ')}, ${formatDateSk(order.date)}`}
               ticketInfo={isVoUser ? undefined : {
-                title:     `${voLabel(order)} – ${order.customer_name}`,
+                title:     voLabelWithName(order),
                 date:      order.date,
                 hall:      hallShortOf(order),
                 hallShort: hallShortOf(order),

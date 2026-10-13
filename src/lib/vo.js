@@ -1,5 +1,5 @@
 // Objednávky VO (veľkoobchod) — odberateľ, ktorý si berie jedlo do svojej sály.
-// Objednávka je riadok v bookings s is_vo = true (číslo vo_order_no, stav vo_status).
+// Objednávka je riadok v bookings s is_vo = true (poradie vo_order_no, stav vo_status).
 
 // Farba VO — pásik v diári, zoznamoch a detaile
 export const VO_COLOR = '#e2643e'
@@ -22,17 +22,39 @@ export const VO_DIARY_STYLE = {
 }
 
 // Naše označenie objednávok VO — hlavička lístka do kuchyne, Najbližšie akcie,
-// detail rezervácie (VO ho vo svojom rozhraní nevidí, tam je „Objednávka č. 12")
+// detail rezervácie (VO ho vo svojom rozhraní nevidí, tam je „Objednávka č. …")
 export const VO_KITCHEN_NAME = 'ČIERNE'
 
-// „ČIERNE č. 12" — lístok do kuchyne, sumár jedál
-export const voLabel = row => `${VO_KITCHEN_NAME} č. ${row.vo_order_no ?? row.voOrderNo ?? '?'}`
+// Číslo objednávky „RRMMDDCCC": dátum objednávky + poradové číslo na 3 miesta
+// (17. 10. 2026, poradie 4 → „261017004"). Pri zmene dátumu sa zmení aj číslo.
+export function voNumber(row) {
+  const no = row?.vo_order_no ?? row?.voOrderNo
+  if (no == null) return '?'
+  const seq = String(no).padStart(3, '0')
+  const [y, m, d] = String(row?.date ?? '').split('-')
+  return y && m && d ? `${y.slice(2)}${m}${d.slice(0, 2)}${seq}` : seq
+}
 
-// „ČIERNE - 12" — názov objednávky VO u nás (diár, Najbližšie akcie, detail);
+// Názov objednávky, keď ho VO nezadá (bez čísla — to sa mení s dátumom)
+export const VO_DEFAULT_NAME = 'Objednávka'
+
+// Názov zadaný VO, '' = nezadaný (predvolený „Objednávka" sa nepočíta)
+export function voCustomName(row) {
+  const name = (row?.customer_name ?? row?.customerName ?? '').trim()
+  return name === VO_DEFAULT_NAME ? '' : name
+}
+
+// „ČIERNE č. 261017004" — lístok do kuchyne, sumár jedál
+export const voLabel = row => `${VO_KITCHEN_NAME} č. ${voNumber(row)}`
+
+// „ČIERNE - 261017004" — názov objednávky VO u nás (diár, Najbližšie akcie, detail);
 // názov, ktorý zadal VO, tam netreba
-export const voTitle = row => `${VO_KITCHEN_NAME} - ${row.vo_order_no ?? row.voOrderNo ?? '?'}`
+export const voTitle = row => `${VO_KITCHEN_NAME} - ${voNumber(row)}`
 
-// Názov rezervácie v našich prehľadoch — pri objednávke VO „ČIERNE - 12"
+// „ČIERNE č. 261017004 – názov od VO" (bez názvu len číslo) — nadpis lístka a sumáru
+export const voLabelWithName = row => [voLabel(row), voCustomName(row)].filter(Boolean).join(' – ')
+
+// Názov rezervácie v našich prehľadoch — pri objednávke VO „ČIERNE - 261017004"
 export const bookingTitle = row => (row?.is_vo ? voTitle(row) : row?.customer_name)
 
 // Stav VO objednávky z riadku (null = bežná rezervácia)

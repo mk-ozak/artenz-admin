@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { IconChevronLeft, IconChevronRight, IconReceipt } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { EVENT_LABEL } from '../../lib/eventTypes'
-import { voLabel } from '../../lib/vo'
+import { voLabelWithName } from '../../lib/vo'
 import { buildMenuSections } from '../../lib/menuCalc'
 import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, ticketTimeOf } from '../../lib/menuSummary'
 import { toISO } from '../../utils/diaryWeeks'
@@ -103,7 +103,9 @@ export default function DaySummary({ refreshKey }) {
     if (c.error || s.error) { setError((c.error || s.error).message); setBusy(false); return }
 
     const events = rows.map(r => {
-      const title = `${r.is_vo ? voLabel(r) : (EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia')} – ${r.customer_name}`
+      const title = r.is_vo
+        ? voLabelWithName(r)
+        : `${EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia'} – ${r.customer_name}`
       // čas podávania: hlavné jedlo, bez hlavného jedla raut
       const time = ticketTimeOf(r)
       const event = { hallShort: hallShortOf(r), date: r.date, time, title, model: null }

@@ -9,7 +9,7 @@ import { postVoice, useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { voiceResultToForm } from '../lib/voiceBooking'
 import { toISO } from '../utils/diaryWeeks'
 import StatusSegment from './StatusSegment'
-import { VO_KITCHEN_NAME, VO_STATUS_LABEL, VO_STATUS_STYLE } from '../lib/vo'
+import { VO_KITCHEN_NAME, VO_STATUS_LABEL, VO_STATUS_STYLE, voNumber } from '../lib/vo'
 import SettlementPanel from './SettlementPanel'
 import RecordingOverlay from './RecordingOverlay'
 import DepositsModal from './DepositsModal'
@@ -502,7 +502,7 @@ export default function BookingModal() {
           {voOrder ? (
             <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
                  style={{ borderColor: '#f3c6b6', background: '#fdf3ef', color: '#7a3a22' }}>
-              <span className="font-bold">Objednávka VO č. {voOrder.voOrderNo}</span>
+              <span className="font-bold">Objednávka VO č. {voNumber(voOrder)}</span>
               <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full"
                     style={VO_STATUS_STYLE[voOrder.voStatus ?? 'koncept']}>
                 {VO_STATUS_LABEL[voOrder.voStatus ?? 'koncept']}

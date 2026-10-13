@@ -14,7 +14,7 @@ import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
 import BookingHistory from '../components/booking/BookingHistory'
 import { hallShortOf } from '../utils/kitchenTicket'
-import { VO_COLOR, voLabel, voTitle } from '../lib/vo'
+import { VO_COLOR, voCustomName, voLabel, voLabelWithName, voTitle } from '../lib/vo'
 import VoStatusToggle from '../components/vo/VoStatusToggle'
 
 const HALL_COLOR = {
@@ -257,7 +257,7 @@ export default function BookingDetail() {
             <div className="relative rounded-card bg-white border border-[#e0e8ec] px-4 py-3 pl-5 overflow-hidden">
               <div className="absolute left-0 inset-y-0 w-1" style={{ background: color }} />
               <div className="flex items-start justify-between gap-3">
-                {/* Objednávka VO: „ČIERNE - 12" namiesto názvu od VO (číslo je v názve) */}
+                {/* Objednávka VO: „ČIERNE - 261017004" namiesto názvu od VO (číslo je v názve) */}
                 <p className="text-[17px] font-semibold text-[#1a2830]">
                   {isVo ? voTitle(booking) : form.customerName}
                   {!isVo && (
@@ -368,9 +368,11 @@ export default function BookingDetail() {
             <BookingMenu
               bookingId={id}
               editable={editable}
-              printSubtitle={`${form.customerName} — ${typeLabel}, ${formatDateSk(booking.date)}`}
+              printSubtitle={`${isVo
+                ? [voCustomName(booking), typeLabel].filter(Boolean).join(' — ')
+                : `${form.customerName} — ${typeLabel}`}, ${formatDateSk(booking.date)}`}
               ticketInfo={{
-                title: `${typeLabel} – ${form.customerName}`,
+                title: isVo ? voLabelWithName(booking) : `${typeLabel} – ${form.customerName}`,
                 date:  booking.date,
                 // čas v hlavičke lístka doplní menu (hlavné jedlo / raut)
                 hall:  isVo ? hallShortOf(booking) : (HALL_LABEL[booking.hall] ?? booking.hall),

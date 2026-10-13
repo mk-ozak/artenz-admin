@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ACTION_LABEL, FIELD_LABEL, HALL_LABEL, VO_ACTION_LABEL, fetchUserNames, formatTime, formatValue, userLabel } from '../../lib/activityLog'
+import { voCustomName, voNumber } from '../../lib/vo'
 
 const ACTION_BADGE = {
   booking_create:         'bg-emerald-100 text-emerald-700',
@@ -17,7 +18,7 @@ const ACTION_BADGE = {
 function detailText(log) {
   const d = log.details ?? {}
   if (log.entity === 'booking' && d.vo_order_no != null) {
-    return [`VO č. ${d.vo_order_no}`, d.customer_name, d.date].filter(Boolean).join(' · ')
+    return [`VO č. ${voNumber(d)}`, voCustomName(d), d.date].filter(Boolean).join(' · ')
   }
   if (log.entity === 'booking') {
     return [d.customer_name, d.date, HALL_LABEL[d.hall] ?? d.hall].filter(Boolean).join(' · ')
