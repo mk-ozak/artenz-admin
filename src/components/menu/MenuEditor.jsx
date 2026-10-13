@@ -115,7 +115,8 @@ export default function MenuEditor({
 
   // Výbery po kategóriách a sekciách — spoločné so sumárom jedál (lib/menuCalc).
   // Výbery v skrytých blokoch sa nezobrazujú, nepočítajú ani netlačia.
-  const { selsByCat, activeSelections, visibleCats, sections: summarySections } =
+  // menuCats = katalóg, pri zamrazenom menu (akcia už prebehla) s kategóriami v čase akcie
+  const { selsByCat, activeSelections, visibleCats, sections: summarySections, categories: menuCats } =
     buildMenuSections({ categories, selections, summary, hiddenBlocks })
 
   // Možnosti variantov podľa položky + nedokončené výbery (zaškrtnutá
@@ -127,7 +128,7 @@ export default function MenuEditor({
   // potrebné na oddeľovač medzi blokmi
   const renderCats = visibleCats.filter(c => editable || (selsByCat[c.id]?.length > 0))
 
-  const pickerCat = pickerCatId ? categories.find(c => c.id === pickerCatId) : null
+  const pickerCat = pickerCatId ? menuCats.find(c => c.id === pickerCatId) : null
   // Vlastná položka (VO) sa nad limit kategórie nepridá — do katalógu áno
   const customFull = !canAddCatalog && pickerCat?.max_items != null &&
     (selsByCat[pickerCat.id] ?? []).length >= pickerCat.max_items
@@ -738,7 +739,7 @@ export default function MenuEditor({
             // Poznámka o zrkadlenej polievke (napr. pre deti rovnaká ako pre dospelých)
             let mirrorNote = null
             if (summary?.mirror?.toBlock === block) {
-              const soupNames = categories
+              const soupNames = menuCats
                 .filter(c => c.name === summary.mirror.fromCategory)
                 .flatMap(c => (selsByCat[c.id] ?? []).map(selLabel))
               if (soupNames.length) {

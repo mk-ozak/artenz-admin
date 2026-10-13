@@ -3,20 +3,23 @@
 // výstupoch sa vypisuje na jednom riadku ako „Položka – variant".
 // Názov položky aj variantu sa berie živý z katalógu, s fallbackom na
 // snapshot vo výbere (item_name / variant_name) — keby sa medzitým
-// archivoval alebo natvrdo zmazal.
+// archivoval alebo natvrdo zmazal. Zamrazený výber (frozen_at — akcia už
+// prebehla, databáza ho zamrazila pred zmenou katalógu, migrácia
+// 20261013000002) berie len snapshot; katalóg naň už nemá vplyv.
 
 // Spojovník medzi položkou a variantom (rovnaká pomlčka ako v názvoch akcií)
 const DASH = ' – '
 
 // Názov vybratej položky
-export const selName = sel => sel.menu_items?.name ?? sel.item_name
+export const selName = sel => (sel.frozen_at ? sel.item_name : sel.menu_items?.name ?? sel.item_name)
 
 // Kategória vybratej položky: aktuálna z katalógu (po prípadnom presune),
 // fallback na uložené category_id (keď položka v katalógu už neexistuje)
-export const selCatId = sel => sel.menu_items?.category_id ?? sel.category_id
+export const selCatId = sel => (sel.frozen_at ? sel.category_id : sel.menu_items?.category_id ?? sel.category_id)
 
 // Názov zvoleného variantu (null = nič nezvolené)
-export const selVariantName = sel => sel.variant?.name ?? sel.variant_name ?? null
+export const selVariantName = sel =>
+  (sel.frozen_at ? sel.variant_name : sel.variant?.name ?? sel.variant_name) ?? null
 
 // Celý text položky do výstupov: „Bravčová panenka plnená – oštiepok"
 export function selLabel(sel) {
@@ -35,7 +38,7 @@ export function variantGroupLabel(sel) {
 // Položka so zapnutými variantmi, ktorá zatiaľ nemá ani jednu možnosť,
 // nevyžaduje nič — inak by sa výber nedal dokončiť (nebolo by na čo kliknúť).
 export function needsVariant(sel, variantsByItem) {
-  if (sel.variant_id) return false
+  if (sel.variant_id || sel.frozen_at) return false  // zamrazené menu sa už nedopĺňa
   if (!sel.menu_items?.has_variants) return false
   return (variantsByItem?.[sel.item_id] ?? []).length > 0
 }

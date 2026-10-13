@@ -81,13 +81,31 @@ export function calcLine(sel, cat, catSels, count) {
   }
 }
 
+// Kategórie pre menu jednej akcie: živý katalóg, ale kategórie zamrazených
+// výberov (akcia už prebehla) podľa ich snapshotu — názov, blok, porcia…
+// v čase akcie; kategória, ktorá v katalógu už nie je, sa doplní
+function categoriesForMenu(categories, selections) {
+  const frozen = new Map()
+  for (const sel of selections) {
+    if (sel.frozen_at && sel.frozen_category) frozen.set(sel.frozen_category.id, sel.frozen_category)
+  }
+  if (!frozen.size) return categories
+  return [
+    ...categories.map(c => frozen.get(c.id) ?? c),
+    ...[...frozen.values()].filter(f => !categories.some(c => c.id === f.id)),
+  ].sort((a, b) => a.block - b.block || a.position - b.position)
+}
+
 // Výbery menu zoskupené po kategóriách a do sekcií (blokov) tak, ako ich ukazuje
 // kalkulácia — spoločné pre MenuEditor a sumár jedál na dashboarde.
 // Kategória výberu je aktuálna z katalógu (selCatId); archivovaná kategória sa
 // ukáže len s výberom; skryté bloky (napr. vypnutý raut) sa vynechajú;
 // zrkadlenie (summary.mirror) dá polievku dospelých aj deťom.
 // sections sa skladajú len so summary (bloky s výberom, v poradí).
-export function buildMenuSections({ categories, selections, summary, hiddenBlocks }) {
+// selections musia patriť jednej akcii (zamrazené kategórie sú jej vlastné);
+// categories vo výsledku = kategórie, s ktorými menu počíta.
+export function buildMenuSections({ categories: catalog, selections, summary, hiddenBlocks }) {
+  const categories = categoriesForMenu(catalog, selections)
   const selsByCat = {}
   for (const sel of selections) (selsByCat[selCatId(sel)] ??= []).push(sel)
 
@@ -124,5 +142,5 @@ export function buildMenuSections({ categories, selections, summary, hiddenBlock
       }
     }
   }
-  return { selsByCat, activeSelections, visibleCats, sections }
+  return { selsByCat, activeSelections, visibleCats, sections, categories }
 }
