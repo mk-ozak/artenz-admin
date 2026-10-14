@@ -13,7 +13,7 @@ export async function loadRecipeData() {
       .select('id, item_id, variant_id, ingredient_id, amount, unit')
       .order('id')
       .range(from, to)),
-    supabase.from('ingredients').select('id, category_id, name, unit, position, archived_at'),
+    supabase.from('ingredients').select('id, category_id, name, unit, position, archived_at, menu_item_id'),
     supabase.from('ingredient_categories').select('id, name, position, archived_at'),
   ])
   const err = r.error || l.error || i.error || c.error

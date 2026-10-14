@@ -138,18 +138,25 @@ export default function MenuSettings({ categoryId = null }) {
 
   useEffect(() => { fetchAll(); loadRecipeStatus() }, [])
 
-  // Stav receptúr pre ikonu pri položke (počet surovín, „surovina"). Bez
-  // migrácie surovín tabuľky ešte nie sú — ikona ostane sivá, menu funguje ďalej.
+  // Stav receptúr pre ikonu pri položke (počet surovín, „surovina" — selfReady =
+  // má riadok so svojou samo-surovinou). Bez migrácie surovín tabuľky ešte nie
+  // sú — ikona ostane sivá, menu funguje ďalej.
   async function loadRecipeStatus() {
-    const [r, l] = await Promise.all([
+    const [r, l, s] = await Promise.all([
       supabase.from('menu_item_recipes').select('item_id, is_ingredient'),
       fetchAllRows((from, to) =>
-        supabase.from('menu_item_recipe_lines').select('id, item_id').order('id').range(from, to)),
+        supabase.from('menu_item_recipe_lines').select('id, item_id, ingredient_id').order('id').range(from, to)),
+      supabase.from('ingredients').select('id, menu_item_id').not('menu_item_id', 'is', null),
     ])
-    if (r.error || l.error) return
+    if (r.error || l.error || s.error) return
+    const selfItemOf = Object.fromEntries((s.data ?? []).map(x => [x.id, x.menu_item_id]))
     const status = {}
-    for (const x of l.data) (status[x.item_id] ??= { lines: 0, isIngredient: false }).lines++
-    for (const x of r.data ?? []) (status[x.item_id] ??= { lines: 0, isIngredient: false }).isIngredient = x.is_ingredient
+    const of = id => (status[id] ??= { lines: 0, isIngredient: false, selfReady: false })
+    for (const x of l.data) {
+      of(x.item_id).lines++
+      if (selfItemOf[x.ingredient_id] === x.item_id) of(x.item_id).selfReady = true
+    }
+    for (const x of r.data ?? []) of(x.item_id).isIngredient = x.is_ingredient
     setRecipeStatus(status)
   }
 
@@ -598,19 +605,25 @@ export default function MenuSettings({ categoryId = null }) {
                                       </button>
 
                                       {/* Receptúra — sivá = bez receptúry, zelená = počet
-                                          surovín alebo „Surovina" (položka je sama surovinou) */}
+                                          surovín alebo „Surovina" (položka je sama surovinou),
+                                          oranžová = sama surovinou, ešte bez kategórie surovín */}
                                       {(() => {
                                         const st = recipeStatus[item.id]
                                         const filled = st?.isIngredient || st?.lines > 0
+                                        const pending = st?.isIngredient && !st.selfReady
                                         return (
                                           <button
                                             onClick={() => setRecipeItemId(item.id)}
-                                            title="Receptúra — suroviny pre kalkuláciu surovín"
+                                            title={pending
+                                              ? 'Položka je sama surovinou, ale nemá kategóriu surovín — v kalkulácii surovín je bez receptúry'
+                                              : 'Receptúra — suroviny pre kalkuláciu surovín'}
                                             className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
                                                         inline-flex items-center gap-1 shrink-0
-                                                        ${filled
-                                                          ? 'border-[#4cbfb3] bg-[#eaf7f5] text-[#1a6e66]'
-                                                          : 'border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'}`}
+                                                        ${pending
+                                                          ? 'border-[#e0a43a] bg-[#fdf4e3] text-[#a87d20]'
+                                                          : filled
+                                                            ? 'border-[#4cbfb3] bg-[#eaf7f5] text-[#1a6e66]'
+                                                            : 'border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'}`}
                                           >
                                             <IconChefHat size={14} />
                                             {st?.isIngredient ? 'Surovina' : 'Receptúra'}

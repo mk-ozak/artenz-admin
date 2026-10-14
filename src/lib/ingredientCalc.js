@@ -2,9 +2,10 @@
 // (buildKitchenTicket, tie isté množstvá ako sumár jedál) a receptúr položiek
 // menu (Nastavenia → Menu → čiapka). Množstvo jedla ako v menu (served — v surovom
 // stave, ryža a cestoviny v hotovom)
-// / dávka receptúry × riadky receptúry; položky „sama surovinou" idú do skupiny
-// HOTOVKY s množstvom z lístka. Čo sa spočítať nedá, ide do BEZ RECEPTÚRY alebo
-// SKONTROLUJ — kuchyňa nesmie o nič prísť.
+// / dávka receptúry × riadky receptúry. Položka „sama surovinou" má jeden
+// riadok so svojou samo-surovinou (ingredients.menu_item_id) — počíta sa ako
+// bežná surovina vo svojej kategórii (Prípitky, Omáčky…). Čo sa spočítať nedá,
+// ide do BEZ RECEPTÚRY alebo SKONTROLUJ — kuchyňa nesmie o nič prísť.
 
 import { fmtQty } from './menuCalc'
 import { dishUnitFactor, lineFactor } from './ingredients'
@@ -41,7 +42,6 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
   const ingById  = new Map(ingredients.map(i => [i.id, i]))
 
   const totals   = new Map()  // ingredient_id → súčet v jednotke suroviny
-  const fromMenu = new Map()  // položky „sama surovinou": kľúč → { name, amount, unit }
   const missing  = new Map()  // bez receptúry: kľúč → { name, amount, unit }
   const check    = new Map()  // skontroluj: kľúč → { name, reason }
 
@@ -56,14 +56,16 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
   for (const e of events.filter(x => x.model)) {
     for (const d of dishesOf(e.model)) {
       const rec = d.itemId ? recipeOf.get(d.itemId) : null
-      if (rec?.is_ingredient) {
-        addQty(fromMenu, d.key, d.name, d.amount, d.unit)
-        continue
-      }
+      const self = !!rec?.is_ingredient
       const all = d.itemId ? linesOf.get(d.itemId) ?? [] : []
-      const own = all.filter(l => !l.variant_id || l.variant_id === d.variantId)
+      // Položka sama surovinou: len riadok so svojou samo-surovinou; bez nej
+      // (zakliknutá, ešte bez kategórie surovín) ide do BEZ RECEPTÚRY
+      const own = self
+        ? all.filter(l => ingById.get(l.ingredient_id)?.menu_item_id === d.itemId)
+        : all.filter(l => !l.variant_id || l.variant_id === d.variantId)
       if (!own.length) {
-        addQty(missing, d.key, d.itemId ? d.name : `${d.name} (vlastná)`, d.amount, d.unit)
+        const name = self ? `${d.name} — surovina bez kategórie` : d.itemId ? d.name : `${d.name} (vlastná)`
+        addQty(missing, d.key, name, d.amount, d.unit)
         continue
       }
       if (d.served == null) {
@@ -87,7 +89,7 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
         }
         totals.set(ing.id, (totals.get(ing.id) ?? 0) + Number(l.amount) * lf * factor)
       }
-      if (!d.variantId && all.some(l => l.variant_id)) {
+      if (!self && !d.variantId && all.some(l => l.variant_id)) {
         addCheck(d.name, 'nie je vybratý variant — započítaný len základ')
       }
     }
@@ -113,7 +115,6 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
       hasMenu: !!e.model, hasRaut: !!e.model?.hasRaut, counts: e.model?.counts ?? null,
     })),
     groups,
-    fromMenu: [...fromMenu.values()].map(a => ({ name: a.name, total: dishQty(a.amount, a.unit) })),
     missing:  [...missing.values()].map(a => ({ name: a.name, total: dishQty(a.amount, a.unit) })),
     check:    [...check.values()],
     printedAt: new Date(),

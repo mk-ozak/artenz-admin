@@ -166,12 +166,9 @@ export function ingredientsA4Html(model) {
     ...ev,
     label: `${shortDate(ev.date)} · ${ev.hallShort}${ev.time ? ` · ${ev.time}` : ''}`,
   }))
-  const groups = [
-    ...model.groups.map(g => `<section><h2>${esc(g.name)}</h2><table>${rowsHtml(g.rows)}</table></section>`),
-    ...(model.fromMenu.length
-      ? [`<section><h2>Hotovky</h2><table>${rowsHtml(model.fromMenu)}</table></section>`]
-      : []),
-  ].join('')
+  const groups = model.groups
+    .map(g => `<section><h2>${esc(g.name)}</h2><table>${rowsHtml(g.rows)}</table></section>`)
+    .join('')
   const missing = model.missing.length
     ? `<div class="box"><h2>Bez receptúry — nezapočítané</h2><table>${rowsHtml(model.missing)}</table></div>`
     : ''

@@ -220,17 +220,23 @@ export async function exportRecipeData() {
   }
 
   const wsIngs = addSheet(wb, 'Suroviny', [
-    { header: 'ID suroviny', key: 'id',   width: 38 },
-    { header: 'Kategória',   key: 'cat',  width: 28 },
-    { header: 'Surovina',    key: 'name', width: 34 },
-    { header: 'Jednotka',    key: 'unit', width: 9 },
+    { header: 'ID suroviny',  key: 'id',   width: 38 },
+    { header: 'Kategória',    key: 'cat',  width: 28 },
+    { header: 'Surovina',     key: 'name', width: 34 },
+    { header: 'Jednotka',     key: 'unit', width: 9 },
+    { header: 'Samo-surovina položky', key: 'self', width: 40 },
   ])
+  // Samo-surovina (položka menu je sama surovinou) — názov jej položky
+  const itemName = Object.fromEntries((i.data ?? []).map(x => [x.id, x.name]))
   // Nearchivované suroviny nearchivovaných kategórií, v poradí z Nastavení
   const activeIngs = (ing.data ?? [])
     .filter(x => !x.archived_at && ingCatOf[x.category_id] && !ingCatOf[x.category_id].archived_at)
     .sort((a, b) => ingCatOf[a.category_id].position - ingCatOf[b.category_id].position || a.position - b.position)
   for (const x of activeIngs) {
-    wsIngs.addRow({ id: x.id, cat: ingCatOf[x.category_id].name, name: x.name, unit: x.unit }).font = { size: 10 }
+    wsIngs.addRow({
+      id: x.id, cat: ingCatOf[x.category_id].name, name: x.name, unit: x.unit,
+      self: x.menu_item_id ? (itemName[x.menu_item_id] ?? '(vymazaná položka)') : '',
+    }).font = { size: 10 }
   }
 
   const wsLines = addSheet(wb, 'Receptúry', [

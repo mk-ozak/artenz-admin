@@ -26,9 +26,7 @@ export default function IngredientCalcCard({ ticket, reloadKey }) {
     events: [{ hallShort: ticket.hallShort, date: ticket.date, time: ticket.time, title: ticket.title, model: ticket }],
     ...data,
   })
-  const groups = model
-    ? [...model.groups, ...(model.fromMenu.length ? [{ name: 'Hotovky', rows: model.fromMenu }] : [])]
-    : []
+  const groups = model?.groups ?? []
 
   // Tlač na A4 — rovnaká strana ako KALKULÁCIA SUROVÍN na dashboarde
   function printA4() {

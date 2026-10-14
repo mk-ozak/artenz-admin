@@ -20,6 +20,10 @@ const inRecipes = n => `v ${n} ${n === 1 ? 'receptúre' : 'receptúrach'}`
 // mazaní buď nahradíš inou (všade naraz), vymažeš aj z receptúr, alebo ju
 // necháš v receptúrach (označená „vymazaná", ďalej sa počíta). Jednotku
 // suroviny, ktorá je už v receptúre, nejde zmeniť (z 200 g by sa stalo 200 ks).
+// Samo-suroviny položiek menu (prípitky, omáčky…) sú zašednuté so štítkom
+// „z menu" — názov, jednotka a mazanie sa riešia pri položke v Menu (čiapka),
+// tu sa mení len kategória a poradie. Po vymazaní položky (alebo jej
+// kategórie) z menu je to bežná surovina.
 // embedded = v okne receptúry (bez úvodného textu a exportu)
 export default function IngredientSettings({ embedded = false }) {
   const [categories, setCategories]   = useState([])
@@ -54,7 +58,11 @@ export default function IngredientSettings({ embedded = false }) {
     setError(null)
     const [c, i, l] = await Promise.all([
       supabase.from('ingredient_categories').select('*').is('archived_at', null).order('position'),
-      supabase.from('ingredients').select('*').is('archived_at', null).order('position'),
+      supabase
+        .from('ingredients')
+        .select('*, menu_item:menu_items!ingredients_menu_item_id_fkey(name, archived_at, menu_categories(archived_at))')
+        .is('archived_at', null)
+        .order('position'),
       fetchAllRows((from, to) => supabase
         .from('menu_item_recipe_lines')
         .select('id, item_id, ingredient_id, menu_items(name)')
@@ -196,6 +204,7 @@ export default function IngredientSettings({ embedded = false }) {
   }
 
   function setUnit(ing, unit) {
+    if (selfItemOf(ing)) return
     if (usage[ing.id]?.length) {
       setError(`Jednotku suroviny „${ing.name}" nejde zmeniť — je ${inRecipes(usage[ing.id].length)}.`)
       return
@@ -206,6 +215,7 @@ export default function IngredientSettings({ embedded = false }) {
 
   // Surovina v receptúrach → panel s možnosťami; inak 2 kliky „Naozaj?"
   async function deleteIngredient(ing) {
+    if (selfItemOf(ing)) return
     if (usage[ing.id]?.length) {
       setDeleting(d => (d?.id === ing.id ? null : { id: ing.id, replaceId: '' }))
       return
@@ -249,6 +259,13 @@ export default function IngredientSettings({ embedded = false }) {
   // Len zo zoznamu — v receptúrach ostane ako „vymazaná" a ďalej sa počíta
   async function archiveOnly(ing) {
     if (await archiveIngredient(ing)) setDeleting(null)
+  }
+
+  // Položka menu, ktorej je surovina samo-surovinou (null = bežná surovina,
+  // aj keď položku alebo jej kategóriu z menu vymazali)
+  function selfItemOf(ing) {
+    const it = ing.menu_item_id ? ing.menu_item : null
+    return it && !it.archived_at && !it.menu_categories?.archived_at ? it : null
   }
 
   if (loading) {
@@ -343,33 +360,53 @@ export default function IngredientSettings({ embedded = false }) {
     )
   }
 
-  // Riadok suroviny; handleProps = null → bez úchytky (vyhľadávanie)
+  // Riadok suroviny; handleProps = null → bez úchytky (vyhľadávanie).
+  // Samo-surovina: zašednutá, mení sa len kategória (a poradie ťahaním)
   function ingredientRow(ing, handleProps) {
-    const used = usage[ing.id]?.length ?? 0
+    const self = selfItemOf(ing)
+    // Pri samo-surovine len receptúry iných položiek (svoj riadok má vždy)
+    const used = (usage[ing.id] ?? []).filter(r => r.id !== (self ? ing.menu_item_id : null)).length
     return (
       <>
-      <div className="px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
+      <div className={`px-3 py-1.5 flex items-center gap-1.5 flex-wrap ${self ? 'bg-[#f6f8f9]' : ''}`}>
         {handleProps ? <DragHandle {...handleProps} /> : <span className="w-7 shrink-0" />}
 
-        <BlurInput
-          value={ing.name}
-          onSave={name => {
-            if (!name.trim()) return
-            patch('ingredients', ing.id, { name: name.trim() }, () =>
-              setIngredients(is => is.map(i => i.id === ing.id ? { ...i, name: name.trim() } : i)))
-          }}
-          className="flex-1 min-w-[150px] text-gray-800"
-        />
+        {self ? (
+          <span
+            className="flex-1 min-w-[150px] px-2 py-1 text-sm text-gray-500"
+            title={`Samo-surovina položky menu „${self.name}" — názov, jednotku a množstvo upravíš v Nastavenia → Menu (čiapka pri položke)`}
+          >
+            {ing.name}
+            <span className="ml-1.5 text-[10px] font-semibold uppercase text-[#5d7d8e] bg-[#e3ebef]
+                             rounded px-1 py-px whitespace-nowrap">
+              z menu
+            </span>
+          </span>
+        ) : (
+          <BlurInput
+            value={ing.name}
+            onSave={name => {
+              if (!name.trim()) return
+              patch('ingredients', ing.id, { name: name.trim() }, () =>
+                setIngredients(is => is.map(i => i.id === ing.id ? { ...i, name: name.trim() } : i)))
+            }}
+            className="flex-1 min-w-[150px] text-gray-800"
+          />
+        )}
 
-        {used > 0 && <span className="text-[11px] text-gray-400 shrink-0">{inRecipes(used)}</span>}
+        {used > 0 && (
+          <span className="text-[11px] text-gray-400 shrink-0">{self ? `aj ${inRecipes(used)}` : inRecipes(used)}</span>
+        )}
 
         <select
           value={ing.unit}
           onChange={e => setUnit(ing, e.target.value)}
-          disabled={used > 0}
-          title={used > 0
-            ? `Jednotku nejde zmeniť — surovina je ${inRecipes(used)}`
-            : 'Jednotka, v ktorej sa surovina objednáva'}
+          disabled={!!self || used > 0}
+          title={self
+            ? 'Jednotku samo-suroviny upravíš pri položke v Nastavenia → Menu (čiapka)'
+            : used > 0
+              ? `Jednotku nejde zmeniť — surovina je ${inRecipes(used)}`
+              : 'Jednotka, v ktorej sa surovina objednáva'}
           aria-label="Jednotka"
           className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 shrink-0
                      disabled:bg-field-locked disabled:border-field-locked-border disabled:text-gray-500
@@ -391,11 +428,14 @@ export default function IngredientSettings({ embedded = false }) {
 
         <button
           onClick={() => deleteIngredient(ing)}
-          title={used > 0 ? 'Vymazať surovinu — ukáže, v ktorých receptúrach je' : 'Vymazať surovinu'}
+          disabled={!!self}
+          title={self
+            ? 'Samo-surovinu zrušíš pri položke v Nastavenia → Menu (čiapka, odškrtnúť „Položka je sama surovinou")'
+            : used > 0 ? 'Vymazať surovinu — ukáže, v ktorých receptúrach je' : 'Vymazať surovinu'}
           aria-label="Vymazať surovinu"
-          aria-expanded={used > 0 ? deleting?.id === ing.id : undefined}
+          aria-expanded={used > 0 && !self ? deleting?.id === ing.id : undefined}
           className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
-                      inline-flex items-center gap-1 shrink-0
+                      inline-flex items-center gap-1 shrink-0 disabled:opacity-40 disabled:pointer-events-none
                       ${confirmDelete === `ing:${ing.id}` || deleting?.id === ing.id
                         ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
                         : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
@@ -525,7 +565,8 @@ export default function IngredientSettings({ embedded = false }) {
       {!embedded && (
         <p className="text-xs text-[#5d7d8e]">
           Suroviny pre receptúry jedál a kalkuláciu surovín. Receptúru jedla upravíš
-          v záložke Menu ikonou čiapky pri položke.
+          v záložke Menu ikonou čiapky pri položke. Zašednuté „z menu" sú položky, ktoré
+          sú samy surovinou (prípitky, omáčky…) — upravujú sa pri položke v Menu.
         </p>
       )}
 

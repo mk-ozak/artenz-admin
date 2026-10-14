@@ -26,7 +26,7 @@ export const hallShortOf = row => (row?.is_vo ? VO_KITCHEN_NAME : (HALL_SHORT[ro
 // ── Rozpoznanie v katalógu ───────────────────────────────────────────────
 // Kategórie podľa ID (menu_categories.id) — na názve kategórie ani položky
 // nezáleží. Prípitky sa netlačia v sekciách, ale pod názvom akcie bez množstva.
-const TOAST_CATEGORIES = [
+export const TOAST_CATEGORIES = [
   { id: 'e9d6904c-5fa5-464a-ab00-5fea29f52b49', label: 'Prípitok' },      // Prípitok
   { id: 'ca3b1eec-d8eb-4323-a227-d8171750d9aa', label: 'Prípitok deti' }, // Detský prípitok
 ]
