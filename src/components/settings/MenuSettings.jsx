@@ -1,15 +1,17 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  IconChevronDown, IconChevronRight, IconGripVertical, IconPlus, IconTrash, IconX,
+  IconChefHat, IconChevronDown, IconChevronRight, IconPlus, IconTrash, IconX,
   IconFileSpreadsheet, IconListCheck, IconLoader2,
 } from '@tabler/icons-react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { supabase } from '../../lib/supabase'
 import { MENU_COLORS } from '../../lib/menuColors'
+import { fetchAllRows } from '../../lib/ingredients'
 import { exportMenuCatalog } from '../../utils/exportMenu'
 import BlurInput from './BlurInput'
+import RecipeModal from './RecipeModal'
+import { DragHandle, SortableRow } from './Sortable'
 
 // Pravidlá množstva kategórie — predvoľby podľa biznis pravidiel.
 // „split" = bez množstva, pri 2+ vybratých položkách príznak podielu (1/2…)
@@ -32,35 +34,6 @@ function presetKey(cat) {
     p.qty_unit === cat.qty_unit
   )
   return p?.key ?? 'custom'
-}
-
-// Riadok preusporiadateľný ťahaním; children dostanú props pre úchytku
-function SortableRow({ id, className = '', children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`${className} ${isDragging ? 'relative z-10 opacity-80 shadow-lg' : ''}`}
-    >
-      {children({ ...attributes, ...listeners })}
-    </div>
-  )
-}
-
-// Úchytka na ťahanie — touch-none, aby ťahanie prstom nescrollovalo stránku
-function DragHandle(props) {
-  return (
-    <button
-      type="button"
-      aria-label="Presunúť ťahaním"
-      className="w-7 h-7 shrink-0 rounded flex items-center justify-center text-gray-300
-                 hover:text-gray-500 cursor-grab active:cursor-grabbing touch-none"
-      {...props}
-    >
-      <IconGripVertical size={16} />
-    </button>
-  )
 }
 
 // Výber farebného pásika položky — kruh s aktuálnou farbou, klik otvorí
@@ -140,6 +113,11 @@ export default function MenuSettings() {
   const [exporting, setExporting] = useState(false)
   const [exportErr, setExportErr] = useState('')
 
+  // Receptúry: stav pre ikonu pri položke (item_id → { lines, isIngredient })
+  // a otvorené okno receptúry
+  const [recipeStatus, setRecipeStatus] = useState({})
+  const [recipeItemId, setRecipeItemId] = useState(null)
+
   async function handleExport() {
     setExportErr('')
     setExporting(true)
@@ -155,7 +133,22 @@ export default function MenuSettings() {
   // Ťahanie sa spustí až po pohybe o pár px — klik na úchytku nič nepresúva
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll(); loadRecipeStatus() }, [])
+
+  // Stav receptúr pre ikonu pri položke (počet surovín, „surovina"). Bez
+  // migrácie surovín tabuľky ešte nie sú — ikona ostane sivá, menu funguje ďalej.
+  async function loadRecipeStatus() {
+    const [r, l] = await Promise.all([
+      supabase.from('menu_item_recipes').select('item_id, is_ingredient'),
+      fetchAllRows((from, to) =>
+        supabase.from('menu_item_recipe_lines').select('id, item_id').order('id').range(from, to)),
+    ])
+    if (r.error || l.error) return
+    const status = {}
+    for (const x of l.data) (status[x.item_id] ??= { lines: 0, isIngredient: false }).lines++
+    for (const x of r.data ?? []) (status[x.item_id] ??= { lines: 0, isIngredient: false }).isIngredient = x.is_ingredient
+    setRecipeStatus(status)
+  }
 
   async function fetchAll() {
     setLoading(true)
@@ -587,6 +580,30 @@ export default function MenuSettings() {
                                         )}
                                       </button>
 
+                                      {/* Receptúra — sivá = bez receptúry, zelená = počet
+                                          surovín alebo „Surovina" (položka je sama surovinou) */}
+                                      {(() => {
+                                        const st = recipeStatus[item.id]
+                                        const filled = st?.isIngredient || st?.lines > 0
+                                        return (
+                                          <button
+                                            onClick={() => setRecipeItemId(item.id)}
+                                            title="Receptúra — suroviny pre kalkuláciu surovín"
+                                            className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
+                                                        inline-flex items-center gap-1 shrink-0
+                                                        ${filled
+                                                          ? 'border-[#4cbfb3] bg-[#eaf7f5] text-[#1a6e66]'
+                                                          : 'border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300'}`}
+                                          >
+                                            <IconChefHat size={14} />
+                                            {st?.isIngredient ? 'Surovina' : 'Receptúra'}
+                                            {!st?.isIngredient && st?.lines > 0 && (
+                                              <span className="font-normal opacity-60">{st.lines}</span>
+                                            )}
+                                          </button>
+                                        )
+                                      })()}
+
                                       <ColorPicker
                                         value={item.color ?? null}
                                         onChange={color =>
@@ -788,6 +805,20 @@ export default function MenuSettings() {
         </button>
         {exportErr && <p className="mt-2 text-xs text-red-500">{exportErr}</p>}
       </div>
+
+      {/* Okno receptúry položky; po zavretí sa obnoví stav ikon */}
+      {recipeItemId && (() => {
+        const item = items.find(i => i.id === recipeItemId)
+        if (!item) return null
+        return (
+          <RecipeModal
+            item={item}
+            category={categories.find(c => c.id === item.category_id)}
+            variants={item.has_variants ? variants.filter(v => v.item_id === item.id) : []}
+            onClose={() => { setRecipeItemId(null); loadRecipeStatus() }}
+          />
+        )
+      })()}
     </div>
   )
 }

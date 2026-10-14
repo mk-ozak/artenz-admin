@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/auth'
 import ActivityLogs from '../components/settings/ActivityLogs'
 import ChangePassword from '../components/settings/ChangePassword'
 import MenuSettings from '../components/settings/MenuSettings'
+import IngredientSettings from '../components/settings/IngredientSettings'
 import MenuTemplates from '../components/settings/MenuTemplates'
 import VersionInfo from '../components/settings/VersionInfo'
 
@@ -56,7 +57,7 @@ export default function Settings() {
 
   // Otvorená záložka; z adresy sa dá otvoriť priamo (napr. /settings?tab=menu z menu rezervácie)
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'templates' | 'logs' | 'vo' | 'version'
+  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'ingredients' | 'templates' | 'logs' | 'vo' | 'version'
 
   const isAdmin = currentUserRole === 'admin'
 
@@ -210,7 +211,7 @@ export default function Settings() {
         {/* Tabs */}
         <div className="border-b border-[#dde8ec] mb-6">
           <div className="flex gap-1 overflow-x-auto overflow-y-hidden">
-            {[['users', 'Používatelia'], ['menu', 'Menu'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['vo', 'VO'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
+            {[['users', 'Používatelia'], ['menu', 'Menu'], ['ingredients', 'Suroviny'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['vo', 'VO'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -245,6 +246,8 @@ export default function Settings() {
           <ActivityLogs />
         ) : tab === 'menu' ? (
           <MenuSettings />
+        ) : tab === 'ingredients' ? (
+          <IngredientSettings />
         ) : tab === 'templates' ? (
           <MenuTemplates />
         ) : tab === 'vo' ? (

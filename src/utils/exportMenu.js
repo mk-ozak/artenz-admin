@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs'
 import { supabase } from '../lib/supabase'
+import { fetchAllRows } from '../lib/ingredients'
+import { calcQtyOf, fmtQty } from '../lib/menuCalc'
 
 const DNI_SK = ['nedeľa', 'pondelok', 'utorok', 'streda', 'štvrtok', 'piatok', 'sobota']
 const STATUS_LABEL = { open: 'Otvorené', closed: 'Zatvorené' }
@@ -118,6 +120,149 @@ export async function exportMenuCatalog() {
 
   await downloadWorkbook(wb, `${todayStamp()}_menu_katalog.xlsx`)
   return count
+}
+
+// Hárok s ukotvenou a ofarbenou hlavičkou
+function addSheet(wb, name, columns) {
+  const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] })
+  ws.columns = columns
+  const head = ws.getRow(1)
+  head.height = 20
+  head.eachCell((cell) => {
+    cell.fill = solid('FF2B3F4E')
+    cell.font = { bold: true, size: 10, color: { argb: 'FFC0D8E8' } }
+    cell.alignment = { vertical: 'middle' }
+  })
+  return ws
+}
+
+// ── Export pre receptúry (Nastavenia → Suroviny) ──
+// Podklad, z ktorého Claude pripraví receptúry: jedlá katalógu s ID (blok,
+// kategória, ako ich počíta kalkulácia pre kuchyňu — v tej jednotke je dávka
+// receptúry), varianty, suroviny a už zadané receptúry. Len nearchivované
+// položky, varianty a suroviny.
+export async function exportRecipeData() {
+  const [c, i, v, ic, ing, r, l] = await Promise.all([
+    supabase.from('menu_categories').select('*').is('archived_at', null).order('block').order('position'),
+    supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
+    supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
+    supabase.from('ingredient_categories').select('*').order('position'),
+    supabase.from('ingredients').select('*').order('position'),
+    supabase.from('menu_item_recipes').select('*'),
+    fetchAllRows((from, to) =>
+      supabase.from('menu_item_recipe_lines').select('*').order('position').order('id').range(from, to)),
+  ])
+  for (const x of [c, i, v, ic, ing, r, l]) if (x.error) throw new Error(x.error.message)
+
+  const variants  = v.data ?? []
+  const ingCatOf  = Object.fromEntries((ic.data ?? []).map(x => [x.id, x]))
+  const ingById   = Object.fromEntries((ing.data ?? []).map(x => [x.id, x]))
+  const recipeOf  = Object.fromEntries((r.data ?? []).map(x => [x.item_id, x]))
+  const variantOf = Object.fromEntries(variants.map(x => [x.id, x]))
+  // Položky v poradí katalógu (blok, kategória, poradie)
+  const items = (c.data ?? []).flatMap(cat =>
+    (i.data ?? []).filter(it => it.category_id === cat.id).map(it => ({ it, cat })))
+  const linesOf = {}
+  for (const line of l.data) (linesOf[line.item_id] ??= []).push(line)
+
+  const wb = new ExcelJS.Workbook()
+
+  const wsItems = addSheet(wb, 'Jedlá', [
+    { header: 'ID položky',        key: 'id',    width: 38 },
+    { header: 'Blok',              key: 'block', width: 6 },
+    { header: 'Kategória',         key: 'cat',   width: 24 },
+    { header: 'Kalkulácia',        key: 'calc',  width: 30 },
+    { header: 'Dávka v',           key: 'unit',  width: 8 },
+    { header: 'Položka',           key: 'item',  width: 60 },
+    { header: 'Varianty',          key: 'vars',  width: 44 },
+    { header: 'Surovina',          key: 'ing',   width: 9 },
+    { header: 'Receptúra na',      key: 'yield', width: 13 },
+    { header: 'Riadkov receptúry', key: 'n',     width: 10 },
+  ])
+  for (const { it, cat } of items) {
+    const qty  = calcQtyOf(cat)
+    const rec  = recipeOf[it.id]
+    const opts = it.has_variants ? variants.filter(x => x.item_id === it.id) : []
+    wsItems.addRow({
+      id:    it.id,
+      block: cat.block,
+      cat:   cat.name,
+      calc:  !qty
+        ? 'bez množstva'
+        : qty.portion != null
+          ? `${fmtQty(qty.portion)}${qty.unit ? ` ${qty.unit}` : ''} na osobu${qty.split ? ', delené pri 2+' : ''}`
+          : `${qty.unit ?? 'množstvo'} zadávané ručne`,
+      unit:  qty?.unit ?? '',
+      item:  it.name,
+      vars:  opts.length ? `${it.variant_group_name?.trim() || 'Varianty'}: ${opts.map(o => o.name).join(', ')}` : '',
+      ing:   rec?.is_ingredient ? 'áno' : '',
+      yield: rec ? `${fmtQty(rec.yield_amount)}${rec.yield_unit ? ` ${rec.yield_unit}` : ''}` : '',
+      n:     linesOf[it.id]?.length ?? '',
+    }).font = { size: 10 }
+  }
+
+  const wsVariants = addSheet(wb, 'Varianty', [
+    { header: 'ID variantu', key: 'id',    width: 38 },
+    { header: 'ID položky',  key: 'item',  width: 38 },
+    { header: 'Kategória',   key: 'cat',   width: 24 },
+    { header: 'Položka',     key: 'name',  width: 60 },
+    { header: 'Skupina',     key: 'group', width: 14 },
+    { header: 'Variant',     key: 'var',   width: 30 },
+  ])
+  for (const { it, cat } of items) {
+    if (!it.has_variants) continue
+    for (const o of variants.filter(x => x.item_id === it.id)) {
+      wsVariants.addRow({
+        id: o.id, item: it.id, cat: cat.name, name: it.name,
+        group: it.variant_group_name ?? '', var: o.name,
+      }).font = { size: 10 }
+    }
+  }
+
+  const wsIngs = addSheet(wb, 'Suroviny', [
+    { header: 'ID suroviny', key: 'id',   width: 38 },
+    { header: 'Kategória',   key: 'cat',  width: 28 },
+    { header: 'Surovina',    key: 'name', width: 34 },
+    { header: 'Jednotka',    key: 'unit', width: 9 },
+  ])
+  // Nearchivované suroviny nearchivovaných kategórií, v poradí z Nastavení
+  const activeIngs = (ing.data ?? [])
+    .filter(x => !x.archived_at && ingCatOf[x.category_id] && !ingCatOf[x.category_id].archived_at)
+    .sort((a, b) => ingCatOf[a.category_id].position - ingCatOf[b.category_id].position || a.position - b.position)
+  for (const x of activeIngs) {
+    wsIngs.addRow({ id: x.id, cat: ingCatOf[x.category_id].name, name: x.name, unit: x.unit }).font = { size: 10 }
+  }
+
+  const wsLines = addSheet(wb, 'Receptúry', [
+    { header: 'ID položky',  key: 'item',   width: 38 },
+    { header: 'Položka',     key: 'name',   width: 50 },
+    { header: 'Receptúra na', key: 'yield', width: 13 },
+    { header: 'ID variantu', key: 'varId',  width: 38 },
+    { header: 'Variant',     key: 'var',    width: 24 },
+    { header: 'ID suroviny', key: 'ingId',  width: 38 },
+    { header: 'Surovina',    key: 'ing',    width: 30 },
+    { header: 'Množstvo',    key: 'amount', width: 10 },
+    { header: 'Jednotka',    key: 'unit',   width: 9 },
+  ])
+  for (const { it } of items) {
+    const rec = recipeOf[it.id]
+    for (const line of linesOf[it.id] ?? []) {
+      wsLines.addRow({
+        item:   it.id,
+        name:   it.name,
+        yield:  rec ? `${fmtQty(rec.yield_amount)}${rec.yield_unit ? ` ${rec.yield_unit}` : ''}` : '',
+        varId:  line.variant_id ?? '',
+        var:    line.variant_id ? (variantOf[line.variant_id]?.name ?? '(vymazaný variant)') : 'základ',
+        ingId:  line.ingredient_id,
+        ing:    ingById[line.ingredient_id]?.name ?? '?',
+        amount: Number(line.amount),
+        unit:   line.unit,
+      }).font = { size: 10 }
+    }
+  }
+
+  await downloadWorkbook(wb, `${todayStamp()}_podklady_receptury.xlsx`)
+  return items.length
 }
 
 // ── Export celej databázy denných menu (meničiek) do Excelu ──

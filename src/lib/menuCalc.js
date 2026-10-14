@@ -3,6 +3,7 @@
 // aby čísla na lístku vždy sedeli s adminom.
 
 import { selCatId } from './menuVariants'
+import { PER_PERSON_BLOCKS } from './menuSummary'
 
 // Množstvo: 0.5 → „0,5"
 export const fmtQty = q => String(Number(q)).replace('.', ',')
@@ -79,6 +80,20 @@ export function calcLine(sel, cat, catSels, count) {
     unit,
     mnozstvo,
   }
+}
+
+// Množstvo jedla kategórie v kalkulácii pre kuchyňu — v jeho jednotke sa píše
+// dávka receptúry (Nastavenia → Menu → receptúra). Bloky násobené počtom osôb:
+// porcia kategórie × osoby (portion = porcia na osobu, split = delí sa pri
+// 2+ položkách); ostatné bloky: naklikané množstvo. Rovnaké pravidlá ako calcLine.
+// null = kategória v kalkulácii množstvo nemá.
+export function calcQtyOf(cat) {
+  if (PER_PERSON_BLOCKS.includes(cat.block)) {
+    return cat.default_amount != null
+      ? { unit: cat.default_unit ?? null, portion: Number(cat.default_amount), split: !!cat.split_portions }
+      : null
+  }
+  return cat.qty_step != null ? { unit: cat.qty_unit ?? null, portion: null, split: false } : null
 }
 
 // Kategórie pre menu jednej akcie: živý katalóg, ale kategórie zamrazených

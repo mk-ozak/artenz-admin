@@ -8,6 +8,11 @@ export const RAUT_BLOCKS = [4, 5]
 // Bloky hlavného jedla (dospelí, deti, špeciály) — pri vypnutom hlavnom jedle sa skryjú
 export const MAIN_BLOCKS = [1, 2, 3]
 
+// Bloky, ktoré kalkulácia pre kuchyňu násobí počtom osôb (porcia kategórie ×
+// osoby) — 1 = dospelí, 2 = deti s jedlom (calc.countByBlock v menuSummaryConfig);
+// v ostatných blokoch sa berie naklikané množstvo
+export const PER_PERSON_BLOCKS = [1, 2]
+
 // Skryté bloky podľa prepínačov Hlavné jedlo / Raut (menu, kalkulácia aj tlač)
 export function hiddenBlocksOf({ mainOn = true, rautOn = true }) {
   return [...(mainOn ? [] : MAIN_BLOCKS), ...(rautOn ? [] : RAUT_BLOCKS)]
