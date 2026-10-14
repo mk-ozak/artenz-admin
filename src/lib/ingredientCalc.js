@@ -3,7 +3,7 @@
 // menu (Nastavenia → Menu → čiapka). Množstvo jedla ako v menu (served — v surovom
 // stave, ryža a cestoviny v hotovom)
 // / dávka receptúry × riadky receptúry; položky „sama surovinou" idú do skupiny
-// Z MENU s množstvom z lístka. Čo sa spočítať nedá, ide do BEZ RECEPTÚRY alebo
+// HOTOVKY s množstvom z lístka. Čo sa spočítať nedá, ide do BEZ RECEPTÚRY alebo
 // SKONTROLUJ — kuchyňa nesmie o nič prísť.
 
 import { fmtQty } from './menuCalc'

@@ -5,8 +5,8 @@ import { EVENT_LABEL } from '../../lib/eventTypes'
 import { voLabelWithName } from '../../lib/vo'
 import { buildMenuSections } from '../../lib/menuCalc'
 import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, ticketTimeOf } from '../../lib/menuSummary'
-import { fetchAllRows } from '../../lib/ingredients'
 import { buildIngredientSummary } from '../../lib/ingredientCalc'
+import { loadRecipeData } from '../../lib/recipeData'
 import { toISO } from '../../utils/diaryWeeks'
 import { DAYS_SHORT } from '../../utils/format'
 import { daySummaryA4Html, ingredientsA4Html } from '../../utils/a4Print'
@@ -121,23 +121,6 @@ export default function DaySummary({ refreshKey }) {
       })
       return { ...event, model: buildKitchenTicket({ sections, selsByCat, summary }) }
     })
-  }
-
-  // Receptúry, ich riadky a suroviny (aj vymazané — receptúry ich ďalej počítajú)
-  async function loadRecipeData() {
-    const [r, l, i, c] = await Promise.all([
-      supabase.from('menu_item_recipes').select('item_id, is_ingredient, yield_amount, yield_unit'),
-      fetchAllRows((from, to) => supabase
-        .from('menu_item_recipe_lines')
-        .select('id, item_id, variant_id, ingredient_id, amount, unit')
-        .order('id')
-        .range(from, to)),
-      supabase.from('ingredients').select('id, category_id, name, unit, position, archived_at'),
-      supabase.from('ingredient_categories').select('id, name, position, archived_at'),
-    ])
-    const err = r.error || l.error || i.error || c.error
-    if (err) throw new Error(err.message)
-    return { recipes: r.data ?? [], lines: l.data, ingredients: i.data ?? [], categories: c.data ?? [] }
   }
 
   // Tlač na A4 cez systémové okno tlače. Okno sa otvorí hneď pri ťuknutí

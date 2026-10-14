@@ -474,7 +474,7 @@ export default function MenuSettings({ categoryId = null }) {
                         </label>
 
                         <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0"
-                               title="Kalkulácia pre kuchyňu — množstvo na osobu + jednotka">
+                               title="Sumár pre kuchyňu — množstvo na osobu + jednotka">
                           jedn.
                           <BlurInput
                             type="number"

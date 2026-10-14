@@ -515,7 +515,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           Menu
         </p>
         {/* Šablóna a vymazanie len keď je menu vytvorené; nastavenia menu vždy pri úprave
-            (tlač je v karte Kalkulácia pre kuchyňu) */}
+            (tlač je v karte Sumár pre kuchyňu) */}
         {editable && (
         <div className="flex items-center gap-1">
           {menuCreated && (
@@ -617,6 +617,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
           lockedQtyBlocks={vo ? VO_LOCKED_QTY_BLOCKS : undefined}
           canAddCatalog={!vo}
           canAddCustom={vo}
+          showIngredients={!vo}
         />
       )}
 

@@ -17,6 +17,7 @@ import {
 } from '../../utils/kitchenTicket'
 import TicketPreview from './TicketPreview'
 import MenuSettings from '../settings/MenuSettings'
+import IngredientCalcCard from './IngredientCalcCard'
 
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -74,10 +75,12 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 //   ani otvoriť nastavenia kategórie (koliesko) — VO
 // canAddCustom: true = (bez katalógu) v okne výberu sa dá dopísať vlastná položka —
 //   len text v tomto menu (item_id = null), do katalógu ju pridá admin (VO)
+// showIngredients: true = pod Sumárom pre kuchyňu karta Kalkulácia surovín tohto
+//   menu (detail rezervácie; VO nie — suroviny a receptúry sú naše)
 export default function MenuEditor({
   table, ownerColumn, ownerId, editable, extraBeforeBlock, aboveBlock, hiddenBlocks, summary,
   customerPrintTarget, printMode = 'all', customerPrintTitle, lockedQtyBlocks, canAddCatalog = true,
-  canAddCustom = false,
+  canAddCustom = false, showIngredients = false,
 }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])   // aktívne položky katalógu
@@ -88,6 +91,8 @@ export default function MenuEditor({
   const [pickerCatId, setPickerCatId] = useState(null)
   // Okno výberu: 'select' = výber položiek, 'settings' = nastavenia kategórie (koliesko)
   const [pickerView, setPickerView]   = useState('select')
+  // Karta Kalkulácia surovín — zvýšením sa receptúry načítajú znova
+  const [recipesKey, setRecipesKey]   = useState(0)
   // Pridanie novej položky do katalógu (alebo vlastnej položky) priamo z výberu
   const [newItemName, setNewItemName] = useState('')
   const [addingItem, setAddingItem]   = useState(false)
@@ -123,8 +128,10 @@ export default function MenuEditor({
   useEffect(() => { setNewItemName(''); setPickerView('select') }, [pickerCatId])
 
   // Z nastavení kategórie späť na výber — katalóg sa načíta znova
+  // (aj receptúry pre kartu Kalkulácia surovín)
   async function backToPicker() {
     await loadAll()
+    setRecipesKey(k => k + 1)
     setPickerView('select')
   }
 
@@ -811,12 +818,12 @@ export default function MenuEditor({
             </div>
           )}
 
-          {/* Kalkulácia pre kuchyňu — sekcie + stĺpce jednotkové/množstvo */}
+          {/* Sumár pre kuchyňu — sekcie + stĺpce jednotkové/množstvo */}
           {summary?.calc && hasAnySelection && (
             <div className="rounded-card border border-[#e0e8ec] overflow-hidden bg-white">
               <div className="px-4 py-2 bg-[#8fa6b2]">
                 <p className="text-[10px] font-bold uppercase tracking-[.16em] text-white">
-                  Kalkulácia pre kuchyňu
+                  Sumár pre kuchyňu
                 </p>
               </div>
               {/* Tlač: do kuchyne (s množstvami) a zhrnutie pre zákazníka (bez nich) */}
@@ -847,6 +854,14 @@ export default function MenuEditor({
                 )}
               </div>
             </div>
+          )}
+
+          {/* Kalkulácia surovín tohto menu — množstvá jedál × receptúry */}
+          {showIngredients && summary?.calc && summary.ticket && hasAnySelection && (
+            <IngredientCalcCard
+              ticket={buildKitchenTicket({ sections: summarySections, selsByCat, summary })}
+              reloadKey={recipesKey}
+            />
           )}
         </div>
       )}

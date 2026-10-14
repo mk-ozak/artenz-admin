@@ -16,14 +16,15 @@ const inRecipes = n => `v ${n} ${n === 1 ? 'receptúre' : 'receptúrach'}`
 
 // Administrácia SUROVÍN pre receptúry a kalkuláciu surovín: kategórie (poradie
 // ťahaním, premenovanie) a ich suroviny (poradie, názov, jednotka, presun medzi
-// kategóriami). Mazanie = archivácia — surovina ostane v receptúrach, kde je
-// (v okne receptúry je označená „vymazaná"). Jednotku suroviny, ktorá je už
-// v receptúre, nejde zmeniť (z 200 g by sa stalo 200 ks).
+// kategóriami). Mazanie = archivácia. Surovinu, ktorá je v receptúrach, pri
+// mazaní buď nahradíš inou (všade naraz), vymažeš aj z receptúr, alebo ju
+// necháš v receptúrach (označená „vymazaná", ďalej sa počíta). Jednotku
+// suroviny, ktorá je už v receptúre, nejde zmeniť (z 200 g by sa stalo 200 ks).
 // embedded = v okne receptúry (bez úvodného textu a exportu)
 export default function IngredientSettings({ embedded = false }) {
   const [categories, setCategories]   = useState([])
   const [ingredients, setIngredients] = useState([])
-  const [usage, setUsage]             = useState({})  // ingredient_id → počet receptúr
+  const [usage, setUsage]             = useState({})  // ingredient_id → [{ id, name }] receptúr (jedál)
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState(null)
 
@@ -35,6 +36,8 @@ export default function IngredientSettings({ embedded = false }) {
   // Prvý klik = potvrdenie (~4 s), druhý = archivácia
   const [confirmDelete, setConfirmDelete] = useState(null) // 'cat:<id>' | 'ing:<id>'
   const confirmTimer = useRef(null)
+  // Mazanie suroviny, ktorá je v receptúrach: { id, replaceId } — otvorený panel
+  const [deleting, setDeleting] = useState(null)
 
   // Export pre receptúry (Excel s jedlami a surovinami aj s ID)
   const [exporting, setExporting] = useState(false)
@@ -45,14 +48,18 @@ export default function IngredientSettings({ embedded = false }) {
 
   useEffect(() => { fetchAll() }, [])
 
-  async function fetchAll() {
-    setLoading(true)
+  // quiet = bez točiaceho sa kolieska (obnova po nahradení / vymazaní)
+  async function fetchAll(quiet = false) {
+    if (!quiet) setLoading(true)
     setError(null)
     const [c, i, l] = await Promise.all([
       supabase.from('ingredient_categories').select('*').is('archived_at', null).order('position'),
       supabase.from('ingredients').select('*').is('archived_at', null).order('position'),
-      fetchAllRows((from, to) =>
-        supabase.from('menu_item_recipe_lines').select('id, item_id, ingredient_id').order('id').range(from, to)),
+      fetchAllRows((from, to) => supabase
+        .from('menu_item_recipe_lines')
+        .select('id, item_id, ingredient_id, menu_items(name)')
+        .order('id')
+        .range(from, to)),
     ])
     const err = c.error || i.error || l.error
     if (err) {
@@ -64,10 +71,13 @@ export default function IngredientSettings({ embedded = false }) {
     } else {
       setCategories(c.data ?? [])
       setIngredients(i.data ?? [])
-      // Počet receptúr (položiek menu), v ktorých je surovina
-      const items = {}
-      for (const r of l.data) (items[r.ingredient_id] ??= new Set()).add(r.item_id)
-      setUsage(Object.fromEntries(Object.entries(items).map(([id, s]) => [id, s.size])))
+      // Receptúry (jedlá), v ktorých je surovina — každé jedlo raz
+      const byIng = {}
+      for (const r of l.data) {
+        const list = (byIng[r.ingredient_id] ??= [])
+        if (!list.some(x => x.id === r.item_id)) list.push({ id: r.item_id, name: r.menu_items?.name ?? '?' })
+      }
+      setUsage(byIng)
     }
     setLoading(false)
   }
@@ -186,20 +196,59 @@ export default function IngredientSettings({ embedded = false }) {
   }
 
   function setUnit(ing, unit) {
-    if (usage[ing.id]) {
-      setError(`Jednotku suroviny „${ing.name}" nejde zmeniť — je ${inRecipes(usage[ing.id])}.`)
+    if (usage[ing.id]?.length) {
+      setError(`Jednotku suroviny „${ing.name}" nejde zmeniť — je ${inRecipes(usage[ing.id].length)}.`)
       return
     }
     patch('ingredients', ing.id, { unit }, () =>
       setIngredients(is => is.map(i => i.id === ing.id ? { ...i, unit } : i)))
   }
 
+  // Surovina v receptúrach → panel s možnosťami; inak 2 kliky „Naozaj?"
   async function deleteIngredient(ing) {
+    if (usage[ing.id]?.length) {
+      setDeleting(d => (d?.id === ing.id ? null : { id: ing.id, replaceId: '' }))
+      return
+    }
     if (confirmDelete !== `ing:${ing.id}`) { askConfirm(`ing:${ing.id}`); return }
     clearTimeout(confirmTimer.current)
     setConfirmDelete(null)
-    await patch('ingredients', ing.id, { archived_at: new Date().toISOString() }, () =>
+    await archiveIngredient(ing)
+  }
+
+  // Vymazanie = archivácia; zo zoznamu zmizne
+  async function archiveIngredient(ing) {
+    return patch('ingredients', ing.id, { archived_at: new Date().toISOString() }, () =>
       setIngredients(is => is.filter(i => i.id !== ing.id)))
+  }
+
+  // Nahradiť inou surovinou vo všetkých receptúrach (množstvá a jednotky
+  // ostávajú — náhrada má rovnakú jednotku), potom starú vymazať
+  async function replaceIngredient(ing, replaceId) {
+    const { error } = await supabase
+      .from('menu_item_recipe_lines')
+      .update({ ingredient_id: replaceId })
+      .eq('ingredient_id', ing.id)
+    if (error) { setError(error.message); return }
+    if (await archiveIngredient(ing)) {
+      setDeleting(null)
+      fetchAll(true)
+    }
+  }
+
+  // Vymazať aj z receptúr — riadky s touto surovinou sa odstránia
+  async function deleteWithLines(ing) {
+    const { error } = await supabase.from('menu_item_recipe_lines').delete().eq('ingredient_id', ing.id)
+    if (error) { setError(error.message); return }
+    if (await archiveIngredient(ing)) {
+      setDeleting(null)
+      fetchAll(true)
+    }
+  }
+
+  // Len zo zoznamu — v receptúrach ostane ako „vymazaná" a ďalej sa počíta
+  async function archiveOnly(ing) {
+    if (await archiveIngredient(ing)) setDeleting(null)
   }
 
   if (loading) {
@@ -218,10 +267,87 @@ export default function IngredientSettings({ embedded = false }) {
     i.category_id === cat.id && (!searching || normText(i.name).includes(q)))
   const shownCats = searching ? categories.filter(c => ingsOf(c).length) : categories
 
+  // Panel mazania suroviny, ktorá je v receptúrach
+  function deletePanel(ing) {
+    const recipes = usage[ing.id] ?? []
+    const replaceId = deleting.replaceId
+    // Náhrada: nevymazané suroviny s rovnakou jednotkou, po kategóriách
+    const options = categories
+      .map(c => ({ cat: c, items: ingredients.filter(i => i.category_id === c.id && i.unit === ing.unit && i.id !== ing.id) }))
+      .filter(g => g.items.length)
+    const btn = 'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors'
+    return (
+      <div className="mx-3 mb-2 p-3 rounded-lg border border-red-200 bg-red-50/60 space-y-2.5">
+        <p className="text-sm text-gray-800">
+          <span className="font-bold">{ing.name}</span> je {inRecipes(recipes.length)}:{' '}
+          <span className="text-gray-600">{recipes.map(r => r.name).join(', ')}</span>
+        </p>
+
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select
+              value={replaceId}
+              onChange={e => setDeleting(d => ({ ...d, replaceId: e.target.value }))}
+              aria-label="Náhrada"
+              className="flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white
+                         text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Nahradiť inou surovinou ({ing.unit})…</option>
+              {options.map(g => (
+                <optgroup key={g.cat.id} label={g.cat.name}>
+                  {g.items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => replaceIngredient(ing, replaceId)}
+              disabled={!replaceId}
+              className={`${btn} border-[#4cbfb3] disabled:opacity-50`}
+              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+            >
+              Nahradiť všade
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            V receptúrach sa surovina vymení, množstvá ostanú. Ak už receptúra náhradu má,
+            bude v nej dvakrát (kalkulácia ich sčíta).
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => deleteWithLines(ing)}
+            className={`${btn} bg-red-600 border-red-600 text-white hover:bg-red-700`}
+          >
+            Vymazať aj z receptúr
+          </button>
+          <button
+            type="button"
+            onClick={() => archiveOnly(ing)}
+            title={'V receptúrach ostane označená „vymazaná" a v kalkulácii surovín sa ďalej počíta'}
+            className={`${btn} bg-white border-gray-300 text-gray-700 hover:bg-gray-50`}
+          >
+            Len zo zoznamu
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeleting(null)}
+            className={`${btn} bg-white border-gray-300 text-gray-500 hover:bg-gray-50`}
+          >
+            Zrušiť
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // Riadok suroviny; handleProps = null → bez úchytky (vyhľadávanie)
   function ingredientRow(ing, handleProps) {
-    const used = usage[ing.id] ?? 0
+    const used = usage[ing.id]?.length ?? 0
     return (
+      <>
       <div className="px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
         {handleProps ? <DragHandle {...handleProps} /> : <span className="w-7 shrink-0" />}
 
@@ -265,13 +391,12 @@ export default function IngredientSettings({ embedded = false }) {
 
         <button
           onClick={() => deleteIngredient(ing)}
-          title={used > 0
-            ? 'Vymazať surovinu (archivuje sa — v receptúrach ostane a ďalej sa počíta)'
-            : 'Vymazať surovinu (archivuje sa)'}
+          title={used > 0 ? 'Vymazať surovinu — ukáže, v ktorých receptúrach je' : 'Vymazať surovinu'}
           aria-label="Vymazať surovinu"
+          aria-expanded={used > 0 ? deleting?.id === ing.id : undefined}
           className={`px-2 py-1.5 rounded-md text-xs font-bold border transition-colors
                       inline-flex items-center gap-1 shrink-0
-                      ${confirmDelete === `ing:${ing.id}`
+                      ${confirmDelete === `ing:${ing.id}` || deleting?.id === ing.id
                         ? 'bg-red-600 border-red-600 text-white hover:bg-red-700'
                         : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
         >
@@ -279,6 +404,8 @@ export default function IngredientSettings({ embedded = false }) {
           {confirmDelete === `ing:${ing.id}` && 'Naozaj?'}
         </button>
       </div>
+      {deleting?.id === ing.id && deletePanel(ing)}
+      </>
     )
   }
 

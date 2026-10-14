@@ -278,7 +278,7 @@ function LineRow({ line, ingredient, onPatch, onDelete, onError }) {
 }
 
 // Receptúra položky menu (Nastavenia → Menu → čiapka pri položke): suroviny na
-// dávku jedla v jednotke kalkulácie pre kuchyňu (napr. na 1 kg), pri variantoch
+// dávku jedla v jednotke sumáru pre kuchyňu (napr. na 1 kg), pri variantoch
 // základ + suroviny navyše pre variant; alebo „položka je sama surovinou"
 // (Cinzano — v kalkulácii surovín sa vypíše priamo). Ukladá hneď ako zvyšok
 // Nastavení. variants = nearchivované varianty položky (pri zapnutých variantoch).
@@ -294,7 +294,7 @@ export default function RecipeModal({ item, category, variants, onClose }) {
   const [view, setView]               = useState('recipe')  // 'recipe' | 'ingredients'
   const [lastCatId, setLastCatId]     = useState(null)      // kategória poslednej novej suroviny
 
-  // Množstvo jedla v kalkulácii — v jeho jednotke je dávka receptúry
+  // Množstvo jedla v sumári pre kuchyňu — v jeho jednotke je dávka receptúry
   const qty  = category ? calcQtyOf(category) : null
   const unit = qty?.unit ?? null
 
@@ -321,15 +321,19 @@ export default function RecipeModal({ item, category, variants, onClose }) {
   }, [item.id])
 
   // Späť zo zoznamu surovín — znova načíta suroviny (nové, premenované, vymazané)
+  // aj riadky receptúry (surovina mohla byť nahradená alebo vymazaná z receptúr)
   async function backToRecipe() {
-    const [i, c] = await Promise.all([
+    const [i, c, l] = await Promise.all([
       supabase.from('ingredients').select('*').order('position'),
       supabase.from('ingredient_categories').select('*').order('position'),
+      supabase.from('menu_item_recipe_lines').select('*').eq('item_id', item.id).order('position'),
     ])
-    if (i.error || c.error) setError((i.error || c.error).message)
+    const err = i.error || c.error || l.error
+    if (err) setError(err.message)
     else {
       setIngredients(i.data ?? [])
       setIngCats(c.data ?? [])
+      setLines(l.data ?? [])
     }
     setView('recipe')
   }
@@ -469,16 +473,16 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                 {category?.name ?? 'Bez kategórie'}
                 {' · '}
                 {!qty
-                  ? 'v kalkulácii nemá množstvo'
+                  ? 'v sumári pre kuchyňu nemá množstvo'
                   : qty.portion != null
-                    ? `v kalkulácii ${fmtQty(qty.portion)}${unit ? ` ${unit}` : ''} na osobu${qty.split ? ' (pri 2+ položkách delené)' : ''}`
-                    : `v kalkulácii ${unit ?? 'množstvo'} zadávané ručne`}
+                    ? `v sumári ${fmtQty(qty.portion)}${unit ? ` ${unit}` : ''} na osobu${qty.split ? ' (pri 2+ položkách delené)' : ''}`
+                    : `v sumári ${unit ?? 'množstvo'} zadávané ručne`}
               </p>
 
               {!qty && (
                 <p className="flex gap-2 text-xs text-[#a87d20] bg-[#fdf4e3] border border-[#f0dcb0] rounded-lg px-3 py-2">
                   <IconAlertTriangle size={16} className="shrink-0" />
-                  Kategória nemá v kalkulácii pre kuchyňu množstvo (porciu na osobu alebo naklikané množstvo) —
+                  Kategória nemá v sumári pre kuchyňu množstvo (porciu na osobu alebo naklikané množstvo) —
                   kým ho v Nastavenia → Menu nedoplníš, receptúra sa do kalkulácie surovín nezaráta.
                 </p>
               )}
@@ -495,7 +499,7 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                   <span className="block text-sm font-semibold text-gray-900">Položka je sama surovinou</span>
                   <span className="block text-xs text-gray-500">
                     Napr. Cinzano — nemá receptúru, v kalkulácii surovín sa vypíše priamo s množstvom
-                    z kalkulácie pre kuchyňu (skupina Z MENU).
+                    zo sumáru pre kuchyňu (skupina HOTOVKY).
                   </span>
                 </span>
               </label>
