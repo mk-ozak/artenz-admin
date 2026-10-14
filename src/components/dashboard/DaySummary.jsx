@@ -9,11 +9,10 @@ import { fetchAllRows } from '../../lib/ingredients'
 import { buildIngredientSummary } from '../../lib/ingredientCalc'
 import { toISO } from '../../utils/diaryWeeks'
 import { DAYS_SHORT } from '../../utils/format'
-import { ingredientsA4Html } from '../../utils/ingredientPrint'
+import { daySummaryA4Html, ingredientsA4Html } from '../../utils/a4Print'
 import {
-  hallShortOf, buildDaySummary, buildKitchenTicket, renderDaySummary,
+  hallShortOf, buildDaySummary, buildKitchenTicket,
 } from '../../utils/kitchenTicket'
-import TicketPreview from '../menu/TicketPreview'
 
 const MONTHS = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
                 'Júl', 'August', 'September', 'Október', 'November', 'December']
@@ -34,9 +33,8 @@ const dayLabel = iso => {
 }
 
 // Sumár jedál — všetky akcie vo vybratých dňoch (jeden alebo viac dní):
-// SUMÁR JEDÁL = rovnaké položky z viacerých akcií sčítané, tlač na termo
-// tlačiareň (RawBT) a PNG cez náhľad; KALKULÁCIA SUROVÍN = množstvá jedál ×
-// receptúry, tlač na A4.
+// SUMÁR JEDÁL = rovnaké položky z viacerých akcií sčítané, KALKULÁCIA
+// SUROVÍN = množstvá jedál × receptúry; obe tlač na A4 (okno tlače / PDF).
 export default function DaySummary({ refreshKey }) {
   const [month, setMonth] = useState(() => {
     const d = new Date()
@@ -46,7 +44,6 @@ export default function DaySummary({ refreshKey }) {
   const [eventDays, setEventDays] = useState({})   // ISO → { menu, noMenu }
   const [busy, setBusy] = useState(null)           // null | 'summary' | 'ingredients'
   const [error, setError] = useState('')
-  const [preview, setPreview] = useState(null)
 
   // Akcie v zobrazenom mesiaci — bodky v kalendári
   useEffect(() => {
@@ -126,21 +123,6 @@ export default function DaySummary({ refreshKey }) {
     })
   }
 
-  // SUMÁR JEDÁL — náhľad termo lístka (RawBT, PNG)
-  async function printSummary() {
-    setBusy('summary')
-    setError('')
-    try {
-      const dates = [...selected].sort()
-      const events = await loadEvents(dates)
-      setPreview({ title: 'Sumár jedál', ticket: buildDaySummary(dates, events), render: renderDaySummary, file: 'sumar_jedal' })
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setBusy(null)
-    }
-  }
-
   // Receptúry, ich riadky a suroviny (aj vymazané — receptúry ich ďalej počítajú)
   async function loadRecipeData() {
     const [r, l, i, c] = await Promise.all([
@@ -158,20 +140,20 @@ export default function DaySummary({ refreshKey }) {
     return { recipes: r.data ?? [], lines: l.data, ingredients: i.data ?? [], categories: c.data ?? [] }
   }
 
-  // KALKULÁCIA SUROVÍN — tlač na A4. Okno tlače sa otvorí hneď pri ťuknutí
+  // Tlač na A4 cez systémové okno tlače. Okno sa otvorí hneď pri ťuknutí
   // (po await by ho prehliadač zablokoval), obsah sa doň zapíše po načítaní.
-  async function printIngredients() {
+  // build(dates) → HTML strany
+  async function printA4(kind, build) {
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    win.document.write('<p style="font-family:sans-serif;padding:24px;color:#5d7d8e">Pripravujem kalkuláciu surovín…</p>')
+    win.document.write('<p style="font-family:sans-serif;padding:24px;color:#5d7d8e">Pripravujem…</p>')
     win.document.close()
-    setBusy('ingredients')
+    setBusy(kind)
     setError('')
     try {
-      const dates = [...selected].sort()
-      const [events, data] = await Promise.all([loadEvents(dates), loadRecipeData()])
+      const html = await build([...selected].sort())
       win.document.open()
-      win.document.write(ingredientsA4Html(buildIngredientSummary({ dates, events, ...data })))
+      win.document.write(html)
       win.document.close()
       win.focus()
       win.print()
@@ -182,6 +164,16 @@ export default function DaySummary({ refreshKey }) {
       setBusy(null)
     }
   }
+
+  // SUMÁR JEDÁL — rovnaké položky zo všetkých akcií sčítané
+  const printSummary = () => printA4('summary', async dates =>
+    daySummaryA4Html(buildDaySummary(dates, await loadEvents(dates))))
+
+  // KALKULÁCIA SUROVÍN — množstvá jedál × receptúry
+  const printIngredients = () => printA4('ingredients', async dates => {
+    const [events, data] = await Promise.all([loadEvents(dates), loadRecipeData()])
+    return ingredientsA4Html(buildIngredientSummary({ dates, events, ...data }))
+  })
 
   // Mriežka mesiaca od pondelka
   const offset = (month.getDay() + 6) % 7
@@ -270,7 +262,7 @@ export default function DaySummary({ refreshKey }) {
           </p>
         )}
 
-        {/* SUMÁR JEDÁL (termo) a KALKULÁCIA SUROVÍN (A4) — na mobile pod sebou */}
+        {/* SUMÁR JEDÁL a KALKULÁCIA SUROVÍN (obe A4) — na mobile pod sebou */}
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
             { kind: 'summary',     icon: IconReceipt,      text: 'SUMÁR JEDÁL',        onClick: printSummary },
@@ -292,7 +284,6 @@ export default function DaySummary({ refreshKey }) {
         </div>
       </div>
 
-      {preview && <TicketPreview {...preview} onClose={() => setPreview(null)} />}
     </div>
   )
 }

@@ -774,7 +774,8 @@ export async function renderRautLabels(model) {
 // ── Sumár jedál za vybraté dni (dashboard) ───────────────────────────────
 // Každá akcia sa prepočíta ako jej lístok do kuchyne (buildKitchenTicket);
 // rovnaké položky (kľúč = položka katalógu + variant) sa v rámci sekcie sčítajú.
-// Akcie bez menu sa len vypíšu a do súčtov sa nerátajú.
+// Akcie bez menu sa len vypíšu a do súčtov sa nerátajú. Tlačí sa na A4
+// (daySummaryA4Html v utils/a4Print).
 
 const round2 = n => Math.round(n * 100) / 100
 const qtyText = (amount, unit) => `${fmtQty(round2(amount))}${unit ? ` ${unit}` : ''}`
@@ -880,65 +881,6 @@ export function buildDaySummary(dates, events) {
     })),
     printedAt: new Date(),
   }
-}
-
-// Sumár je hustejší než lístok do kuchyne: kreslí sa na širšiu „virtuálnu"
-// stranu a pri tlači sa zmenší na šírku papiera — menšie písmo aj riadkovanie
-const SUMMARY_SCALE = 0.75
-
-// Vykreslí sumár jedál: [lístok]
-export async function renderDaySummary(model) {
-  const s = new Sheet(await ticketFont())
-  const vm = Math.round(M / SUMMARY_SCALE)
-  const b = { x: vm, w: Math.round(W / SUMMARY_SCALE) - 2 * vm }
-  const white = { color: '#fff' }
-
-  // Hlavička: čierny pruh — SUMÁR JEDÁL a vybraté dni
-  const top = s.y
-  const year = model.days.length ? new Date(`${model.days[0]}T00:00:00`).getFullYear() : ''
-  const daysText = model.days.length === 1
-    ? (() => {
-        const d = new Date(`${model.days[0]}T00:00:00`)
-        return `${DAYS_LONG[d.getDay()].toLocaleUpperCase('sk')} ${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`
-      })()
-    : `${model.days.map(shortDate).join(', ')} ${year}`
-  const dayLines = s.wrap([{ text: daysText, weight: 700 }], b.w - 32, 28)
-  const H = 16 + lineH(48) + dayLines.length * lineH(28) + 16
-  s.rect(b.x, top, b.w, H)
-  s.y = top + 16
-  s.line('SUMÁR JEDÁL', b.x + 16, 48, 700, white)
-  for (const ln of dayLines) s.line(ln.words.map(w => w.text).join(' '), b.x + 16, 28, 700, white)
-  s.y = top + H + 12
-
-  // Akcie: označenie + názov, pod tým počty (akcia bez menu sa nepočíta)
-  model.events.forEach((ev, i) => {
-    if (i > 0) { s.rect(b.x, s.y, b.w, 2); s.y += 6 }
-    s.para([{ text: ev.label, weight: 700 }, { text: ev.title, weight: 400 }], b.x, b.w, 26)
-    const c = ev.counts
-    const info = !ev.hasMenu
-      ? 'bez menu — nepočíta sa'
-      : [
-          `dospelí ${c.adults}${c.adultsNoMeal ? ` (+${c.adultsNoMeal} bez jedla)` : ''}`,
-          `deti ${c.kidsMeal}${c.kidsNoMeal ? ` (+${c.kidsNoMeal} bez jedla)` : ''}`,
-          c.specials ? `špeciály ${c.specials}` : '',
-          ev.hasRaut ? `raut ${c.raut}` : '',
-        ].filter(Boolean).join(' · ')
-    s.para([{ text: info, weight: 400 }], b.x, b.w, 22)
-    s.y += 4
-  })
-  s.y += 12
-
-  drawCounts(s, model.counts, model.hasRaut, b)
-  s.y += 16
-  for (const t of model.toasts) drawLabeled(s, t.label, t.text, 30, b)
-  s.y += 16
-  for (const sec of model.sections) {
-    drawSection(s, sec, true, b)
-    s.y += 20
-  }
-  drawPrinted(s, model.printedAt, b)
-  s.y += 40
-  return [s.paint({ height: Math.ceil(s.y * SUMMARY_SCALE), scale: SUMMARY_SCALE })]
 }
 
 // ── Kuchyňa na A5 (BOLD PNG a LUNA A5) ───────────────────────────────────
