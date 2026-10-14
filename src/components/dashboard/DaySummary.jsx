@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { IconChevronLeft, IconChevronRight, IconReceipt } from '@tabler/icons-react'
+import { IconChevronLeft, IconChevronRight, IconReceipt, IconShoppingCart } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { EVENT_LABEL } from '../../lib/eventTypes'
 import { voLabelWithName } from '../../lib/vo'
 import { buildMenuSections } from '../../lib/menuCalc'
 import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, ticketTimeOf } from '../../lib/menuSummary'
+import { fetchAllRows } from '../../lib/ingredients'
+import { buildIngredientSummary } from '../../lib/ingredientCalc'
 import { toISO } from '../../utils/diaryWeeks'
 import { DAYS_SHORT } from '../../utils/format'
+import { ingredientsA4Html } from '../../utils/ingredientPrint'
 import {
   hallShortOf, buildDaySummary, buildKitchenTicket, renderDaySummary,
 } from '../../utils/kitchenTicket'
@@ -30,9 +33,10 @@ const dayLabel = iso => {
   return `${DAYS_SHORT[d.getDay()]} ${d.getDate()}. ${d.getMonth() + 1}.`
 }
 
-// Sumár jedál — kalkulácia všetkých akcií vo vybratých dňoch (jeden alebo
-// viac dní). Rovnaké položky z viacerých akcií sa sčítajú; tlač na termo
-// tlačiareň (RawBT) a PNG cez náhľad.
+// Sumár jedál — všetky akcie vo vybratých dňoch (jeden alebo viac dní):
+// SUMÁR JEDÁL = rovnaké položky z viacerých akcií sčítané, tlač na termo
+// tlačiareň (RawBT) a PNG cez náhľad; KALKULÁCIA SUROVÍN = množstvá jedál ×
+// receptúry, tlač na A4.
 export default function DaySummary({ refreshKey }) {
   const [month, setMonth] = useState(() => {
     const d = new Date()
@@ -40,7 +44,7 @@ export default function DaySummary({ refreshKey }) {
   })
   const [selected, setSelected] = useState(() => new Set())
   const [eventDays, setEventDays] = useState({})   // ISO → { menu, noMenu }
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(null)           // null | 'summary' | 'ingredients'
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(null)
 
@@ -74,11 +78,9 @@ export default function DaySummary({ refreshKey }) {
     })
   }
 
-  // Načíta akcie vybratých dní, každú prepočíta ako lístok do kuchyne a sčíta
-  async function printSummary() {
-    setBusy(true)
-    setError('')
-    const dates = [...selected].sort()
+  // Akcie vybratých dní, každá prepočítaná ako lístok do kuchyne — spoločné
+  // pre sumár jedál aj kalkuláciu surovín. Chyba → výnimka so správou.
+  async function loadEvents(dates) {
     const b = await supabase
       .from('bookings')
       .select(BOOKING_COLS)
@@ -86,13 +88,9 @@ export default function DaySummary({ refreshKey }) {
       .in('date', dates)
       .order('date')
       .order('main_time', { ascending: true, nullsFirst: false })
-    if (b.error) { setError(b.error.message); setBusy(false); return }
+    if (b.error) throw new Error(b.error.message)
     const rows = b.data ?? []
-    if (!rows.length) {
-      setError('Vo vybratých dňoch nie sú žiadne akcie.')
-      setBusy(false)
-      return
-    }
+    if (!rows.length) throw new Error('Vo vybratých dňoch nie sú žiadne akcie.')
     const ids = rows.filter(r => r.menu_created).map(r => r.id)
     const [c, s] = await Promise.all([
       supabase.from('menu_categories').select('*').order('block').order('position'),
@@ -100,9 +98,9 @@ export default function DaySummary({ refreshKey }) {
         ? supabase.from('booking_menu_items').select(SEL_COLS).in('booking_id', ids).order('created_at')
         : { data: [] },
     ])
-    if (c.error || s.error) { setError((c.error || s.error).message); setBusy(false); return }
+    if (c.error || s.error) throw new Error((c.error || s.error).message)
 
-    const events = rows.map(r => {
+    return rows.map(r => {
       const title = r.is_vo
         ? voLabelWithName(r)
         : `${EVENT_LABEL[r.event_type] ?? r.event_type ?? 'Akcia'} – ${r.customer_name}`
@@ -126,8 +124,63 @@ export default function DaySummary({ refreshKey }) {
       })
       return { ...event, model: buildKitchenTicket({ sections, selsByCat, summary }) }
     })
-    setPreview({ title: 'Kalkulácia', ticket: buildDaySummary(dates, events), render: renderDaySummary, file: 'kalkulacia' })
-    setBusy(false)
+  }
+
+  // SUMÁR JEDÁL — náhľad termo lístka (RawBT, PNG)
+  async function printSummary() {
+    setBusy('summary')
+    setError('')
+    try {
+      const dates = [...selected].sort()
+      const events = await loadEvents(dates)
+      setPreview({ title: 'Sumár jedál', ticket: buildDaySummary(dates, events), render: renderDaySummary, file: 'sumar_jedal' })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Receptúry, ich riadky a suroviny (aj vymazané — receptúry ich ďalej počítajú)
+  async function loadRecipeData() {
+    const [r, l, i, c] = await Promise.all([
+      supabase.from('menu_item_recipes').select('item_id, is_ingredient, yield_amount, yield_unit'),
+      fetchAllRows((from, to) => supabase
+        .from('menu_item_recipe_lines')
+        .select('id, item_id, variant_id, ingredient_id, amount, unit')
+        .order('id')
+        .range(from, to)),
+      supabase.from('ingredients').select('id, category_id, name, unit, position, archived_at'),
+      supabase.from('ingredient_categories').select('id, name, position, archived_at'),
+    ])
+    const err = r.error || l.error || i.error || c.error
+    if (err) throw new Error(err.message)
+    return { recipes: r.data ?? [], lines: l.data, ingredients: i.data ?? [], categories: c.data ?? [] }
+  }
+
+  // KALKULÁCIA SUROVÍN — tlač na A4. Okno tlače sa otvorí hneď pri ťuknutí
+  // (po await by ho prehliadač zablokoval), obsah sa doň zapíše po načítaní.
+  async function printIngredients() {
+    const win = window.open('', '_blank')
+    if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
+    win.document.write('<p style="font-family:sans-serif;padding:24px;color:#5d7d8e">Pripravujem kalkuláciu surovín…</p>')
+    win.document.close()
+    setBusy('ingredients')
+    setError('')
+    try {
+      const dates = [...selected].sort()
+      const [events, data] = await Promise.all([loadEvents(dates), loadRecipeData()])
+      win.document.open()
+      win.document.write(ingredientsA4Html(buildIngredientSummary({ dates, events, ...data })))
+      win.document.close()
+      win.focus()
+      win.print()
+    } catch (e) {
+      win.close()
+      setError(e.message)
+    } finally {
+      setBusy(null)
+    }
   }
 
   // Mriežka mesiaca od pondelka
@@ -217,17 +270,26 @@ export default function DaySummary({ refreshKey }) {
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={printSummary}
-          disabled={!chosen.length || busy}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg
-                     text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{ background: '#4cbfb3', color: '#0a2d2a' }}
-        >
-          <IconReceipt size={18} />
-          {busy ? 'Pripravujem…' : 'Tlačiť kalkuláciu'}
-        </button>
+        {/* SUMÁR JEDÁL (termo) a KALKULÁCIA SUROVÍN (A4) — na mobile pod sebou */}
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { kind: 'summary',     icon: IconReceipt,      text: 'SUMÁR JEDÁL',        onClick: printSummary },
+            { kind: 'ingredients', icon: IconShoppingCart, text: 'KALKULÁCIA SUROVÍN', onClick: printIngredients },
+          ].map(({ kind, icon: Icon, text, onClick }) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={onClick}
+              disabled={!chosen.length || !!busy}
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg
+                         text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
+              style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+            >
+              <Icon size={18} />
+              {busy === kind ? 'Pripravujem…' : text}
+            </button>
+          ))}
+        </div>
       </div>
 
       {preview && <TicketPreview {...preview} onClose={() => setPreview(null)} />}

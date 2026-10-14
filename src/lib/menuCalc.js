@@ -52,7 +52,9 @@ export function sectionHeadCount(summary, block) {
 //          null = sekcia sa nenásobí → naklikané množstvo, ak ho kategória má
 // Vracia: split (počet položiek pri podiele, inak null), jedn (porcia na osobu),
 // jednNote (doplnok k porcii, napr. „v hotovom stave"), mnozstvo (spolu) —
-// sformátované texty, null = nie je čo ukázať; amount = číslo, unit = jeho jednotka
+// sformátované texty, null = nie je čo ukázať; amount = číslo, unit = jeho jednotka;
+// served = množstvo jedla v hotovom stave (bez výnimky surovej ryže) — ním sa
+// násobia receptúry v kalkulácii surovín
 export function calcLine(sel, cat, catSels, count) {
   const split = cat.split_portions && catSels.length > 1 ? catSels.length : null
   const rice = isCookedRice(sel, cat)
@@ -61,14 +63,17 @@ export function calcLine(sel, cat, catSels, count) {
     ? Math.round((Number(cat.default_amount) / (split ?? 1)) * 1000) / 1000
     : null
   let amount = null
+  let served = null
   let mnozstvo = null
   let unit = null
   if (count != null && jednAmount != null) {
     amount = Math.round(jednAmount * count * (rice ? 50 : 100)) / 100
+    served = Math.round(jednAmount * count * 100) / 100
     mnozstvo = `${fmtQty(amount)}${unitSuffix}`
     unit = cat.default_unit ?? null
   } else if (count == null && cat.qty_step != null) {
     amount = Number(sel.quantity)
+    served = amount
     mnozstvo = `${fmtQty(sel.quantity)}${cat.qty_unit ? ` ${cat.qty_unit}` : ''}`
     unit = cat.qty_unit ?? null
   }
@@ -77,6 +82,7 @@ export function calcLine(sel, cat, catSels, count) {
     jedn: jednAmount != null ? `${fmtQty(jednAmount)}${unitSuffix}` : null,
     jednNote: rice && jednAmount != null ? 'v hotovom stave' : null,
     amount,
+    served,
     unit,
     mnozstvo,
   }

@@ -62,6 +62,10 @@ function soupParts(count) {
 // Kľúč položky pre súčty cez viac akcií (rovnaká položka katalógu + variant)
 const itemKey = sel => `${sel.item_id ?? selLabel(sel)}|${sel.variant_id ?? ''}`
 
+// Pre kalkuláciu surovín (lib/ingredientCalc): položka katalógu, variant
+// a množstvo jedla v hotovom stave (served z calcLine); kreslenie to nečíta
+const dishOf = (sel, served) => ({ itemId: sel.item_id ?? null, variantId: sel.variant_id ?? null, served })
+
 // Názov sekcie ako v kalkulácii; nový blok bez názvu → názvy jeho kategórií
 function sectionTitle(sec, summary) {
   return summary.titles?.[sec.block]
@@ -99,7 +103,10 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
     const items = count === 0 ? [] : sec.items.flatMap(({ sel, cat }) => {
       const line = calcLine(sel, cat, selsByCat[cat.id] ?? [], calcCount(summary, sec.block, cat))
       if (toastIds.has(cat.id)) {
-        toastLines.push({ category: cat.id, key: itemKey(sel), name: selLabel(sel), amount: line.amount, unit: line.unit })
+        toastLines.push({
+          category: cat.id, key: itemKey(sel), name: selLabel(sel), amount: line.amount, unit: line.unit,
+          ...dishOf(sel, line.served),
+        })
         return []
       }
       if (cat.id === SOUP_CATEGORY) {
@@ -120,6 +127,7 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
         key:     itemKey(sel),   // pre sumár jedál: kľúč, číslo a jednotka
         amount:  line.amount,
         unit:    line.unit,
+        ...dishOf(sel, line.served),
       }]
     })
     const notes = notesOf(sec.block)
@@ -167,6 +175,7 @@ export function buildKitchenTicket({ sections, selsByCat, summary }) {
       amount,
       unit:      cat.default_unit ?? null,
       people,
+      ...dishOf(sel, amount),
     }]
   })
   if (soupItems.length) {
@@ -884,7 +893,7 @@ export async function renderDaySummary(model) {
   const b = { x: vm, w: Math.round(W / SUMMARY_SCALE) - 2 * vm }
   const white = { color: '#fff' }
 
-  // Hlavička: čierny pruh — KALKULÁCIA a vybraté dni
+  // Hlavička: čierny pruh — SUMÁR JEDÁL a vybraté dni
   const top = s.y
   const year = model.days.length ? new Date(`${model.days[0]}T00:00:00`).getFullYear() : ''
   const daysText = model.days.length === 1
@@ -897,7 +906,7 @@ export async function renderDaySummary(model) {
   const H = 16 + lineH(48) + dayLines.length * lineH(28) + 16
   s.rect(b.x, top, b.w, H)
   s.y = top + 16
-  s.line('KALKULÁCIA', b.x + 16, 48, 700, white)
+  s.line('SUMÁR JEDÁL', b.x + 16, 48, 700, white)
   for (const ln of dayLines) s.line(ln.words.map(w => w.text).join(' '), b.x + 16, 28, 700, white)
   s.y = top + H + 12
 
