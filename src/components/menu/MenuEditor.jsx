@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  IconAlertTriangle, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter, IconReceipt, IconTag,
-  IconX,
+  IconAlertTriangle, IconArrowLeft, IconCheck, IconChevronRight, IconMinus, IconPhoto, IconPlus, IconPrinter,
+  IconReceipt, IconSettings, IconTag, IconX,
 } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -16,6 +16,7 @@ import {
   renderKitchenTickets, renderRautLabels, renderSummaryTicket,
 } from '../../utils/kitchenTicket'
 import TicketPreview from './TicketPreview'
+import MenuSettings from '../settings/MenuSettings'
 
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -70,6 +71,7 @@ const X_BTN = `w-8 h-8 shrink-0 rounded-lg bg-[#cc8e8e] flex items-center justif
 // customerPrintTitle: nadpis bloku zhrnutia a tlače (predvolene „Zhrnutie pre zákazníka")
 // lockedQtyBlocks: [čísla blokov] — množstvá len na čítanie (VO nemení kg rautu)
 // canAddCatalog: false = v okne výberu sa nedá pridať nová položka do katalógu
+//   ani otvoriť nastavenia kategórie (koliesko) — VO
 // canAddCustom: true = (bez katalógu) v okne výberu sa dá dopísať vlastná položka —
 //   len text v tomto menu (item_id = null), do katalógu ju pridá admin (VO)
 export default function MenuEditor({
@@ -84,14 +86,18 @@ export default function MenuEditor({
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
   const [pickerCatId, setPickerCatId] = useState(null)
+  // Okno výberu: 'select' = výber položiek, 'settings' = nastavenia kategórie (koliesko)
+  const [pickerView, setPickerView]   = useState('select')
   // Pridanie novej položky do katalógu (alebo vlastnej položky) priamo z výberu
   const [newItemName, setNewItemName] = useState('')
   const [addingItem, setAddingItem]   = useState(false)
   // Náhľad lístka pre termotlačiareň { title, ticket, render, file }, null = zavretý
   const [ticketPreview, setTicketPreview] = useState(null)
 
-  useEffect(() => {
-    Promise.all([
+  // Katalóg a výbery tohto menu (aj po návrate z nastavení kategórie —
+  // názvy, varianty a porcie sa mohli zmeniť)
+  function loadAll() {
+    return Promise.all([
       supabase.from('menu_categories').select('*').order('block').order('position'),
       supabase.from('menu_items').select('*').is('archived_at', null).order('position'),
       supabase.from('menu_item_variants').select('*').is('archived_at', null).order('position'),
@@ -108,10 +114,19 @@ export default function MenuEditor({
       setSelections(s.data ?? [])
       setLoading(false)
     })
-  }, [table, ownerColumn, ownerId])
+  }
+
+  useEffect(() => { loadAll() }, [table, ownerColumn, ownerId])
 
   // Pri otvorení/zatvorení výberu vyčisti rozpísaný názov novej položky
-  useEffect(() => { setNewItemName('') }, [pickerCatId])
+  // a vráť okno na výber
+  useEffect(() => { setNewItemName(''); setPickerView('select') }, [pickerCatId])
+
+  // Z nastavení kategórie späť na výber — katalóg sa načíta znova
+  async function backToPicker() {
+    await loadAll()
+    setPickerView('select')
+  }
 
   // Výbery po kategóriách a sekciách — spoločné so sumárom jedál (lib/menuCalc).
   // Výbery v skrytých blokoch sa nezobrazujú, nepočítajú ani netlačia.
@@ -871,35 +886,65 @@ export default function MenuEditor({
         <TicketPreview {...ticketPreview} onClose={() => setTicketPreview(null)} />
       )}
 
-      {/* Okno výberu položiek — bez potvrdzovania, klik mimo / Hotovo zatvorí */}
+      {/* Okno výberu položiek — bez potvrdzovania, klik mimo / Hotovo zatvorí.
+          Koliesko (len admin) prepne okno na nastavenia tejto kategórie. */}
       {pickerCat && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setPickerCatId(null) }}
         >
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden
-                          flex flex-col max-h-[85vh]">
-            <div className="px-5 py-4 flex items-center justify-between shrink-0"
+          <div className={`bg-white rounded-xl shadow-2xl w-full mx-4 overflow-hidden flex flex-col max-h-[85vh]
+                           ${pickerView === 'settings' ? 'max-w-2xl' : 'max-w-md'}`}>
+            <div className="px-5 py-4 flex items-center justify-between gap-2 shrink-0"
                  style={{ background: '#354d5d' }}>
-              <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>
+              <h2 className="font-semibold text-sm min-w-0" style={{ color: '#ddeef6' }}>
                 {pickerCat.name}
-                {pickerCat.max_items != null && (
-                  <span className="ml-2 font-normal opacity-70">
-                    {(selsByCat[pickerCat.id] ?? []).length} / {pickerCat.max_items}
-                  </span>
-                )}
+                {pickerView === 'settings'
+                  ? <span className="ml-2 font-normal opacity-70">· nastavenia</span>
+                  : pickerCat.max_items != null && (
+                    <span className="ml-2 font-normal opacity-70">
+                      {(selsByCat[pickerCat.id] ?? []).length} / {pickerCat.max_items}
+                    </span>
+                  )}
               </h2>
-              <button
-                type="button"
-                onClick={() => setPickerCatId(null)}
-                aria-label="Zavrieť"
-                className="w-8 h-8 rounded-full flex items-center justify-center
-                           bg-white/10 hover:bg-white/20 transition-colors"
-              >
-                <IconX size={16} style={{ color: '#ddeef6' }} />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {canAddCatalog && pickerView === 'select' && (
+                  <button
+                    type="button"
+                    onClick={() => setPickerView('settings')}
+                    title="Upraviť kategóriu — položky, varianty, porcia, receptúry"
+                    aria-label="Upraviť kategóriu"
+                    className="w-8 h-8 rounded-full flex items-center justify-center
+                               bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <IconSettings size={16} style={{ color: '#ddeef6' }} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPickerCatId(null)}
+                  aria-label="Zavrieť"
+                  className="w-8 h-8 rounded-full flex items-center justify-center
+                             bg-white/10 hover:bg-white/20 transition-colors"
+                >
+                  <IconX size={16} style={{ color: '#ddeef6' }} />
+                </button>
+              </div>
             </div>
 
+            {pickerView === 'settings' ? (
+              <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3 bg-[#f7fbfc]">
+                <button
+                  type="button"
+                  onClick={backToPicker}
+                  className="flex items-center gap-1.5 text-sm font-bold text-[#2a8d83] hover:underline"
+                >
+                  <IconArrowLeft size={16} stroke={2.5} />
+                  Späť na výber
+                </button>
+                <MenuSettings categoryId={pickerCat.id} />
+              </div>
+            ) : (
             <div className="overflow-y-auto divide-y divide-gray-100 flex-1">
               {items.filter(i => i.category_id === pickerCat.id).map(item => {
                 const sel = selections.find(s => s.item_id === item.id)
@@ -999,10 +1044,11 @@ export default function MenuEditor({
                 </p>
               )}
             </div>
+            )}
 
             {/* Pridať novú položku rovno do katalógu tejto kategórie; VO len
                 vlastnú položku do tohto menu (text, katalóg sa nemení) */}
-            {(canAddCatalog || canAddCustom) && (
+            {pickerView === 'select' && (canAddCatalog || canAddCustom) && (
             <form
               onSubmit={canAddCatalog ? addCatalogItem : addCustomItem}
               className="flex gap-2 px-5 py-3 bg-gray-50 border-t border-gray-100 shrink-0"
@@ -1032,12 +1078,13 @@ export default function MenuEditor({
             <div className="px-5 py-3 border-t border-gray-100 shrink-0">
               <button
                 type="button"
-                onClick={() => setPickerCatId(null)}
-                className="w-full px-4 py-2.5 text-sm font-bold rounded-lg
+                onClick={pickerView === 'settings' ? backToPicker : () => setPickerCatId(null)}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold rounded-lg
                            transition-opacity hover:opacity-90"
                 style={{ background: '#4cbfb3', color: '#0a2d2a' }}
               >
-                Hotovo
+                {pickerView === 'settings' && <IconArrowLeft size={16} stroke={2.5} />}
+                {pickerView === 'settings' ? 'Späť na výber' : 'Hotovo'}
               </button>
             </div>
           </div>

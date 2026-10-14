@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   IconChefHat, IconChevronDown, IconChevronRight, IconPlus, IconTrash, IconX,
   IconFileSpreadsheet, IconListCheck, IconLoader2,
@@ -92,14 +93,16 @@ function ColorPicker({ value, onChange }) {
 // množstvo) a ich položky (poradie ťahaním, premenovanie, presun medzi
 // kategóriami). Mazanie = archivácia, takže menu vytvorené v minulosti
 // ostávajú nedotknuté.
-export default function MenuSettings() {
+// categoryId = len táto kategória, rozbalená (okno výberu v menu → koliesko):
+//   bez novej kategórie, bez mazania kategórie a bez exportu
+export default function MenuSettings({ categoryId = null }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])
   const [variants, setVariants]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState(null)
 
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedId, setExpandedId] = useState(categoryId)
   const [newCatName, setNewCatName]   = useState('')
   const [newItemName, setNewItemName] = useState('')
   // Rozpísaná nová možnosť variantu — zvlášť pre každú položku
@@ -367,6 +370,10 @@ export default function MenuSettings() {
   // Bloky kategórií — zoradené čísla blokov; medzi nimi sa kreslí oddeľovač
   const blocks = [...new Set(categories.map(c => c.block))].sort((a, b) => a - b)
   const maxBlock = blocks.length ? blocks[blocks.length - 1] : 1
+  // Zobrazené kategórie a ich bloky (pri categoryId len jedna; výber bloku
+  // v karte ponúka ďalej všetky bloky)
+  const shownCats   = categoryId ? categories.filter(c => c.id === categoryId) : categories
+  const shownBlocks = blocks.filter(b => shownCats.some(c => c.block === b))
 
   return (
     <div className="space-y-3">
@@ -376,7 +383,14 @@ export default function MenuSettings() {
         </p>
       )}
 
+      {categoryId && !shownCats.length && (
+        <p className="text-sm text-gray-500 py-4 text-center">
+          Táto kategória je v katalógu vymazaná — upraviť sa už nedá.
+        </p>
+      )}
+
       {/* Nová kategória */}
+      {!categoryId && (
       <form onSubmit={addCategory} className="flex gap-2">
         <input
           value={newCatName}
@@ -396,15 +410,16 @@ export default function MenuSettings() {
           Pridať
         </button>
       </form>
+      )}
 
       <div className="space-y-3">
-        {blocks.map((block, bIdx) => (
+        {shownBlocks.map((block, bIdx) => (
           <Fragment key={block}>
             {bIdx > 0 && <div className="h-1.5 bg-[#8fa6b2] rounded-full" />}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => onCategoryDragEnd(block, e)}>
-              <SortableContext items={categories.filter(c => c.block === block).map(c => c.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={shownCats.filter(c => c.block === block).map(c => c.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3">
-                  {categories.filter(c => c.block === block).map(cat => {
+                  {shownCats.filter(c => c.block === block).map(cat => {
               const catItems = items.filter(i => i.category_id === cat.id)
               const expanded = expandedId === cat.id
               const pKey     = presetKey(cat)
@@ -514,6 +529,7 @@ export default function MenuSettings() {
                           <option value={maxBlock + 1}>+ nový blok</option>
                         </select>
 
+                        {!categoryId && (
                         <button
                           onClick={() => deleteCategory(cat)}
                           title="Vymazať kategóriu (archivuje sa — staré menu ostanú)"
@@ -527,6 +543,7 @@ export default function MenuSettings() {
                           <IconTrash size={14} />
                           {confirmDelete === `cat:${cat.id}` && 'Naozaj?'}
                         </button>
+                        )}
                       </div>
 
                       {/* Položky kategórie */}
@@ -789,6 +806,7 @@ export default function MenuSettings() {
       </div>
 
       {/* Export katalógu do Excelu */}
+      {!categoryId && (
       <div className="pt-2 border-t border-gray-100">
         <button
           type="button"
@@ -805,18 +823,21 @@ export default function MenuSettings() {
         </button>
         {exportErr && <p className="mt-2 text-xs text-red-500">{exportErr}</p>}
       </div>
+      )}
 
-      {/* Okno receptúry položky; po zavretí sa obnoví stav ikon */}
+      {/* Okno receptúry položky; po zavretí sa obnoví stav ikon. Cez portál
+          do body — nastavenia môžu byť samé v okne (výber v menu → koliesko) */}
       {recipeItemId && (() => {
         const item = items.find(i => i.id === recipeItemId)
         if (!item) return null
-        return (
+        return createPortal(
           <RecipeModal
             item={item}
             category={categories.find(c => c.id === item.category_id)}
             variants={item.has_variants ? variants.filter(v => v.item_id === item.id) : []}
             onClose={() => { setRecipeItemId(null); loadRecipeStatus() }}
-          />
+          />,
+          document.body,
         )
       })()}
     </div>

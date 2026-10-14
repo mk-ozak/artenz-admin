@@ -1,25 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconAlertTriangle, IconPlus, IconX } from '@tabler/icons-react'
+import { IconAlertTriangle, IconArrowLeft, IconPlus, IconSettings, IconX } from '@tabler/icons-react'
 import { supabase } from '../../lib/supabase'
 import { calcQtyOf, fmtQty } from '../../lib/menuCalc'
-import { LINE_UNITS, dishUnitFactor, normText, parseAmount } from '../../lib/ingredients'
+import { INGREDIENT_UNITS, LINE_UNITS, dishUnitFactor, normText, parseAmount } from '../../lib/ingredients'
 import BlurInput from './BlurInput'
+import IngredientSettings from './IngredientSettings'
+
+const selectCls = `text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-700
+                   focus:outline-none focus:ring-2 focus:ring-indigo-500`
 
 // Výber suroviny s vyhľadávaním (bez ohľadu na diakritiku) + množstvo
 // a jednotka riadku (g/kg, ml/L, ks; predvolené g / ml). onAdd(surovina,
-// množstvo, jednotka) → true = pridané, formulár sa vyprázdni.
-function AddLine({ ingredients, categories, onAdd }) {
+// množstvo, jednotka) → true = pridané, formulár sa vyprázdni. Keď hľadaná
+// surovina nie je v zozname, dá sa hneď pridať do surovín:
+// onCreate(názov, kategória, jednotka) → nová surovina alebo null.
+function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }) {
   const [ing, setIng]       = useState(null)
   const [query, setQuery]   = useState('')
   const [open, setOpen]     = useState(false)
   const [amount, setAmount] = useState('')
   const [unit, setUnit]     = useState('')
+  const [creating, setCreating] = useState(null)  // { name, categoryId, unit } — nová surovina
   const amountRef = useRef(null)
 
   // Ponuka: nearchivované suroviny v nearchivovaných kategóriách, po kategóriách
   const q = normText(query.trim())
-  const groups = categories
-    .filter(c => !c.archived_at)
+  const activeCats = categories.filter(c => !c.archived_at)
+  const groups = activeCats
     .map(c => ({
       cat: c,
       items: ingredients.filter(i =>
@@ -33,6 +40,8 @@ function AddLine({ ingredients, categories, onAdd }) {
   const lineUnit = unit || (LINE_UNITS[picked?.unit]?.[0] ?? picked?.unit ?? '')
   const n = parseAmount(amount)
   const canAdd = picked && n > 0
+  // Ponúknuť novú surovinu, keď napísaný názov v zozname presne nie je
+  const offerNew = q !== '' && !ing && !matches.some(i => normText(i.name) === q)
 
   function choose(i) {
     setIng(i)
@@ -51,6 +60,74 @@ function AddLine({ ingredients, categories, onAdd }) {
       setAmount('')
       setUnit('')
     }
+  }
+
+  function startCreate() {
+    const categoryId = activeCats.some(c => c.id === defaultCategoryId) ? defaultCategoryId : activeCats[0]?.id
+    setCreating({ name: query.trim(), categoryId, unit: 'kg' })
+    setOpen(false)
+  }
+
+  async function saveCreate() {
+    if (!creating.name.trim() || !creating.categoryId) return
+    const created = await onCreate(creating.name.trim(), creating.categoryId, creating.unit)
+    if (!created) return
+    setCreating(null)
+    choose(created)
+  }
+
+  // Nová surovina: názov, kategória, jednotka → po uložení je hneď vybratá
+  if (creating) {
+    return (
+      <div className="mt-1.5 p-2.5 rounded-lg border border-[#a8d9d3] bg-[#f3faf9] space-y-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-[#2a8d83]">Nová surovina</p>
+        <input
+          value={creating.name}
+          onChange={e => setCreating(c => ({ ...c, name: e.target.value }))}
+          placeholder="Názov suroviny"
+          autoFocus
+          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={creating.categoryId ?? ''}
+            onChange={e => setCreating(c => ({ ...c, categoryId: e.target.value }))}
+            aria-label="Kategória suroviny"
+            className={`${selectCls} flex-1 min-w-[150px]`}
+          >
+            {activeCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select
+            value={creating.unit}
+            onChange={e => setCreating(c => ({ ...c, unit: e.target.value }))}
+            aria-label="Jednotka suroviny"
+            title="Jednotka, v ktorej sa surovina objednáva"
+            className={selectCls}
+          >
+            {INGREDIENT_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <button
+            type="button"
+            onClick={saveCreate}
+            disabled={!creating.name.trim() || !creating.categoryId}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold
+                       transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+          >
+            <IconPlus size={14} stroke={2.5} />
+            Pridať do surovín
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(null)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-600 hover:bg-white"
+          >
+            Zrušiť
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -72,9 +149,19 @@ function AddLine({ ingredients, categories, onAdd }) {
             <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto
                             bg-white rounded-lg border border-gray-200 shadow-xl py-1">
               {groups.length === 0 && (
-                <p className="px-3 py-2 text-xs text-gray-500">
-                  Nič sa nenašlo — surovinu pridáš v Nastavenia → Suroviny.
-                </p>
+                <p className="px-3 py-2 text-xs text-gray-500">Nič sa nenašlo.</p>
+              )}
+              {offerNew && (
+                <button
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={startCreate}
+                  className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-sm font-semibold
+                             text-[#2a8d83] hover:bg-[#f0f6f9] border-b border-gray-100"
+                >
+                  <IconPlus size={15} stroke={2.5} className="shrink-0" />
+                  Pridať „{query.trim()}" ako novú surovinu
+                </button>
               )}
               {groups.map(g => (
                 <div key={g.cat.id}>
@@ -195,6 +282,8 @@ function LineRow({ line, ingredient, onPatch, onDelete, onError }) {
 // základ + suroviny navyše pre variant; alebo „položka je sama surovinou"
 // (Cinzano — v kalkulácii surovín sa vypíše priamo). Ukladá hneď ako zvyšok
 // Nastavení. variants = nearchivované varianty položky (pri zapnutých variantoch).
+// „Upraviť suroviny" prepne okno na zoznam surovín (ako Nastavenia → Suroviny)
+// a „Späť na receptúru" vráti receptúru tak, ako bola rozpísaná.
 export default function RecipeModal({ item, category, variants, onClose }) {
   const [recipe, setRecipe]           = useState(null)  // menu_item_recipes, null = ešte nie je
   const [lines, setLines]             = useState([])
@@ -202,6 +291,8 @@ export default function RecipeModal({ item, category, variants, onClose }) {
   const [ingCats, setIngCats]         = useState([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState('')
+  const [view, setView]               = useState('recipe')  // 'recipe' | 'ingredients'
+  const [lastCatId, setLastCatId]     = useState(null)      // kategória poslednej novej suroviny
 
   // Množstvo jedla v kalkulácii — v jeho jednotke je dávka receptúry
   const qty  = category ? calcQtyOf(category) : null
@@ -228,6 +319,35 @@ export default function RecipeModal({ item, category, variants, onClose }) {
     })
     return () => { alive = false }
   }, [item.id])
+
+  // Späť zo zoznamu surovín — znova načíta suroviny (nové, premenované, vymazané)
+  async function backToRecipe() {
+    const [i, c] = await Promise.all([
+      supabase.from('ingredients').select('*').order('position'),
+      supabase.from('ingredient_categories').select('*').order('position'),
+    ])
+    if (i.error || c.error) setError((i.error || c.error).message)
+    else {
+      setIngredients(i.data ?? [])
+      setIngCats(c.data ?? [])
+    }
+    setView('recipe')
+  }
+
+  // Nová surovina z vyhľadávania — na koniec svojej kategórie
+  async function createIngredient(name, categoryId, ingUnit) {
+    setError('')
+    const position = Math.max(0, ...ingredients.filter(i => i.category_id === categoryId).map(i => i.position)) + 1
+    const { data, error } = await supabase
+      .from('ingredients')
+      .insert({ category_id: categoryId, name, unit: ingUnit, position })
+      .select()
+      .single()
+    if (error) { setError(error.message); return null }
+    setIngredients(is => [...is, data])
+    setLastCatId(categoryId)
+    return data
+  }
 
   // Hlavička receptúry (dávka, príznak suroviny) — vznikne pri prvej zmene
   // alebo prvej surovine a zapamätá si jednotku jedla z kalkulácie
@@ -301,7 +421,7 @@ export default function RecipeModal({ item, category, variants, onClose }) {
              style={{ background: '#354d5d' }}>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(221,238,246,.6)' }}>
-              Receptúra
+              {view === 'ingredients' ? 'Receptúra › Suroviny' : 'Receptúra'}
             </p>
             <h2 className="font-semibold text-sm" style={{ color: '#ddeef6' }}>{item.name}</h2>
           </div>
@@ -323,12 +443,27 @@ export default function RecipeModal({ item, category, variants, onClose }) {
             </p>
           )}
 
+          {view === 'ingredients' && (
+            <>
+              <button
+                type="button"
+                onClick={backToRecipe}
+                className="flex items-center gap-1.5 text-sm font-bold text-[#2a8d83] hover:underline"
+              >
+                <IconArrowLeft size={16} stroke={2.5} />
+                Späť na receptúru
+              </button>
+              <IngredientSettings embedded />
+            </>
+          )}
+
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-[#4cbfb3] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <>
+            // Receptúra ostáva pri zozname surovín len skrytá — rozpísané riadky sa nestratia
+            <div className={view === 'recipe' ? 'space-y-4' : 'hidden'}>
               {/* Ako s položkou počíta kalkulácia pre kuchyňu */}
               <p className="text-xs text-[#5d7d8e]">
                 {category?.name ?? 'Bez kategórie'}
@@ -409,14 +544,26 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                   </div>
                 )}
 
-                {sections.map(sec => {
+                {sections.map((sec, idx) => {
                   const own = lines.filter(l => (l.variant_id ?? null) === sec.id)
                   return (
                     <div key={sec.id ?? 'base'} className="mt-4">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]
-                                    border-b border-gray-100 pb-1 mb-1">
-                        {sec.title}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-1 mb-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-[#5d7d8e]">
+                          {sec.title}
+                        </p>
+                        {idx === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setView('ingredients')}
+                            title="Zoznam surovín — pridanie, premenovanie, jednotka, kategória"
+                            className="flex items-center gap-1 text-xs font-bold text-[#2a8d83] hover:underline shrink-0"
+                          >
+                            <IconSettings size={14} />
+                            Upraviť suroviny
+                          </button>
+                        )}
+                      </div>
                       {own.length === 0 && (
                         <p className="text-xs text-gray-400 py-1">Zatiaľ žiadna surovina.</p>
                       )}
@@ -434,6 +581,8 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                         ingredients={ingredients}
                         categories={ingCats}
                         onAdd={(ing, amount, lineUnit) => addLine(sec.id, ing, amount, lineUnit)}
+                        onCreate={createIngredient}
+                        defaultCategoryId={lastCatId}
                       />
                     </div>
                   )
@@ -443,18 +592,19 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                   Množstvo suroviny = koľko treba nakúpiť (v hrubom, vrátane čistenia) na dávku jedla vyššie.
                 </p>
               </div>
-            </>
+            </div>
           )}
         </div>
 
         <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-90"
+            onClick={view === 'ingredients' ? backToRecipe : onClose}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-90"
             style={{ background: '#4cbfb3', color: '#0a2d2a' }}
           >
-            Hotovo
+            {view === 'ingredients' && <IconArrowLeft size={16} stroke={2.5} />}
+            {view === 'ingredients' ? 'Späť na receptúru' : 'Hotovo'}
           </button>
         </div>
       </div>

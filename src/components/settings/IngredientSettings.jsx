@@ -19,7 +19,8 @@ const inRecipes = n => `v ${n} ${n === 1 ? 'receptúre' : 'receptúrach'}`
 // kategóriami). Mazanie = archivácia — surovina ostane v receptúrach, kde je
 // (v okne receptúry je označená „vymazaná"). Jednotku suroviny, ktorá je už
 // v receptúre, nejde zmeniť (z 200 g by sa stalo 200 ks).
-export default function IngredientSettings() {
+// embedded = v okne receptúry (bez úvodného textu a exportu)
+export default function IngredientSettings({ embedded = false }) {
   const [categories, setCategories]   = useState([])
   const [ingredients, setIngredients] = useState([])
   const [usage, setUsage]             = useState({})  // ingredient_id → počet receptúr
@@ -394,10 +395,12 @@ export default function IngredientSettings() {
         </p>
       )}
 
-      <p className="text-xs text-[#5d7d8e]">
-        Suroviny pre receptúry jedál a kalkuláciu surovín. Receptúru jedla upravíš
-        v záložke Menu ikonou čiapky pri položke.
-      </p>
+      {!embedded && (
+        <p className="text-xs text-[#5d7d8e]">
+          Suroviny pre receptúry jedál a kalkuláciu surovín. Receptúru jedla upravíš
+          v záložke Menu ikonou čiapky pri položke.
+        </p>
+      )}
 
       {/* Hľadanie suroviny */}
       <div className="relative">
@@ -475,6 +478,7 @@ export default function IngredientSettings() {
       )}
 
       {/* Export pre receptúry — podklad, z ktorého Claude pripraví receptúry */}
+      {!embedded && (
       <div className="pt-2 border-t border-gray-100">
         <button
           type="button"
@@ -494,6 +498,7 @@ export default function IngredientSettings() {
         </p>
         {exportErr && <p className="mt-2 text-xs text-red-500">{exportErr}</p>}
       </div>
+      )}
     </div>
   )
 }
