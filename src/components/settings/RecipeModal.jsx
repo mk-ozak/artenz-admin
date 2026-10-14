@@ -22,6 +22,7 @@ function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }
   const [unit, setUnit]     = useState('')
   const [creating, setCreating] = useState(null)  // { name, categoryId, unit } — nová surovina
   const amountRef = useRef(null)
+  const listRef   = useRef(null)
 
   // Ponuka: nearchivované suroviny v nearchivovaných kategóriách, po kategóriách
   const q = normText(query.trim())
@@ -42,6 +43,12 @@ function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }
   const canAdd = picked && n > 0
   // Ponúknuť novú surovinu, keď napísaný názov v zozname presne nie je
   const offerNew = q !== '' && !ing && !matches.some(i => normText(i.name) === q)
+
+  // Ponuka je pod riadkom v okne (nie plávajúca — okno by ju orezalo);
+  // pri otvorení a hľadaní sa okno posunie, aby bola celá vidieť
+  useEffect(() => {
+    if (open) listRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, q])
 
   function choose(i) {
     setIng(i)
@@ -131,8 +138,9 @@ function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-wrap items-center gap-1.5 pt-1.5">
-      <div className="relative flex-1 min-w-[170px]">
+    <div className="pt-1.5">
+    <form onSubmit={submit} className="flex flex-wrap items-center gap-1.5">
+      <div className="flex-1 min-w-[170px]">
         <input
           value={query}
           onChange={e => { setQuery(e.target.value); setIng(null); setUnit(''); setOpen(true) }}
@@ -144,10 +152,41 @@ function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }
           className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
+      </div>
+      <input
+        ref={amountRef}
+        value={amount}
+        onChange={e => setAmount(e.target.value)}
+        inputMode="decimal"
+        placeholder="množstvo"
+        className="w-24 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right bg-white
+                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <select
+        value={lineUnit}
+        onChange={e => setUnit(e.target.value)}
+        disabled={!picked}
+        aria-label="Jednotka"
+        className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-700
+                   disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+        {(picked ? LINE_UNITS[picked.unit] ?? [picked.unit] : ['g']).map(u => <option key={u} value={u}>{u}</option>)}
+      </select>
+      <button
+        type="submit"
+        disabled={!canAdd}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold
+                   transition-opacity hover:opacity-90 disabled:opacity-50"
+        style={{ background: '#4cbfb3', color: '#0a2d2a' }}
+      >
+        <IconPlus size={14} stroke={2.5} />
+        Pridať
+      </button>
+    </form>
         {open && (
           <>
-            <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto
-                            bg-white rounded-lg border border-gray-200 shadow-xl py-1">
+            <div ref={listRef}
+                 className="mt-1 max-h-60 overflow-y-auto bg-white rounded-lg border border-gray-200 shadow-lg py-1">
               {groups.length === 0 && (
                 <p className="px-3 py-2 text-xs text-gray-500">Nič sa nenašlo.</p>
               )}
@@ -186,37 +225,7 @@ function AddLine({ ingredients, categories, onAdd, onCreate, defaultCategoryId }
             </div>
           </>
         )}
-      </div>
-      <input
-        ref={amountRef}
-        value={amount}
-        onChange={e => setAmount(e.target.value)}
-        inputMode="decimal"
-        placeholder="množstvo"
-        className="w-24 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right bg-white
-                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
-      <select
-        value={lineUnit}
-        onChange={e => setUnit(e.target.value)}
-        disabled={!picked}
-        aria-label="Jednotka"
-        className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-700
-                   disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      >
-        {(picked ? LINE_UNITS[picked.unit] ?? [picked.unit] : ['g']).map(u => <option key={u} value={u}>{u}</option>)}
-      </select>
-      <button
-        type="submit"
-        disabled={!canAdd}
-        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold
-                   transition-opacity hover:opacity-90 disabled:opacity-50"
-        style={{ background: '#4cbfb3', color: '#0a2d2a' }}
-      >
-        <IconPlus size={14} stroke={2.5} />
-        Pridať
-      </button>
-    </form>
+    </div>
   )
 }
 
