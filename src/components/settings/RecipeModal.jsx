@@ -589,7 +589,8 @@ export default function RecipeModal({ item, category, variants, onClose }) {
                 })}
 
                 <p className="mt-4 text-[11px] text-gray-400">
-                  Množstvo suroviny = koľko treba nakúpiť (v hrubom, vrátane čistenia) na dávku jedla vyššie.
+                  Dávka jedla je v surovom stave ako v menu (ryža a cestoviny v hotovom). Množstvo suroviny
+                  = koľko jej treba na túto dávku, bez odpadu.
                 </p>
               </div>
             </div>

@@ -53,8 +53,8 @@ export function sectionHeadCount(summary, block) {
 // Vracia: split (počet položiek pri podiele, inak null), jedn (porcia na osobu),
 // jednNote (doplnok k porcii, napr. „v hotovom stave"), mnozstvo (spolu) —
 // sformátované texty, null = nie je čo ukázať; amount = číslo, unit = jeho jednotka;
-// served = množstvo jedla v hotovom stave (bez výnimky surovej ryže) — ním sa
-// násobia receptúry v kalkulácii surovín
+// served = množstvo jedla ako v menu, bez výnimky surovej ryže (jedlá v surovom
+// stave, ryža v hotovom) — ním sa násobia receptúry v kalkulácii surovín
 export function calcLine(sel, cat, catSels, count) {
   const split = cat.split_portions && catSels.length > 1 ? catSels.length : null
   const rice = isCookedRice(sel, cat)

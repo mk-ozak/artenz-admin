@@ -63,7 +63,8 @@ function soupParts(count) {
 const itemKey = sel => `${sel.item_id ?? selLabel(sel)}|${sel.variant_id ?? ''}`
 
 // Pre kalkuláciu surovín (lib/ingredientCalc): položka katalógu, variant
-// a množstvo jedla v hotovom stave (served z calcLine); kreslenie to nečíta
+// a množstvo jedla ako v menu bez výnimky surovej ryže (served z calcLine);
+// kreslenie to nečíta
 const dishOf = (sel, served) => ({ itemId: sel.item_id ?? null, variantId: sel.variant_id ?? null, served })
 
 // Názov sekcie ako v kalkulácii; nový blok bez názvu → názvy jeho kategórií
