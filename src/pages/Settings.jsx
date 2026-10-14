@@ -55,9 +55,12 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState({})   // { [id]: string }
   const [copiedId, setCopiedId] = useState(null)
 
-  // Otvorená záložka; z adresy sa dá otvoriť priamo (napr. /settings?tab=menu z menu rezervácie)
+  // Otvorená záložka; z adresy sa dá otvoriť priamo (napr. /settings?tab=menu z menu rezervácie).
+  // Predvolene admin Menu, ostatní Používatelia (len čítanie tam má zmenu hesla)
+  // — rola je známa už pri otvorení (ProtectedRoute čaká na prihlásenie)
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'users')   // 'users' | 'menu' | 'ingredients' | 'templates' | 'logs' | 'vo' | 'version'
+  const [tab, setTab] = useState(() =>
+    searchParams.get('tab') ?? (currentUserRole === 'admin' ? 'menu' : 'users'))   // 'menu' | 'ingredients' | 'templates' | 'logs' | 'vo' | 'users' | 'version'
 
   const isAdmin = currentUserRole === 'admin'
 
@@ -211,7 +214,7 @@ export default function Settings() {
         {/* Tabs */}
         <div className="border-b border-[#dde8ec] mb-6">
           <div className="flex gap-1 overflow-x-auto overflow-y-hidden">
-            {[['users', 'Používatelia'], ['menu', 'Menu'], ['ingredients', 'Suroviny'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['vo', 'VO'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
+            {[['menu', 'Menu'], ['ingredients', 'Suroviny'], ['templates', 'Šablóny'], ['logs', 'Logy'], ['vo', 'VO'], ['users', 'Používatelia'], ['version', 'Aktuálna verzia']].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}

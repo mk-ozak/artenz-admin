@@ -12,7 +12,7 @@ import {
   SOUP_CATEGORY, SPECIAL_SOUP_CATEGORY, buildMenuSections, calcCount, calcLine, fmtQty, sectionHeadCount,
 } from '../../lib/menuCalc'
 import {
-  buildKitchenTicket, buildRautLabels, buildSummaryTicket, downloadPng, renderKitchenA5,
+  buildKitchenTicket, buildRautLabels, buildSummaryTicket, downloadPng, renderKitchenA5, renderKitchenPng,
   renderKitchenTickets, renderRautLabels, renderSummaryTicket,
 } from '../../utils/kitchenTicket'
 import TicketPreview from './TicketPreview'
@@ -419,15 +419,15 @@ export default function MenuEditor({
     return renderKitchenA5(buildKitchenTicket({ sections: summarySections, selsByCat, summary }))
   }
 
-  // BOLD PNG — kuchyňa na A5 ako obrázok (pri viacerých stranách obrázok na stranu)
+  // BOLD PNG — kuchyňa ako jeden obrázok: strana A5, dlhé menu sa nedelí
+  // (šírka A5, výška podľa obsahu)
   async function downloadKitchenPng() {
     if (incomplete.length > 0) {
       setError(incompleteMessage(incomplete))
       return
     }
-    const pages = await kitchenA5()
-    pages.forEach((canvas, i) => downloadPng(canvas,
-      `${summary.ticket.date}_kuchyna_A5${pages.length > 1 ? `_${i + 1}` : ''}.png`))
+    const canvas = await renderKitchenPng(buildKitchenTicket({ sections: summarySections, selsByCat, summary }))
+    downloadPng(canvas, `${summary.ticket.date}_kuchyna_A5.png`)
   }
 
   // LUNA A5 — tlač do kuchyne na A4 na šírku: strana A5 v ľavej polovici,
@@ -831,8 +831,8 @@ export default function MenuEditor({
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
                 {summary.ticket && printRow('Tlač do kuchyne', [
                   { icon: IconPrinter, text: 'LUNA A5', title: 'Tlač na A4 — strana A5 v ľavej polovici', onClick: printKitchenA5, accent: true },
-                  { icon: IconReceipt, text: 'TERMO PRINT', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen'), accent: true },
-                  { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok na stranu A5', onClick: downloadKitchenPng },
+                  { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok A5 — dlhé menu v jednom obrázku', onClick: downloadKitchenPng },
+                  { icon: IconReceipt, text: 'TERMO', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen') },
                   // Štítky na plechy — len keď je v raute niečo vybraté
                   ...(buildRautLabels({ sections: summarySections, selsByCat, summary }).labels.length
                     ? [{ icon: IconTag, text: 'RAUT', title: 'Štítky na plechy rautu (termotlačiareň)', onClick: () => openThermal('raut') }]

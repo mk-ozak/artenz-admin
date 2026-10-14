@@ -62,11 +62,12 @@ export default function BookingHistory({ bookingId, booking, access, vo = false,
       }
 
       // Úprava bez zmenených polí = technický zápis (napr. priradenie
-      // zákazníckeho účtu) — ten je v histórii vlastným riadkom
+      // zákazníckeho účtu) — ten je v histórii vlastným riadkom.
+      // Najnovšie navrchu, najstaršie naspodu.
       const all = [...own, ...customer]
         .map(l => restricted ? onlyVisibleChanges(l) : l)
         .filter(l => l.action !== 'booking_update' || l.details?.changes)
-        .sort((a, b) => a.id - b.id)
+        .sort((a, b) => b.id - a.id)
       if (!cancelled) { setLogs(all); setNames(userNames) }
     }
 

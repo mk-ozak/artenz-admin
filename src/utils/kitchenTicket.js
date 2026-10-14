@@ -1135,6 +1135,22 @@ export async function renderKitchenA5(model) {
     p.paint({ width, height, scale, origin: A5_MARGIN * A5_PT_MM }))
 }
 
+// BOLD PNG — vždy jeden obrázok: menu, ktoré sa zmestí na stranu A5, je strana
+// A5 ako pri tlači; dlhšie menu sa nedelí — šírka A5 a výška podľa obsahu
+// (bez pruhu „pokračuje", POZNÁMKY hneď pod obsahom)
+export async function renderKitchenPng(model) {
+  const family = await ticketFont()
+  const width  = Math.round(A5_MM.w * A5_PX_MM)
+  const scale  = width / (A5_MM.w * A5_PT_MM)
+  const margin = A5_MARGIN * A5_PT_MM
+  const pages  = layoutA5(family, model)
+  if (pages.length === 1) {
+    return pages[0].paint({ width, height: Math.round(A5_MM.h * A5_PX_MM), scale, origin: margin })
+  }
+  const [tall] = paginateA5(family, model, a5Rows(family, model), Infinity, false)
+  return tall.paint({ width, height: Math.round((tall.y + 2 * margin) * scale), scale, origin: margin })
+}
+
 // Stiahnutie plátna ako PNG
 export function downloadPng(canvas, fileName) {
   canvas.toBlob(blob => {
