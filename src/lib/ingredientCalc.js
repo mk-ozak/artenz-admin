@@ -35,6 +35,8 @@ export function fmtIngredient(value, unit) {
 //         akcie (buildKitchenTicket), null = akcia bez menu (nepočíta sa)
 // recipes / lines / ingredients / categories: menu_item_recipes,
 //         menu_item_recipe_lines, ingredients, ingredient_categories (aj vymazané)
+// Riadok suroviny v groups: { name, total, dishes } — dishes = jedlá, z ktorých
+// sa súčet skladá (tlač A4 malým písmom za surovinou, karta v menu pri myši)
 export function buildIngredientSummary({ dates, events, recipes, lines, ingredients, categories }) {
   const recipeOf = new Map(recipes.map(r => [r.item_id, r]))
   const linesOf  = new Map()
@@ -42,6 +44,7 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
   const ingById  = new Map(ingredients.map(i => [i.id, i]))
 
   const totals   = new Map()  // ingredient_id → súčet v jednotke suroviny
+  const usedIn   = new Map()  // ingredient_id → názvy jedál (poradie lístka, bez opakovania)
   const missing  = new Map()  // bez receptúry: kľúč → { name, amount, unit }
   const check    = new Map()  // skontroluj: kľúč → { name, reason }
 
@@ -87,12 +90,22 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
           addCheck(d.name, `${ing?.name ?? 'surovina'}: jednotka ${l.unit} nesedí so surovinou${ing ? ` (${ing.unit})` : ''} — nezapočítané`)
           continue
         }
-        totals.set(ing.id, (totals.get(ing.id) ?? 0) + Number(l.amount) * lf * factor)
+        const qty = Number(l.amount) * lf * factor
+        totals.set(ing.id, (totals.get(ing.id) ?? 0) + qty)
+        if (qty > 0) (usedIn.get(ing.id) ?? usedIn.set(ing.id, new Set()).get(ing.id)).add(d.name)
       }
       if (!self && !d.variantId && all.some(l => l.variant_id)) {
         addCheck(d.name, 'nie je vybratý variant — započítaný len základ')
       }
     }
+  }
+
+  // Jedlá suroviny; samo-surovina len zo svojho jedla (rovnaký názov) zoznam
+  // nemá — iba by opakoval jej názov
+  const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  const dishNames = i => {
+    const names = [...(usedIn.get(i.id) ?? [])]
+    return names.length === 1 && same(names[0], i.name) ? [] : names
   }
 
   // Suroviny po kategóriách v poradí z Nastavení (vymazané kategórie na koniec)
@@ -104,7 +117,7 @@ export function buildIngredientSummary({ dates, events, recipes, lines, ingredie
       rows: ingredients
         .filter(i => i.category_id === c.id && totals.get(i.id) > 0)
         .sort((a, b) => a.position - b.position)
-        .map(i => ({ name: i.name, total: fmtIngredient(totals.get(i.id), i.unit) })),
+        .map(i => ({ name: i.name, total: fmtIngredient(totals.get(i.id), i.unit), dishes: dishNames(i) })),
     }))
     .filter(g => g.rows.length)
 

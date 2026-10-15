@@ -151,14 +151,17 @@ const INGREDIENTS_CSS = `
   td { padding: 2px 0; border-bottom: 1px dotted #d5e2e9; vertical-align: top; }
   td.q { text-align: right; font-weight: 700; white-space: nowrap; padding-left: 8px; }
   td.why { color: #5d7d8e; padding-left: 8px; }
+  .dishes { color: #5d7d8e; font-size: 10px; margin-left: 3px; }
   .box { border: 1.5px solid #c0393d; border-radius: 6px; padding: 6px 10px; margin-top: 10px; break-inside: avoid; }
   .box h2 { color: #c0393d; border: 0; }
   .box.warn { border-color: #e0a43a; }
   .box.warn h2 { color: #a87d20; }
 `
 
+// Riadok suroviny: názov, za ním malým písmom jedlá, z ktorých sa počíta
 const rowsHtml = rows => rows
-  .map(r => `<tr><td>${esc(r.name)}</td><td class="q">${esc(r.total ?? 'bez množstva')}</td></tr>`)
+  .map(r => `<tr><td>${esc(r.name)}${r.dishes?.length
+    ? ` <span class="dishes">${esc(r.dishes.join(', '))}</span>` : ''}</td><td class="q">${esc(r.total ?? 'bez množstva')}</td></tr>`)
   .join('')
 
 export function ingredientsA4Html(model) {
