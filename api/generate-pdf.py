@@ -103,13 +103,23 @@ def _den_row(d, dt):
     ]
 
 
-def _trvale_row(by_pos):
-    row = ["Trvalá ponuka", "", "", "", ""]                                   # [0..4] výplň, kód ich nečíta
-    row += ["Vyprážaný rezeň\nzemiakový šalát", "1,3,7", "200/200 g", "8,50 €"]  # [5..8] rezeň, fixný (zalomený)
-    for pos in (3, 4, 5, 6):                                                  # [9..24] z DB
-        it = by_pos.get(pos, {})
-        row += [_s(it.get("name")), _s(it.get("allergens")), _s(it.get("portion")), _cena(it.get("price"))]
-    return row
+REZEN = "Vyprážaný rezeň\nzemiakový šalát"   # zlúčený riadok rezňov (zalomený), v A4 doplnené „(bravčový alebo kurací),"
+
+
+def _trvale_items(trvale):
+    """Minútky pre PDF ako zoznam (názov, alergény, gramáž, cena).
+    Rezne (pozície 1 a 2) sú jeden riadok s cenou, alergénmi a gramážou bravčového,
+    za nimi ostatné položky v poradí z adminu (bez názvu sa netlačia)."""
+    rezne = [r for r in trvale if r.get("position") in (1, 2)]
+    items = []
+    if rezne:
+        r = rezne[0]
+        items.append((REZEN, _s(r.get("allergens")), _s(r.get("portion")), _cena(r.get("price"))))
+    for r in trvale:
+        if r.get("position") in (1, 2) or not _s(r.get("name")).strip():
+            continue
+        items.append((_s(r.get("name")), _s(r.get("allergens")), _s(r.get("portion")), _cena(r.get("price"))))
+    return items
 
 
 def load_menu(monday=None):
@@ -132,10 +142,9 @@ def load_menu(monday=None):
     trvale = trvale if isinstance(trvale, list) else []
 
     by_date = {r["menu_date"]: r for r in dni}
-    by_pos = {r["position"]: r for r in trvale}
     menu = [_den_row(by_date.get((monday + timedelta(days=i)).isoformat()), monday + timedelta(days=i))
             for i in range(5)]
-    menu.append(_trvale_row(by_pos))
+    menu.append(_trvale_items(trvale))           # menu[5] = minútky
     return menu
 
 
@@ -154,7 +163,6 @@ def template():
     # cenove ciarky
     c.roundRect(501, y(343.7), 71, 2, 0.5, stroke=0, fill=1)
     c.roundRect(501, y(392), 71, 2, 0.5, stroke=0, fill=1)
-    for i in range(5): c.roundRect(501, y(482+(i*55)), 71, 2, 0.5, stroke=0, fill=1)
     #c.roundRect(501, y(699), 71, 2, 0.5, stroke=0, fill=1)
 
     # logo a nadpisy
@@ -175,14 +183,12 @@ def template():
     c.drawString(129, y(269), "P2", charSpace=0)
     c.drawString(31.5, y(331), "1.", charSpace=0)
     c.drawString(31.5, y(380), "2.", charSpace=0)
-    for i in range(5): c.drawString(31.5, y(467+(i*55)), f"{i+3}.", charSpace=0)
     # AL
     c.setFont("MyriadBolCon", 13)
     c.drawString(175, y(244), "AL:", charSpace=0)
     c.drawString(175, y(269), "AL:", charSpace=0)
     c.drawString(49.5, y(352), "AL:", charSpace=0)
     c.drawString(49.5, y(400), "AL:", charSpace=0)
-    for i in range(5): c.drawString(49.5, y(488+(i*55)), "AL:", charSpace=0)
     #c.drawString(79, y(697), "AL:", charSpace=0)
 
     # spodne texty
@@ -215,11 +221,6 @@ def obsah_menu(jedlo, p):
     c.setFillColor(my_white)
     c.setFont("MyriadB", 27)
     c.drawCentredString(298, y(210), jedlo[p][0].upper() + " " + jedlo[p][1], charSpace=-0.1)
-    # rezen
-    c.setFillColor(my_black)
-    c.setFont("MyriadB", 19)
-    c.drawString(255, y(467), "(bravčový alebo kurací),", charSpace=-0.25)
-    # c.drawString(110, y(632), "Bravčová panenka alebo kuracinka", charSpace=-0.25)
     # polievky
     c.setFillColor(my_black)
     # c.setFont("MyriadSB", 19)
@@ -232,18 +233,6 @@ def obsah_menu(jedlo, p):
     c.drawString(110, y(354), pol(jedlo[p][10], 2), charSpace=-0.25)
     c.drawString(110, y(380), pol(jedlo[p][14], 1), charSpace=-0.25)
     c.drawString(110, y(403), pol(jedlo[p][14], 2), charSpace=-0.25)
-    # minutky
-
-    for i in range(5):
-
-            c.drawString(110, y(467+(i*55)), pol(jedlo[5][5+(i*4)], 1), charSpace=-0.25)
-            c.drawString(110, y(490+(i*55)), pol(jedlo[5][5+(i*4)], 2), charSpace=-0.25)
-
-        # if i != 3:
-        #     c.drawString(110, y(467+(i*55)), pol(jedlo[5][5+(i*4)], 1), charSpace=-0.25)
-        #     c.drawString(110, y(490+(i*55)), pol(jedlo[5][5+(i*4)], 2), charSpace=-0.25)
-        # if i == 3:
-        #     c.drawString(110, y(490+(i*55)), "so slaninkovou omáčkou, dukáty, zelenina", charSpace=-0.25)
     # gramaz hodnota
     c.setFont("MyriadBolCon", 11)
     c.drawString(152, y(244), "0,33 l", charSpace=-0.5)
@@ -251,20 +240,17 @@ def obsah_menu(jedlo, p):
     c.setFont("MyriadBolCon", 14)
     c.drawString(49.5, y(331), jedlo[p][12], charSpace=0)
     c.drawString(49.5, y(380), jedlo[p][16], charSpace=-0)
-    for i in range(5): c.drawString(49.5, y(467+(i*55)), jedlo[5][7+(i*4)], charSpace=-0)
     # alergeny hodnota
     c.setFont("MyriadBolCon", 12)
     c.drawString(192, y(244), jedlo[p][3], charSpace=-0.5)
     c.drawString(192, y(269), jedlo[p][7], charSpace=-0.5)
     c.drawString(66.5, y(352), jedlo[p][11], charSpace=-0.5)
     c.drawString(66.5, y(400), jedlo[p][15], charSpace=-0.5)
-    for i in range(5): c.drawString(66.5, y(488+(i*55)), jedlo[5][6+(i*4)], charSpace=-0.5)
     #c.drawString(94, y(697), jedlo[5][22], charSpace=-0.5)
     # ceny
     c.setFont("MyriadBlck", 18)
     c.drawRightString(567, y(334.5), jedlo[p][13], charSpace=0)
     c.drawRightString(567, y(383), jedlo[p][17], charSpace=0)
-    for i in range(5): c.drawRightString(567, y(473+(i*55)), jedlo[5][8+(i*4)], charSpace=0)
     #c.drawRightString(567, y(690), jedlo[5][24], charSpace=0)
     # cena rozvoz
     c.setFont("MyriadBolCon", 12)
@@ -275,17 +261,48 @@ def obsah_menu(jedlo, p):
         c.drawRightString(567, y(356), "na rozvoz: 8,50 €", charSpace=-0.5)
 
     c.drawRightString(567, y(404.5), "na rozvoz: 8,50 €", charSpace=-0.5)
-    c.drawRightString(567, y(495), "na rozvoz: 9,90 €", charSpace=-0.5)
-    c.drawRightString(567, y(550), "na rozvoz: 9,90 €", charSpace=-0.5)
-    c.drawRightString(567, y(605), "na rozvoz: 9,90 €", charSpace=-0.5)
-    c.drawRightString(567, y(660), "na rozvoz: 9,90 €", charSpace=-0.5)
-    c.drawRightString(567, y(715), "na rozvoz: 9,90 €", charSpace=-0.5)
+
+
+# Minútky – pôvodne pevne 5 položiek po 55 b. (baseline prvej 467, spodok
+# poslednej ~718). Ľubovoľný počet sa vmestí do toho istého pásu: viac
+# položiek = menšie písmo aj rozostupy (f < 1), menej = o niečo väčší rozostup.
+MIN_TOP, MIN_ROOM, MIN_ITEM = 453, 265, 45     # vrch pásu, výška pásu, výška položky pri f = 1
+
+
+def minutky(items):
+    n = len(items)
+    f = min(1.0, MIN_ROOM / (55 * (n - 1) + MIN_ITEM)) if n else 1.0
+    pitch = 55 * f if f < 1 else min(65.0, (MIN_ROOM - MIN_ITEM) / max(n - 1, 1))
+    for i, (name, al, portion, price) in enumerate(items):
+        t = MIN_TOP + 14 * f + i * pitch          # baseline 1. riadku (pri 5 položkách 467 + i*55)
+        c.setFillColor(my_dblue)
+        c.roundRect(501, y(t + 15 * f), 71, 2 * f, 0.5 * f, stroke=0, fill=1)   # cenová čiarka
+        c.setFillColor(my_black)
+        c.setFont("MyriadBlck", 17 * f)
+        c.drawString(31.5, y(t), f"{i + 3}.", charSpace=0)
+        c.setFont("MyriadBolCon", 13 * f)
+        c.drawString(49.5, y(t + 21 * f), "AL:", charSpace=0)
+        c.setFont("MyriadSB", 20 * f)
+        c.drawString(110, y(t), pol(name, 1, size=20 * f), charSpace=-0.25 * f)
+        c.drawString(110, y(t + 23 * f), pol(name, 2, size=20 * f), charSpace=-0.25 * f)
+        if name == REZEN:
+            c.setFont("MyriadB", 19 * f)
+            c.drawString(110 + 145 * f, y(t), "(bravčový alebo kurací),", charSpace=-0.25 * f)
+        c.setFont("MyriadBolCon", 14 * f)
+        c.drawString(49.5, y(t), portion, charSpace=0)
+        c.setFont("MyriadBolCon", 12 * f)
+        c.drawString(49.5 + 17 * f, y(t + 21 * f), al, charSpace=-0.5 * f)
+        c.setFont("MyriadBlck", 18 * f)
+        c.drawRightString(567, y(t + 6 * f), price, charSpace=0)
+        c.setFont("MyriadBolCon", 12 * f)
+        c.drawRightString(567, y(t + 28 * f), "na rozvoz: 9,90 €", charSpace=-0.5 * f)
 
 
 def _draw_day(menu, i):
     """Jeden deň (celá A4 stránka denného menu) na aktuálny canvas."""
     template()
     obsah_menu(menu, i)
+    minutky(menu[5])
 
 
 # ============================================================
@@ -396,10 +413,8 @@ def build_overview(menu) -> bytes:
     # trvalé menu (bez druhej čiary – ostáva len čiara pod denným menu)
     cur[0] += 6
     txt(L, "MyriadB", 14, my_dblue, "TRVALÉ MENU – MINÚTKY"); cur[0] += 16
-    tr = menu[5]
-    for k in range(5):
-        name = (tr[5 + k * 4] or "").replace("\n", ", ")
-        al, portion, price = tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4]
+    for k, (name, al, portion, price) in enumerate(menu[5]):
+        name = name.replace("\n", ", ")
         txt(L + 12, "MyriadB", 11, my_black, f"{k + 3}.")
         wrapped(name, L + 32, "MyriadSB", 11, R - (L + 32), 13, my_black)
         txt(L + 32, "MyriadBolCon", 10.5, my_dblue, f"{portion}   ·   AL: {al}   ·   {price}")
@@ -571,9 +586,9 @@ def build_overview_a3(menu) -> bytes:
     def trvale_block(s):
         """Blok vpravo cez celú výšku obsahu; má vlastnú mierku, aby stĺpec vyplnil."""
         head = block_frame(BLOCK_X, TOP, BLOCK_W, BOTTOM - TOP, "TRVALÁ PONUKA – MINÚTKY", s)
-        tr = menu[5]
-        items = [((tr[5 + k * 4] or "").replace("\n", ", "), tr[6 + k * 4], tr[7 + k * 4], tr[8 + k * 4])
-                 for k in range(5)]
+        items = [(name.replace("\n", ", "), al, portion, price) for name, al, portion, price in menu[5]]
+        if not items:
+            return
         x, w = BLOCK_X + 18, BLOCK_W - 36
         start = head + 30 * s
         room = (BOTTOM - 24) - start

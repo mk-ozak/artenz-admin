@@ -37,7 +37,7 @@ export default function MenuLunaHome() {
           <NavButton
             icon={<IconToolsKitchen2 size={28} />}
             label="Trvalé menu"
-            sub="Minútky (6 položiek)"
+            sub="Minútky / stála ponuka"
             bgColor="#d4a036"
             textDark={false}
             onClick={() => navigate('/menu/trvale')}
