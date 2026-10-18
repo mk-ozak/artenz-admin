@@ -22,6 +22,18 @@ import IngredientCalcCard from './IngredientCalcCard'
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+// Strana A5 otočená o 90° v smere hodín (na šírku) — vrch strany je pri pravom
+// okraji. Presná matica (bez sínusov), body sa len presunú, nič sa nerozmaže.
+function rotateA5(page) {
+  const c = document.createElement('canvas')
+  c.width = page.height
+  c.height = page.width
+  const ctx = c.getContext('2d')
+  ctx.setTransform(0, 1, -1, 0, c.width, 0)
+  ctx.drawImage(page, 0, 0)
+  return c
+}
+
 // Predvolené množstvo pri pridaní položky: 1, orezané do rozsahu kategórie
 function defaultQty(cat) {
   if (cat.qty_step == null) return 1
@@ -430,8 +442,10 @@ export default function MenuEditor({
     downloadPng(canvas, `${summary.ticket.date}_kuchyna_A5.png`)
   }
 
-  // LUNA A5 — tlač do kuchyne na A4 na šírku: strana A5 v ľavej polovici,
-  // pokračovanie dlhého menu v pravej (ďalší hárok A4 až pri 3+ stranách).
+  // LUNA A5 — tlač do kuchyne na A4 na výšku (predvolené v tlačiarni, netreba
+  // prepínať): strana A5 otočená na šírku v hornej polovici, pokračovanie
+  // dlhého menu v dolnej (ďalší hárok A4 až pri 3+ stranách). Hárok otočený
+  // doľava = strana 1 vľavo, strana 2 vpravo.
   // Okno sa otvára pred vykreslením, aby ho prehliadač nezablokoval ako popup.
   async function printKitchenA5() {
     if (incomplete.length > 0) {
@@ -440,16 +454,15 @@ export default function MenuEditor({
     }
     const win = window.open('', '_blank')
     if (!win) { setError('Prehliadač zablokoval okno tlače.'); return }
-    const imgs = (await kitchenA5()).map(c => `<img src="${c.toDataURL('image/png')}" alt="">`)
+    const imgs = (await kitchenA5()).map(c => `<img src="${rotateA5(c).toDataURL('image/png')}" alt="">`)
     const sheets = []
     for (let i = 0; i < imgs.length; i += 2) sheets.push(`<div class="sheet">${imgs.slice(i, i + 2).join('')}</div>`)
     win.document.write(`<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Tlač do kuchyne</title>
 <style>
-  @page { size: A4 landscape; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
   html, body { margin: 0; }
-  .sheet { display: flex; }
   .sheet + .sheet { break-before: page; }
-  img { display: block; width: 148mm; height: 210mm; }
+  img { display: block; width: 210mm; height: 148mm; }
 </style></head><body>${sheets.join('')}</body></html>`)
     win.document.close()
     await Promise.all([...win.document.images].map(img => img.decode().catch(() => {})))
@@ -830,7 +843,7 @@ export default function MenuEditor({
               {printMode !== 'summary-a4' && (
               <div className="px-4 py-2 bg-[#f4f7f9] border-b border-[#e0e8ec] flex flex-col gap-1.5">
                 {summary.ticket && printRow('Tlač do kuchyne', [
-                  { icon: IconPrinter, text: 'LUNA A5', title: 'Tlač na A4 — strana A5 v ľavej polovici', onClick: printKitchenA5, accent: true },
+                  { icon: IconPrinter, text: 'LUNA A5', title: 'Tlač na A4 na výšku — strana A5 na šírku v hornej polovici', onClick: printKitchenA5, accent: true },
                   { icon: IconPhoto, text: 'BOLD PNG', title: 'Obrázok A5 — dlhé menu v jednom obrázku', onClick: downloadKitchenPng },
                   { icon: IconReceipt, text: 'TERMO', title: 'Termotlačiareň LUNA (RawBT)', onClick: () => openThermal('kitchen') },
                   // Štítky na plechy — len keď je v raute niečo vybraté
