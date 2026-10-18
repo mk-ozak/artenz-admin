@@ -301,8 +301,9 @@ class Sheet {
     this.rect(x + w - lw, y, lw, h)
   }
 
-  text(text, x, y, size, weight, { color = '#000', align = 'left' } = {}) {
-    this.ops.push({ op: 'text', text, x: Math.round(x), y, size, font: this.font(size, weight), color, align })
+  // sx: vodorovná mierka (< 1 = zúžený text, názvy jedál na A5)
+  text(text, x, y, size, weight, { color = '#000', align = 'left', sx = 1 } = {}) {
+    this.ops.push({ op: 'text', text, x: Math.round(x), y, size, font: this.font(size, weight), color, align, sx })
   }
 
   // Príkazy iného hárku posunuté o dy (skladanie strán A5 z riadkov)
@@ -379,7 +380,15 @@ class Sheet {
       } else {
         ctx.font = o.font
         ctx.textAlign = o.align
-        ctx.fillText(o.text, o.x, o.y)
+        if (o.sx === 1) {
+          ctx.fillText(o.text, o.x, o.y)
+        } else {
+          ctx.save()
+          ctx.translate(o.x, o.y)
+          ctx.scale(o.sx, 1)
+          ctx.fillText(o.text, 0, 0)
+          ctx.restore()
+        }
       }
     }
     return canvas
@@ -515,10 +524,27 @@ function drawSectionBar(s, sec, numbered, b) {
   s.y = top + rows * h + 10
 }
 
+// Názov položky zalomený do šírky maxW; keby zabral viac riadkov ako pri
+// najväčšom zúžení minScale, písmo sa vodorovne zúži (po 1 %, najviac na
+// minScale) — výška písma ostáva, zbytočný riadok nepribudne.
+// Vracia { sx, lines } (šírky riadkov bez zúženia).
+function fitName(s, text, maxW, size, minScale) {
+  const wrap = sx => s.wrap([{ text, weight: 600 }], maxW / sx, size)
+  const fewest = wrap(minScale).length
+  let sx = 1
+  let lines = wrap(sx)
+  while (lines.length > fewest) {
+    sx = Math.max(minScale, sx - 0.01)
+    lines = wrap(sx)
+  }
+  return { sx, lines }
+}
+
 // Položka: vľavo názov (zalamuje sa, nezasahuje do stĺpca množstva), vpravo
 // množstvo spolu; pod názvom porcia na osobu a pri polievke jej zložky.
 // inlineMeta: porcia a rozpis súčtu hneď za názvom (keď sa tam zmestia)
-function drawItem(s, it, L, R, { inlineMeta = false } = {}) {
+// nameSize, nameMinScale: písmo názvu a najväčšie vodorovné zúženie (fitName)
+function drawItem(s, it, L, R, { inlineMeta = false, nameSize = 32, nameMinScale = 1 } = {}) {
   s.y += 10
   const top = s.y
   const qtyW = it.total ? Math.ceil(s.width(it.total, 38, 700)) : 0
@@ -528,20 +554,20 @@ function drawItem(s, it, L, R, { inlineMeta = false } = {}) {
   const badgeSize = it.split === 2 ? 34 : 24
   const badgeW = badge ? Math.max(36, Math.ceil(s.width(badge, badgeSize, 700)) + 10) : 0
   const x = L + (badge ? badgeW + 10 : 0)
-  const nameH = lineH(32)
-  const lines = s.wrap([{ text: it.name, weight: 600 }], R - x - (qtyW ? qtyW + 16 : 0), 32)
+  const { sx, lines } = fitName(s, it.name, R - x - (qtyW ? qtyW + 16 : 0), nameSize, nameMinScale)
+  const nameH = lineH(nameSize)
   // Prvý riadok: názov a množstvo na spoločnom účiarí
   const row1 = it.total ? Math.max(nameH, lineH(38)) : nameH
-  const b1 = it.total ? s.base(top, row1, 38, 700) : s.base(top, row1, 32, 600)
+  const b1 = it.total ? s.base(top, row1, 38, 700) : s.base(top, row1, nameSize, 600)
   let lastBase = b1
   lines.forEach((ln, i) => {
-    const b = i === 0 ? b1 : s.base(top + row1 + (i - 1) * nameH, nameH, 32, 600)
-    s.text(ln.words.map(wd => wd.text).join(' '), x, b, 32, 600)
+    const b = i === 0 ? b1 : s.base(top + row1 + (i - 1) * nameH, nameH, nameSize, 600)
+    s.text(ln.words.map(wd => wd.text).join(' '), x, b, nameSize, 600, { sx })
     lastBase = b
   })
   if (it.total) s.text(it.total, R, b1, 38, 700, { align: 'right' })
   if (badge) {
-    const by = Math.round(b1 - s.cap(32, 600) / 2 - 18)
+    const by = Math.round(b1 - s.cap(nameSize, 600) / 2 - 18)
     s.rect(L, by, badgeW, 36)
     s.text(badge, L + badgeW / 2, s.inkBase(by, 36, badge, badgeSize, 700), badgeSize, 700,
       { color: '#fff', align: 'center' })
@@ -559,7 +585,7 @@ function drawItem(s, it, L, R, { inlineMeta = false } = {}) {
     const sepW = gap + s.width('|', 24, 400) + gap
     const widths = meta.map(t => s.width(t, 24, 400))
     const metaW = widths.reduce((a, b) => a + b, 0) + (meta.length - 1) * sepW
-    let mx = x + Math.ceil(last.w) + 24
+    let mx = x + Math.ceil(last.w * sx) + 24
     const maxX = lines.length === 1 && qtyW ? R - qtyW - 16 : R
     if (mx + metaW <= maxX) {
       inline = true
@@ -888,7 +914,7 @@ export function buildDaySummary(dates, events) {
 // Ten istý lístok do kuchyne na stranu A5 na výšku (LUNA A5 = ľavá polovica
 // A4 na šírku). Písmo má vždy rovnakú veľkosť: rozloženie je v bodoch termo
 // lístka s pevnou šírkou stĺpca. Čo sa na stranu nezmestí, pokračuje na
-// ďalšej strane A5 — písmo sa nikdy nezmenšuje.
+// ďalšej strane A5 — písmo sa nikdy nezmenšuje (názvy jedál viď A5_ITEM).
 const A5_MM      = { w: 148, h: 210 }    // A5 na výšku
 const A5_MARGIN  = 5                     // úzke okraje strany v mm
 const A5_PX_MM   = 300 / 25.4            // PNG v 300 dpi
@@ -896,6 +922,10 @@ const A5_GAP     = 24                    // medzera medzi stĺpcami (body termo 
 const A5_COL     = 736                   // šírka stĺpca v bodoch = pevná veľkosť písma (menu z nástenky sa zmestí s rezervou ~12 mm)
 const A5_CONTENT = 2 * A5_COL + A5_GAP
 const A5_PT_MM   = A5_CONTENT / (A5_MM.w - 2 * A5_MARGIN)  // bodov na mm
+// Názvy jedál väčším písmom ako na termo lístku (32): 40. Názov, ktorý by sa
+// tým zalomil na viac riadkov, sa vodorovne zúži — najviac na 78 % (o chlp
+// užšie ako písmo 32), takže riadkov nepribudne a výška písma ostáva 40.
+const A5_ITEM    = { nameSize: 40, nameMinScale: 0.78 }
 // Sekcie v dvoch stĺpcoch (podľa lístka na nástenke): vľavo hlavné jedlo
 // dospelí, vpravo deti a pod nimi špeciál; vľavo raut, vpravo prílohy pre
 // raut a pod nimi studená kuchyňa. Bez ľavej sekcie ide doľava prvá z pravých.
@@ -973,7 +1003,7 @@ function a5Rows(family, model) {
   }
   const column = (s, secs, b) => secs.forEach((sec, i) => {
     if (i > 0) s.y += 20
-    drawSection(s, sec, true, b)
+    drawSection(s, sec, true, b, A5_ITEM)
   })
 
   row(0, s => {
@@ -993,7 +1023,7 @@ function a5Rows(family, model) {
     const group = A5_COLUMNS.find(g => [...g.left, ...g.right].includes(sec.block))
     if (!group) {
       // polievka: porcia a rozpis dospelí + deti hneď za názvom
-      row(gap, s => drawSection(s, sec, true, full, { inlineMeta: sec.block === 0 }))
+      row(gap, s => drawSection(s, sec, true, full, { ...A5_ITEM, inlineMeta: sec.block === 0 }))
       return
     }
     let l = group.left.map(b => byBlock.get(b)).filter(Boolean)
@@ -1004,7 +1034,7 @@ function a5Rows(family, model) {
       r = r.slice(1)
     }
     if (!r.length) {
-      row(gap, s => drawSection(s, l[0], true, l[0].special ? left : full))
+      row(gap, s => drawSection(s, l[0], true, l[0].special ? left : full, A5_ITEM))
       return
     }
     row(gap, s => {
