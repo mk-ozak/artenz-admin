@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  IconChefHat, IconChevronDown, IconChevronRight, IconPlus, IconTrash, IconX,
+  IconChefHat, IconChevronDown, IconChevronRight, IconPlus, IconSearch, IconTrash, IconX,
   IconFileSpreadsheet, IconListCheck, IconLoader2,
 } from '@tabler/icons-react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { supabase } from '../../lib/supabase'
 import { MENU_COLORS } from '../../lib/menuColors'
-import { fetchAllRows } from '../../lib/ingredients'
+import { fetchAllRows, normText } from '../../lib/ingredients'
 import { exportMenuCatalog } from '../../utils/exportMenu'
 import BlurInput from './BlurInput'
 import RecipeModal from './RecipeModal'
@@ -92,9 +92,9 @@ function ColorPicker({ value, onChange }) {
 // Administrácia MENU: kategórie (poradie ťahaním, premenovanie, max. výber,
 // množstvo) a ich položky (poradie ťahaním, premenovanie, presun medzi
 // kategóriami). Mazanie = archivácia, takže menu vytvorené v minulosti
-// ostávajú nedotknuté.
+// ostávajú nedotknuté. Hľadanie položky podľa názvu alebo variantu ako v surovinách.
 // categoryId = len táto kategória, rozbalená (okno výberu v menu → koliesko):
-//   bez novej kategórie, bez mazania kategórie a bez exportu
+//   bez hľadania, novej kategórie, mazania kategórie a exportu
 export default function MenuSettings({ categoryId = null }) {
   const [categories, setCategories] = useState([])
   const [items, setItems]           = useState([])
@@ -103,6 +103,7 @@ export default function MenuSettings({ categoryId = null }) {
   const [error, setError]           = useState(null)
 
   const [expandedId, setExpandedId] = useState(categoryId)
+  const [search, setSearch]         = useState('')
   const [newCatName, setNewCatName]   = useState('')
   const [newItemName, setNewItemName] = useState('')
   // Rozpísaná nová možnosť variantu — zvlášť pre každú položku
@@ -377,9 +378,20 @@ export default function MenuSettings({ categoryId = null }) {
   // Bloky kategórií — zoradené čísla blokov; medzi nimi sa kreslí oddeľovač
   const blocks = [...new Set(categories.map(c => c.block))].sort((a, b) => a - b)
   const maxBlock = blocks.length ? blocks[blocks.length - 1] : 1
+  // Vyhľadávanie: kategórie s nájdenými položkami (podľa názvu alebo variantu,
+  // ktorý sa pri položke zobrazuje), rozbalené, bez ťahania (poradie sa mení
+  // len v celom zozname). Varianty nájdenej položky sa ukážu všetky, nájdené
+  // sú zvýraznené.
+  const q = normText(search.trim())
+  const searching = q !== ''
+  const matches = text => normText(text).includes(q)
+  const itemsOf = cat => items.filter(i => i.category_id === cat.id && (!searching || matches(i.name)
+    || (i.has_variants && variants.some(v => v.item_id === i.id && matches(v.name)))))
   // Zobrazené kategórie a ich bloky (pri categoryId len jedna; výber bloku
   // v karte ponúka ďalej všetky bloky)
-  const shownCats   = categoryId ? categories.filter(c => c.id === categoryId) : categories
+  const shownCats = categoryId
+    ? categories.filter(c => c.id === categoryId)
+    : searching ? categories.filter(c => itemsOf(c).length) : categories
   const shownBlocks = blocks.filter(b => shownCats.some(c => c.block === b))
 
   return (
@@ -396,8 +408,37 @@ export default function MenuSettings({ categoryId = null }) {
         </p>
       )}
 
-      {/* Nová kategória */}
+      {/* Hľadanie položky (aj podľa variantu) */}
       {!categoryId && (
+        <div className="relative">
+          <IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Hľadať položku alebo variant"
+            className="w-full border border-gray-300 rounded-lg pl-9 pr-9 py-2 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Zrušiť hľadanie"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded flex items-center
+                         justify-center text-gray-400 hover:text-gray-600"
+            >
+              <IconX size={15} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {searching && !shownCats.length && (
+        <p className="text-sm text-gray-500 py-4 text-center">Nič sa nenašlo.</p>
+      )}
+
+      {/* Nová kategória */}
+      {!categoryId && !searching && (
       <form onSubmit={addCategory} className="flex gap-2">
         <input
           value={newCatName}
@@ -427,8 +468,8 @@ export default function MenuSettings({ categoryId = null }) {
               <SortableContext items={shownCats.filter(c => c.block === block).map(c => c.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-3">
                   {shownCats.filter(c => c.block === block).map(cat => {
-              const catItems = items.filter(i => i.category_id === cat.id)
-              const expanded = expandedId === cat.id
+              const catItems = itemsOf(cat)
+              const expanded = searching || expandedId === cat.id
               const pKey     = presetKey(cat)
               return (
                 <SortableRow
@@ -438,15 +479,16 @@ export default function MenuSettings({ categoryId = null }) {
                 >
                   {handleProps => (
                     <>
-                      {/* Hlavička kategórie */}
+                      {/* Hlavička kategórie; pri hľadaní bez úchytky */}
                       <div className="px-3 py-2 flex items-center gap-1.5 flex-wrap">
-                        <DragHandle {...handleProps} />
+                        {searching ? <span className="w-7 shrink-0" /> : <DragHandle {...handleProps} />}
 
                         <button
                           onClick={() => { setExpandedId(expanded ? null : cat.id); setNewItemName('') }}
+                          disabled={searching}
                           aria-label={expanded ? 'Zbaliť' : 'Rozbaliť'}
                           className="w-7 h-7 shrink-0 rounded flex items-center justify-center
-                                     text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                                     text-gray-400 hover:text-gray-600 hover:bg-gray-50 disabled:opacity-40"
                         >
                           {expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
                         </button>
@@ -573,7 +615,7 @@ export default function MenuSettings({ categoryId = null }) {
                                   {itemHandleProps => (
                                     <>
                                       <div className="px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
-                                      <DragHandle {...itemHandleProps} />
+                                      {searching ? <span className="w-7 shrink-0" /> : <DragHandle {...itemHandleProps} />}
 
                                       <BlurInput
                                         value={item.name}
@@ -708,8 +750,10 @@ export default function MenuSettings({ categoryId = null }) {
                                                   <SortableRow
                                                     key={v.id}
                                                     id={v.id}
-                                                    className="flex items-center gap-1 bg-white rounded-lg
-                                                               border border-gray-100 pr-1"
+                                                    className={`flex items-center gap-1 rounded-lg border pr-1
+                                                                ${searching && matches(v.name)
+                                                                  ? 'bg-[#eaf7f5] border-[#4cbfb3]'
+                                                                  : 'bg-white border-gray-100'}`}
                                                   >
                                                     {vHandleProps => (
                                                       <>
@@ -785,6 +829,7 @@ export default function MenuSettings({ categoryId = null }) {
                           </DndContext>
 
                           {/* Nová položka */}
+                          {!searching && (
                           <form onSubmit={e => addItem(e, cat)} className="px-3 py-2 flex gap-2 bg-gray-50/60">
                             <input
                               value={newItemName}
@@ -804,6 +849,7 @@ export default function MenuSettings({ categoryId = null }) {
                               Pridať
                             </button>
                           </form>
+                          )}
                         </div>
                       )}
                     </>
