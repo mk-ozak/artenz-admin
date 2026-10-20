@@ -3,6 +3,7 @@
 // z modelu buildIngredientSummary (lib/ingredientCalc). Spoločná hlavička,
 // zoznam akcií, sekcie v dvoch stĺpcoch a „Vytlačené".
 import { DAYS_LONG, DAYS_SHORT } from './format'
+import { rautBox } from './kitchenTicket'
 
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -29,7 +30,8 @@ function countsText(ev) {
     `dospelí ${c.adults}${c.adultsNoMeal ? ` (+${c.adultsNoMeal} bez jedla)` : ''}`,
     `deti ${c.kidsMeal}${c.kidsNoMeal ? ` (+${c.kidsNoMeal} bez jedla)` : ''}`,
     c.specials ? `špeciály ${c.specials}` : '',
-    ev.hasRaut ? `raut ${c.raut}` : '',
+    // počet ľudí na raut, pri raute zadanom v kg kilá
+    ev.hasRaut ? `raut ${rautBox(c).n}` : '',
   ].filter(Boolean).join(' · ')
 }
 
@@ -100,12 +102,11 @@ const SUMMARY_CSS = `
 
 // Rámčeky počtov ako na lístku do kuchyne (raut len pri akcii s rautom)
 function countsBoxes(c, hasRaut) {
-  const extra = n => (n > 0 ? `z toho +${n} navyše` : `z toho −${-n} menej`)
   const boxes = [
     { label: 'DOSPELÍ',  n: c.adults,   sub: c.adultsNoMeal > 0 ? `+${c.adultsNoMeal} bez jedla` : '' },
     { label: 'DETI',     n: c.kidsMeal, sub: c.kidsNoMeal > 0 ? `+${c.kidsNoMeal} bez jedla` : '' },
     { label: 'ŠPECIÁLY', n: c.specials, sub: '' },
-    ...(hasRaut ? [{ label: 'RAUT', n: c.raut, sub: c.rautExtra ? extra(c.rautExtra) : '' }] : []),
+    ...(hasRaut ? [rautBox(c)] : []),
   ]
   return `<div class="counts">${boxes.map(b => `<div class="count">
     <div class="l">${b.label}</div><div class="n">${b.n}</div>${b.sub ? `<div class="s">${esc(b.sub)}</div>` : ''}

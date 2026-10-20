@@ -72,6 +72,8 @@ export const FIELD_LABEL = {
   raut_notes:      'Poznámky – raut',
   raut_extra:      'Raut navyše/menej',
   raut_grams:      'Gramáž rautu (g)',
+  raut_by_kg:      'Raut – zadať kilá',
+  raut_kg:         'Celková hmotnosť rautu (kg)',
   menu_created:    'Menu vytvorené',
   // Objednávka VO
   vo_status:       'Stav objednávky',

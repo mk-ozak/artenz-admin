@@ -6,7 +6,7 @@ import MenuEditor from '../menu/MenuEditor'
 import TimeSelect from '../TimeSelect'
 import VoiceMenuDialog from './VoiceMenuDialog'
 import VoiceMenuSummary from './VoiceMenuSummary'
-import { detailsFromRow, hiddenBlocksOf, menuSummaryConfig, rautTotalOf, timeOf } from '../../lib/menuSummary'
+import { detailsFromRow, hiddenBlocksOf, kgText, menuSummaryConfig, rautKgValue, rautTotalOf, timeOf } from '../../lib/menuSummary'
 import { buildVoiceCatalog, planVoiceMenu } from '../../lib/voiceMenu'
 import { postVoice, useVoiceRecorder } from '../../hooks/useVoiceRecorder'
 import { VO_HIDDEN_GUEST_FIELDS, VO_LOCKED_QTY_BLOCKS } from '../../lib/vo'
@@ -26,11 +26,12 @@ const DETAIL_COLS = {
   guestsKidsNoMeal:   'guests_kids_no_meal',
   rautExtra:          'raut_extra',
   rautGrams:          'raut_grams',
+  rautKg:             'raut_kg',
   notes:              'notes',
   mainNotes:          'main_notes',
   rautNotes:          'raut_notes',
 }
-// Textové polia (prázdne → NULL), ostatné sú čísla
+// Textové polia (prázdne → NULL), ostatné sú čísla (kilá rautu aj s čiarkou)
 const TEXT_DETAILS = ['notes', 'mainNotes', 'rautNotes']
 // Editovateľné pole je biele, zamknuté šedé
 const detailInputCls = `w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
@@ -77,7 +78,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
   function loadDetails() {
     return supabase
       .from('bookings')
-      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, notes, menu_created, raut_enabled, main_enabled, main_time, raut_time, main_notes, raut_notes')
+      .select('guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal, raut_extra, raut_grams, raut_by_kg, raut_kg, notes, menu_created, raut_enabled, main_enabled, main_time, raut_time, main_notes, raut_notes')
       .eq('id', bookingId)
       .single()
       .then(({ data }) => {
@@ -193,7 +194,11 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     const raw = details[field]
     const value = TEXT_DETAILS.includes(field)
       ? (raw.trim() || null)
-      : (raw === '' ? null : Number(raw))
+      : field === 'rautKg'
+        ? rautKgValue(raw)
+        : (raw === '' ? null : Number(raw))
+    // V poli kíl ostane uložené číslo (12,50 → 12,5; neplatné → prázdne)
+    if (field === 'rautKg') setDetails(d => ({ ...d, rautKg: kgText(value) }))
     const { error } = await supabase
       .from('bookings')
       .update({ [DETAIL_COLS[field]]: value })
@@ -201,7 +206,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     if (error) setError(error.message)
   }
 
-  // Zapnutie / vypnutie hlavného jedla alebo rautu — ukladá sa hneď
+  // Zapnutie / vypnutie hlavného jedla, rautu alebo ZADAŤ KILÁ — ukladá sa hneď
   // (optimisticky + návrat pri chybe)
   async function toggleBlock(column, value, setValue) {
     const next = !value
@@ -299,8 +304,9 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     )
   }
 
-  // Zvýraznený blok s prepínačom (Hlavné jedlo / Raut) a jeho údajmi
-  function toggleCard({ title, on, onToggle, subtitle, children }) {
+  // Zvýraznený blok s prepínačom (Hlavné jedlo / Raut) a jeho údajmi;
+  // action = ďalší prepínač naľavo od vypínača (Raut: ZADAŤ KILÁ)
+  function toggleCard({ title, on, onToggle, subtitle, action, children }) {
     return (
       <div className={`rounded-card border-2 overflow-hidden transition-colors
                        ${on ? 'border-[#a8d9d3] bg-[#f1f9f8]' : 'border-[#e0e8ec] bg-[#f6f8f9]'}`}>
@@ -309,19 +315,22 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
             <p className="text-[15px] font-bold text-[#1a2830]">{title}</p>
             <p className="text-[11px] text-[#5d7d8e]">{subtitle}</p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={title}
-            onClick={onToggle}
-            disabled={!editable}
-            className={`relative w-11 h-6 shrink-0 rounded-full transition-colors disabled:opacity-60
-                        ${on ? 'bg-[#4cbfb3]' : 'bg-[#cfdbe2]'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow
-                              transition-transform ${on ? 'translate-x-5' : ''}`} />
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {action}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={on}
+              aria-label={title}
+              onClick={onToggle}
+              disabled={!editable}
+              className={`relative w-11 h-6 shrink-0 rounded-full transition-colors disabled:opacity-60
+                          ${on ? 'bg-[#4cbfb3]' : 'bg-[#cfdbe2]'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow
+                                transition-transform ${on ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
         </div>
         {children && <div className="px-4 pb-3">{children}</div>}
       </div>
@@ -367,38 +376,75 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       subtitle: rautOn
         ? 'Raut a prílohy pre raut sú v menu'
         : 'Bez rautu — raut sa nezobrazuje ani netlačí',
+      // ZADAŤ KILÁ: namiesto počtu ľudí × gramáž sa zadá rovno celková hmotnosť
+      // rautu (len pri zapnutom raute; VO ho nemá — množstvá rautu určuje kuchyňa)
+      action: rautOn && !vo && (
+        <button
+          type="button"
+          aria-pressed={details.rautByKg}
+          onClick={() => toggleBlock('raut_by_kg', details.rautByKg,
+            v => setDetails(d => ({ ...d, rautByKg: v })))}
+          disabled={!editable}
+          className={`h-8 px-3 rounded-full border text-[11px] font-bold tracking-[.06em]
+                      whitespace-nowrap transition-colors disabled:opacity-60
+                      ${details.rautByKg
+                        ? 'bg-[#4cbfb3] border-[#4cbfb3] text-[#0a2d2a]'
+                        : 'bg-white border-[#a8d9d3] text-[#2a8d83] enabled:hover:bg-[#eaf7f5]'}`}
+        >
+          ZADAŤ KILÁ
+        </button>
+      ),
       children: rautOn && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
-            <div className="min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
-              <input type="text" readOnly value={rautTotal} className={computedInputCls} />
-            </div>
-            <div className="min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
-              <input
-                type="number"
-                placeholder="0"
-                value={details.rautExtra}
-                disabled={!editable}
-                onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
-                onBlur={() => saveDetail('rautExtra')}
-                className={detailInputCls}
-              />
-            </div>
-            <div className="min-w-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Gramáž rautu (g)</label>
-              <input
-                type="number"
-                min="1"
-                placeholder="200"
-                value={details.rautGrams}
-                disabled={!editable || vo}
-                onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
-                onBlur={() => saveDetail('rautGrams')}
-                className={detailInputCls}
-              />
-            </div>
+            {details.rautByKg ? (
+              // Raut v kilách — len celková hmotnosť (počet ľudí a gramáž sa nepočítajú)
+              <div className="min-w-0">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Celková hmotnosť (kg)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={details.rautKg}
+                  disabled={!editable || vo}
+                  onChange={e => setDetails(d => ({ ...d, rautKg: e.target.value }))}
+                  onBlur={() => saveDetail('rautKg')}
+                  className={detailInputCls}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Počet ľudí na raut</label>
+                  <input type="text" readOnly value={rautTotal} className={computedInputCls} />
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Raut navyše/menej</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={details.rautExtra}
+                    disabled={!editable}
+                    onChange={e => setDetails(d => ({ ...d, rautExtra: e.target.value }))}
+                    onBlur={() => saveDetail('rautExtra')}
+                    className={detailInputCls}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Gramáž rautu (g)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="200"
+                    value={details.rautGrams}
+                    disabled={!editable || vo}
+                    onChange={e => setDetails(d => ({ ...d, rautGrams: e.target.value }))}
+                    onBlur={() => saveDetail('rautGrams')}
+                    className={detailInputCls}
+                  />
+                </div>
+              </>
+            )}
             {timeField('Čas rautu', rautTime, 'raut_time', setRautTime)}
           </div>
           {blockNotesField('rautNotes', 'Poznámky k rautu…')}

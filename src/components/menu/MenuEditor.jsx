@@ -752,12 +752,13 @@ export default function MenuEditor({
                 </div>
               )
             } else if (summary?.weightCheck?.blocks?.includes(block) && !lockedQtyBlocks?.includes(block)) {
-              // Raut: súčet naklikaných kg vs počet ľudí na raut × 0,2 kg
+              // Raut: súčet naklikaných kg vs cieľ (počet ľudí na raut × gramáž,
+              // alebo zadaná celková hmotnosť — lib/menuSummary)
               const wc = summary.weightCheck
               const sumKg = renderCats
                 .filter(c => c.block === block && c.qty_unit === 'kg')
                 .reduce((s, c) => s + (selsByCat[c.id] ?? []).reduce((a, x) => a + (Number(x.quantity) || 0), 0), 0)
-              const target = Math.round(wc.people * wc.perPerson * 100) / 100
+              const target = Math.round(wc.target * 100) / 100
               const diff   = Math.round((target - sumKg) * 100) / 100
               const status = diff > 0
                 ? `treba ešte ${fmtQty(diff)} kg`

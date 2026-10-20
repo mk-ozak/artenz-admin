@@ -465,18 +465,28 @@ function drawLabeled(s, label, value, size, b) {
   s.para([{ text: `${label}:`, weight: 400 }, { text: value, weight: 700 }], b.x, b.w, size)
 }
 
+// Rámček RAUT (lístok aj sumár jedál na A4): počet ľudí na raut, pri raute
+// zadanom v kg (ZADAŤ KILÁ) celková hmotnosť; sumár za viac akcií ukáže ľudí
+// a kilá z akcií s kilami zvlášť („38" a pod tým „+ 15 kg")
+export function rautBox(c) {
+  const extra = c.rautExtra > 0 ? `z toho +${c.rautExtra} navyše`
+    : c.rautExtra < 0 ? `z toho −${-c.rautExtra} menej` : ''
+  const kg = c.rautKg != null ? `${fmtQty(Math.round(c.rautKg * 100) / 100)} kg` : ''
+  if (kg && !c.raut && !extra) return { label: 'RAUT', n: kg, sub: '' }
+  return { label: 'RAUT', n: c.raut, sub: [extra, kg && `+ ${kg}`].filter(Boolean).join(' · ') }
+}
+
 // Počty osôb: rámčeky po perRow v riadku (termo 2 × 2, A5 všetky vedľa seba),
 // zobrazujú sa vždy (aj s nulou); RAUT len pri akcii s rautom (hasRaut),
 // inak ostane jeho miesto prázdne
 function drawCounts(s, c, hasRaut, b, perRow = 2) {
   const gap = 8
   const bw = (b.w - (perRow - 1) * gap) / perRow
-  const extra = n => (n > 0 ? `z toho +${n} navyše` : `z toho −${-n} menej`)
   const boxes = [
     { label: 'DOSPELÍ', n: c.adults,   sub: c.adultsNoMeal > 0 ? `+${c.adultsNoMeal} bez jedla` : '' },
     { label: 'DETI',    n: c.kidsMeal, sub: c.kidsNoMeal > 0 ? `+${c.kidsNoMeal} bez jedla` : '' },
     { label: 'ŠPECIÁLY', n: c.specials, sub: '' },
-    ...(hasRaut ? [{ label: 'RAUT', n: c.raut, sub: c.rautExtra ? extra(c.rautExtra) : '' }] : []),
+    ...(hasRaut ? [rautBox(c)] : []),
   ]
   const rows = []
   for (let i = 0; i < boxes.length; i += perRow) rows.push(boxes.slice(i, i + perRow))
@@ -838,12 +848,16 @@ export function buildDaySummary(dates, events) {
 
   const withMenu = events.filter(e => e.model)
   const counts = { adults: 0, adultsNoMeal: 0, kidsMeal: 0, kidsNoMeal: 0, specials: 0, raut: 0, rautExtra: 0 }
+  // kilá rautu z akcií s rautom zadaným v kg (null = žiadna taká akcia)
+  let rautKg = null
   for (const e of withMenu) {
     for (const k of Object.keys(counts)) {
       if (k.startsWith('raut') && !e.model.hasRaut) continue
       counts[k] += e.model.counts?.[k] ?? 0
     }
+    if (e.model.hasRaut && e.model.counts?.rautKg != null) rautKg = (rautKg ?? 0) + e.model.counts.rautKg
   }
+  counts.rautKg = rautKg
 
   // Prípitky: súčet ks podľa položky
   const toasts = new Map()  // označenie prípitku → Map(kľúč → { name, amount, unit })

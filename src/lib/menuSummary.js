@@ -2,6 +2,8 @@
 // blokov a počty osôb. Spoločné pre detail rezervácie (BookingMenu) a sumár
 // jedál na dashboarde, aby sa všade počítalo rovnako.
 
+import { parseAmount } from './ingredients'
+
 // Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
 export const RAUT_BLOCKS = [4, 5]
 
@@ -46,10 +48,23 @@ export function detailsFromRow(row) {
     guestsKidsNoMeal:   row?.guests_kids_no_meal ?? '',
     rautExtra:          row?.raut_extra ?? '',
     rautGrams:          row?.raut_grams ?? 200,
+    // ZADAŤ KILÁ — raut zadaný rovno celkovou hmotnosťou (text poľa „12,5")
+    rautByKg:           row?.raut_by_kg ?? false,
+    rautKg:             kgText(row?.raut_kg),
     notes:              row?.notes ?? '',
     mainNotes:          row?.main_notes ?? '',
     rautNotes:          row?.raut_notes ?? '',
   }
+}
+
+// Celková hmotnosť rautu: kg → text poľa (12.5 → „12,5", prázdne → '')
+export const kgText = kg => (kg != null ? String(kg).replace('.', ',') : '')
+
+// Text poľa celkovej hmotnosti rautu → kg na 2 desatinné miesta (berie aj
+// čiarku); prázdne, neplatné alebo záporné → null
+export function rautKgValue(text) {
+  const kg = parseAmount(text)
+  return kg != null && kg >= 0 ? Math.round(kg * 100) / 100 : null
 }
 
 // Počet ľudí na raut = (dospelí + špeciály) + zaokrúhlené nahor(deti s jedlom / 2)
@@ -68,14 +83,18 @@ export function rautTotalOf(details) {
 //   (posiela ich len zapnutý blok)
 export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rautTime = '', mainNotes = '', rautNotes = '' } = {}) {
   const rautTotal = rautTotalOf(details)
+  // ZADAŤ KILÁ: raut sa nepočíta z počtu ľudí × gramáž — cieľ je zadaná
+  // celková hmotnosť a raut nemá počet ľudí (nadpisy sekcií, lístok)
+  const byKg = !!details.rautByKg
+  const rautKg = rautKgValue(details.rautKg) ?? 0
   return {
     titles: rautTime ? { ...BLOCK_TITLES, 4: `${BLOCK_TITLES[4]} – ${rautTime}` } : BLOCK_TITLES,
     fixedQty: {
       1: Number(details.guestsAdults) || 0,
       // hlavné jedlo deti = zadaný počet detí (vzorec /2 platí len pre raut)
       2: Number(details.guestsKidsMeal) || 0,
-      4: rautTotal,
-      5: rautTotal,
+      4: byKg ? null : rautTotal,
+      5: byKg ? null : rautTotal,
     },
     checkBlock:  3,
     checkTarget: Number(details.guestsSpecials) || 0,
@@ -100,11 +119,13 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
       // Špeciáli pijú prípitok dospelých (lib/menuCalc → calcCount)
       specials: Number(details.guestsSpecials) || 0,
     },
-    // Raut + Prílohy pre raut: naklikané kg vs počet ľudí na raut × (gramáž/1000) kg
+    // Raut + Prílohy pre raut: naklikané kg vs cieľ = počet ľudí na raut ×
+    // (gramáž/1000) kg, pri ZADAŤ KILÁ zadaná celková hmotnosť
     weightCheck: {
       blocks: RAUT_BLOCKS,
-      perPerson: ((Number(details.rautGrams) > 0 ? Number(details.rautGrams) : 200) / 1000),
-      people: rautTotal,
+      target: byKg
+        ? rautKg
+        : rautTotal * ((Number(details.rautGrams) > 0 ? Number(details.rautGrams) : 200) / 1000),
     },
     // Tlač do kuchyne (termotlačiareň) — údaje akcie + počty osôb presne tak,
     // ako s nimi admin počíta
@@ -116,15 +137,18 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
         kidsMeal:     Number(details.guestsKidsMeal) || 0,
         kidsNoMeal:   Number(details.guestsKidsNoMeal) || 0,
         specials:     Number(details.guestsSpecials) || 0,
-        raut:         rautTotal,
-        rautExtra:    Number(details.rautExtra) || 0,
+        raut:         byKg ? 0 : rautTotal,
+        rautExtra:    byKg ? 0 : Number(details.rautExtra) || 0,
+        // raut zadaný v kg — celková hmotnosť (null = raut podľa počtu ľudí)
+        rautKg:       byKg ? rautKg : null,
       },
-      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 a 6 bez počtu
+      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 a 6 bez počtu,
+      // raut zadaný v kg tiež (a jeho položky sa na lístku nevynechajú pri 0 ľuďoch)
       sectionCount: {
         1: Number(details.guestsAdults) || 0,
         2: Number(details.guestsKidsMeal) || 0,
         3: Number(details.guestsSpecials) || 0,
-        4: rautTotal,
+        4: byKg ? null : rautTotal,
       },
       specialNotes: details.notes,
       // Poznámky blokov — tlačia sa v sekcii 1 (hlavné jedlo) a 4 (raut)

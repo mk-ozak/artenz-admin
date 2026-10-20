@@ -21,7 +21,7 @@ const WEEKDAYS = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne']
 // Stĺpce rezervácie potrebné na kalkuláciu (počty osôb, raut, požiadavky)
 const BOOKING_COLS = `id, date, hall, customer_name, event_type, menu_created, raut_enabled, main_enabled, main_time, raut_time, is_vo, vo_order_no,
   guests_adults, guests_adults_no_meal, guests_specials, guests_kids_meal, guests_kids_no_meal,
-  raut_extra, raut_grams, notes, main_notes, raut_notes`
+  raut_extra, raut_grams, raut_by_kg, raut_kg, notes, main_notes, raut_notes`
 // Výbery menu ako v MenuEditor (živý názov + kategória z katalógu, variant)
 const SEL_COLS =
   '*, menu_items(name, category_id, has_variants, variant_group_name), variant:menu_item_variants(name)'
