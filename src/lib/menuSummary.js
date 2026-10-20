@@ -81,6 +81,10 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
     checkTarget: Number(details.guestsSpecials) || 0,
     // Deti dostanú automaticky tú istú polievku ako dospelí (z bloku 1)
     mirror: { fromCategory: 'Polievka', toBlock: 2 },
+    // Bloky, ktoré sa v sumári nezobrazia pri nulovom počte osôb
+    // (calc.countByBlock) — deti bez detí s jedlom, inak by tam ostala
+    // zrkadlená polievka s 0 L
+    hideZeroBlocks: [2],
     // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke
     qtyBlocks: [6],
     // Bloky zobrazené vedľa seba (dva stĺpce): RAUT + Prílohy pre raut

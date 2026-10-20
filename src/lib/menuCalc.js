@@ -122,7 +122,8 @@ function categoriesForMenu(categories, selections) {
 // Kategória výberu je aktuálna z katalógu (selCatId); archivovaná kategória sa
 // ukáže len s výberom; skryté bloky (napr. vypnutý raut) sa vynechajú;
 // zrkadlenie (summary.mirror) dá polievku dospelých aj deťom.
-// sections sa skladajú len so summary (bloky s výberom, v poradí).
+// sections sa skladajú len so summary (bloky s výberom, v poradí; bez blokov
+// s 0 osobami zo summary.hideZeroBlocks).
 // selections musia patriť jednej akcii (zamrazené kategórie sú jej vlastné);
 // categories vo výsledku = kategórie, s ktorými menu počíta.
 export function buildMenuSections({ categories: catalog, selections, summary, hiddenBlocks }) {
@@ -139,16 +140,23 @@ export function buildMenuSections({ categories: catalog, selections, summary, hi
 
   const sections = []
   if (summary) {
+    // Bloky bez osôb (summary.hideZeroBlocks — deti pri 0 deťoch s jedlom) sa
+    // v sumári vynechajú, aj so zrkadlenou polievkou; lístok do kuchyne
+    // sekcie s 0 osobami vynecháva sám
+    const zeroBlocks = new Set(
+      (summary.hideZeroBlocks ?? []).filter(b => summary.calc?.countByBlock?.[b] === 0)
+    )
     for (const cat of visibleCats) {
       const sels = selsByCat[cat.id] ?? []
-      if (!sels.length) continue
+      if (!sels.length || zeroBlocks.has(cat.block)) continue
       let entry = sections.find(s => s.block === cat.block)
       if (!entry) { entry = { block: cat.block, items: [] }; sections.push(entry) }
       for (const sel of sels) entry.items.push({ sel, cat })
     }
     // Zrkadlenie (napr. polievka pre dospelých → automaticky aj deťom);
-    // pri skrytom zdrojovom alebo cieľovom bloku (vypnuté hlavné jedlo) nie
-    if (summary.mirror && !hidden.has(summary.mirror.toBlock)) {
+    // pri skrytom zdrojovom alebo cieľovom bloku (vypnuté hlavné jedlo)
+    // ani pri cieľovom bloku bez osôb nie
+    if (summary.mirror && !hidden.has(summary.mirror.toBlock) && !zeroBlocks.has(summary.mirror.toBlock)) {
       const mirrored = categories
         .filter(c => c.name === summary.mirror.fromCategory && !hidden.has(c.block))
         .flatMap(c => (selsByCat[c.id] ?? []).map(sel => ({ sel, cat: c })))
