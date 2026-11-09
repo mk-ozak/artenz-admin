@@ -1,6 +1,21 @@
 zákazník môže pripraviť svoje menu, ktoré sa skonzultuje na stretnutí - bude to zvlášť funkcia, kde si bude zákazník klikať z nášho zoznamu
 
-kalkulácie do kuchyne - pre celý deň kliknutím na dátum v diári
 
+Čo si mal doriešiť sám (z tvojich odpovedí):
 
-do tlače detailov menu pre zákazníka pridať aj základné info o cene a času, atď
+Slaninový chips (Extra prídavok): v receptúre je 5 g slaniny na 1 kg chipsu, čo je takmer nič. Buď daj na 1 kg chipsu asi 2 kg slaniny, alebo dávku 0,005 kg (1 porcia) a k nej asi 10 g slaniny.
+Taliansky šalát (Obloha): nemá receptúru.
+Očko (Studená kuchyňa): nemá receptúru.
+Knedľa, vepřo, zelo (Mäso): nemá receptúru. Rozhodni, či je knedľa súčasťou jedla, alebo sa vyberá zvlášť v Prílohe.
+Jedlo deti na kusy: v Nastavenia → Menu pri kategórii Jedlo deti vyplň jedn. = 1 a jednotku ks. Predvoľba „1 – 20 ks“ tu nestačí.
+Body 2–4 budú v KALKULÁCII SUROVÍN v rámčeku BEZ RECEPTÚRY, kým ich nedoplníš.
+
+Ešte mi dlhuješ odpoveď: mám pri Jedle deti zrušiť výnimku ryže (polovica = surová ryža na lístku)? Po prepnutí na kusy by inak lístok pri 10 deťoch ukazoval 5 ks ryže.
+
+Na kontrolu (moje predpoklady v receptúrach):
+
+Kuracie jednohubky = marinované kuracie kúsky s cherry paradajkami;
+Tatársky biftek a Tatarák domáci vrátane hrianok (chlieb + cesnak);
+Pirohy so zemiakovou plnkou;
+Vyprážaný mix syrov = eidam + encián;
+Tri druhy mäsa = kuracie, panenka, morčacie.
