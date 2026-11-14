@@ -1,6 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuthStore } from '../store/auth'
+import { useAuthStore, DEV_AUTO_LOGIN_OFF_KEY } from '../store/auth'
+
+// Automatické prihlásenie v náhľade: len `vite dev` na localhoste a len keď
+// sú vyplnené údaje v .env.development.local. Ten súbor Vite pri `vite build`
+// nečíta a import.meta.env.DEV je v builde false → na ostrý web sa to nedostane.
+const DEV_LOGIN =
+  import.meta.env.DEV &&
+  ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+  import.meta.env.VITE_DEV_LOGIN_EMAIL &&
+  import.meta.env.VITE_DEV_LOGIN_PASSWORD
+    ? { email: import.meta.env.VITE_DEV_LOGIN_EMAIL, password: import.meta.env.VITE_DEV_LOGIN_PASSWORD }
+    : null
 
 export default function LoginPage() {
   const { user, isLoading, signIn } = useAuthStore()
@@ -13,6 +24,21 @@ export default function LoginPage() {
   const [error, setError]         = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
+
+  // Náhľad na localhoste: prihlás sa sám (raz). Nie po ručnom odhlásení
+  // v tejto karte a nie pri zákazníckom linku (?u=...).
+  const autoTried = useRef(false)
+  useEffect(() => {
+    if (!DEV_LOGIN || isLoading || user || autoTried.current) return
+    if (searchParams.get('u')) return
+    let off = false
+    try { off = sessionStorage.getItem(DEV_AUTO_LOGIN_OFF_KEY) === '1' } catch { /* bez úložiska */ }
+    if (off) return
+    autoTried.current = true
+    signIn(DEV_LOGIN.email, DEV_LOGIN.password).then(err => {
+      if (err) setError(`Automatické prihlásenie zlyhalo: ${err}`)
+    })
+  }, [isLoading, user, searchParams, signIn])
 
   if (isLoading) {
     return (

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 
+// sessionStorage kľúč: po odhlásení v náhľade sa už automaticky neprihlasovať
+export const DEV_AUTO_LOGIN_OFF_KEY = 'devAutoLoginOff'
+
 async function fetchRole(userId) {
   const { data, error } = await supabase
     .from('profiles')
@@ -64,6 +67,11 @@ export const useAuthStore = create((set) => ({
   },
 
   signOut: async () => {
+    // Náhľad na localhoste: po ručnom odhlásení sa už v tejto karte
+    // automaticky neprihlasuj (LoginPage), aby sa dalo prihlásiť inak
+    if (import.meta.env.DEV) {
+      try { sessionStorage.setItem(DEV_AUTO_LOGIN_OFF_KEY, '1') } catch { /* bez úložiska */ }
+    }
     await supabase.auth.signOut()
     // onAuthStateChange nastaví user/role na null
   },
