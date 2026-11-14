@@ -14,6 +14,7 @@ import BookingMenu from '../components/booking/BookingMenu'
 import SettlementPanel from '../components/SettlementPanel'
 import BookingHistory from '../components/booking/BookingHistory'
 import { hallShortOf } from '../utils/kitchenTicket'
+import { menuGuestsMode } from '../lib/menuSummary'
 import { VO_COLOR, voCustomName, voLabel, voLabelWithName, voTitle } from '../lib/vo'
 import VoStatusToggle from '../components/vo/VoStatusToggle'
 
@@ -53,12 +54,12 @@ const STATUS_STYLE = {
 // Suma v €, prázdne → pomlčka
 const eur = v => (v !== '' && v != null && Number(v) > 0) ? `${Number(v)} €` : '—'
 
-// Informačný údaj v banneri (popis + hodnota)
-function Fact({ label, value }) {
+// Informačný údaj v banneri (popis + hodnota); alert = hodnota načerveno
+function Fact({ label, value, alert = false, title }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" title={title}>
       <span className="text-[10px] uppercase tracking-wider text-[#9ab0ba]">{label}</span>
-      <span className="text-sm font-semibold text-[#3a5160]">{value}</span>
+      <span className={`text-sm font-semibold ${alert ? 'text-[#e5484d]' : 'text-[#3a5160]'}`}>{value}</span>
     </div>
   )
 }
@@ -120,6 +121,21 @@ export default function BookingDetail() {
       })
   }
 
+  // Po zmene v menu (počty, prepínače blokov, vytvorenie): Očakávaných hostí
+  // prepočítala databáza → načítaj novú hodnotu (a režim menu pre modál „Upraviť")
+  function refreshGuests() {
+    supabase
+      .from('bookings')
+      .select('expected_guests, menu_created, main_enabled, raut_enabled, raut_by_kg')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        setBooking(b => b && ({ ...b, ...data }))
+        setForm(f => f && ({ ...f, expectedGuests: data.expected_guests != null ? data.expected_guests : '' }))
+      })
+  }
+
   useEffect(() => {
     loadBooking().then(data => {
       // Existujúci zákaznícky prístup → načítaj email pre opätovné zobrazenie linku
@@ -160,6 +176,7 @@ export default function BookingDetail() {
       deposit:        form.deposit,
       deposits:       form.deposits,
       googleEventId:  booking.google_calendar_event_id,
+      menuGuests:     menuGuestsMode(booking),
       isVo:           !!booking.is_vo,
       voOrderNo:      booking.vo_order_no ?? null,
       voStatus:       booking.vo_status ?? null,
@@ -220,6 +237,9 @@ export default function BookingDetail() {
   // Lokálny dátum (toISO), nie UTC — inak by sa okolo polnoci posúvala hranica.
   const isPastBooking = !!booking && booking.date < toISO(new Date())
   const editable      = isAdmin && !isPastBooking
+  // Očakávaných hostí z menu vyšiel prázdny/nulový → načerveno (do dňa akcie)
+  const guestsAlert   = !!booking && !!form && !isPastBooking && !!menuGuestsMode(booking)
+    && !(Number(form.expectedGuests) > 0)
 
   // Objednávka VO (veľkoobchod): vlastná farba, číslo namiesto typu akcie,
   // Koncept/FINAL namiesto stavu rezervácie, bez prístupu zákazníka
@@ -320,7 +340,12 @@ export default function BookingDetail() {
 
               {/* Základné údaje rezervácie — informačne; editujú sa cez „Upraviť" */}
               <div className="flex items-end gap-x-5 gap-y-2 mt-3 pt-3 border-t border-[#eef3f6] flex-wrap">
-                <Fact label="Očakávaných hostí" value={form.expectedGuests || '—'} />
+                <Fact
+                  label="Očakávaných hostí"
+                  value={form.expectedGuests || '—'}
+                  alert={guestsAlert}
+                  title={guestsAlert ? 'Z menu vyšiel prázdny alebo nulový počet hostí — skontroluj menu' : undefined}
+                />
                 <Fact label="Cena na osobu" value={eur(form.estimatedPrice)} />
                 <Fact
                   label="Záloha"
@@ -380,6 +405,7 @@ export default function BookingDetail() {
                 notes: form.decoration,
               }}
               customerPrintTarget={customerPrintSlot}
+              onGuestsChange={refreshGuests}
             />
 
             {/* Prístup zákazníka – len admin (objednávka VO ho nemá — VO má vlastné prihlásenie) */}

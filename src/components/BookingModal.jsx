@@ -21,6 +21,19 @@ const VENUES = [
   { key: 'catering',   label: 'CATERING' },
 ]
 
+// Očakávaných hostí z menu (podľa menuGuestsMode): popis pod poľom, tooltip
+// a text pri prázdnom/nulovom výsledku (pole načerveno)
+const MENU_GUESTS = {
+  main: { hint: 'z menu · deti × 0,7',  bad: 'chýbajú počty v menu',
+          title: 'Z menu: dospelí + špeciály + deti s jedlom × 0,7 (zaokrúhlené)' },
+  raut: { hint: 'z rautu · počet ľudí', bad: 'chýba počet ľudí na raut',
+          title: 'Z menu bez hlavného jedla: počet ľudí na raut' },
+  kg:   { hint: 'raut v kg → 1',        bad: 'skontroluj menu',
+          title: 'Raut zadaný v kilách: paušál 1 × cena' },
+  none: { hint: '',                     bad: 'menu je bez jedla aj rautu',
+          title: 'Menu nemá hlavné jedlo ani raut' },
+}
+
 const EMPTY = {
   customerName: '',
   phone: '',
@@ -140,6 +153,12 @@ export default function BookingModal() {
   // (dopočítanie finálnej tržby) — preto majú vlastný, miernejší zámok.
   const canEditFinancials = isAdmin
   const roFin             = !canEditFinancials
+  // Vytvorené menu → Očakávaných hostí sa do dňa akcie počíta z menu (prepočet
+  // robí databáza, viď menuGuestsMode) a pole je zašednuté; prázdny alebo
+  // nulový výsledok je načerveno (treba skontrolovať menu). Po akcii sa pole
+  // dá zasa upraviť (doladenie skutočnej tržby).
+  const menuGuests = isEdit && !isPastBooking ? (modalState.booking?.menuGuests ?? null) : null
+  const menuGuestsBad = !!menuGuests && !(Number(form.expectedGuests) > 0)
   const venueName  = VENUES.find(v => v.key === form.venue)?.label ?? form.venue
   const typeLabel  = EVENT_TYPES.find(t => t.value === form.type)?.label ?? form.type
   const nameMatches = (text) =>
@@ -532,18 +551,39 @@ export default function BookingModal() {
           <div className="flex gap-3">
             <div className="flex-1 min-w-0">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Očakávaných hostí</label>
-              <input
-                type="number"
-                value={form.expectedGuests}
-                disabled={roFin}
-                onChange={e => set('expectedGuests', e.target.value)}
-                placeholder=""
-                min="0"
-                step="1"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500
-                  disabled:opacity-60 disabled:cursor-not-allowed"
-              />
+              {menuGuests ? (
+                <>
+                  <input
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={form.expectedGuests ?? ''}
+                    placeholder="chýba"
+                    title={MENU_GUESTS[menuGuests].title}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm cursor-default focus:outline-none
+                      ${menuGuestsBad
+                        ? 'border-[#e5484d] bg-[#fdecec] text-[#c53a3f] font-semibold placeholder:text-[#e5484d]'
+                        : 'border-field-locked-border bg-field-locked text-gray-600'}`}
+                  />
+                  <p className={`mt-1 text-[10px] leading-tight
+                                 ${menuGuestsBad ? 'text-[#c53a3f]' : 'text-gray-400'}`}>
+                    {menuGuestsBad ? MENU_GUESTS[menuGuests].bad : MENU_GUESTS[menuGuests].hint}
+                  </p>
+                </>
+              ) : (
+                <input
+                  type="number"
+                  value={form.expectedGuests}
+                  disabled={roFin}
+                  onChange={e => set('expectedGuests', e.target.value)}
+                  placeholder=""
+                  min="0"
+                  step="1"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500
+                    disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Cena na osobu</label>

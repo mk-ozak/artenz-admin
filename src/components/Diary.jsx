@@ -12,6 +12,7 @@ import { toISO } from '../utils/diaryWeeks'
 import { formatDateSkYear } from '../utils/format'
 import { EVENT_LABEL } from '../lib/eventTypes'
 import { VO_COLOR, VO_DIARY_STYLE, VO_STATUS_LABEL } from '../lib/vo'
+import { menuGuestsMode } from '../lib/menuSummary'
 
 const MIN_YEAR = 2024
 
@@ -213,6 +214,7 @@ export default function Diary() {
       phone:         b.customer_phone ?? null,
       expectedGuests: b.expected_guests != null ? b.expected_guests : '',
       estimatedPrice: b.estimated_price != null ? Number(b.estimated_price) : '',
+      menuGuests:    menuGuestsMode(b),
       isVo:          !!b.is_vo,
       voOrderNo:     b.vo_order_no ?? null,
       voStatus:      b.vo_status ?? null,

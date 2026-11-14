@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { EVENT_LABEL } from '../lib/eventTypes'
+import { menuGuestsMode } from '../lib/menuSummary'
 
 export const HALL_MAP = {
   artenzPlus: 'ARTENZ_PLUS',
@@ -34,6 +35,8 @@ export function toFrontend(row) {
     phone:          row.customer_phone ?? null,
     expectedGuests: row.expected_guests != null ? row.expected_guests : '',
     estimatedPrice: row.estimated_price != null ? Number(row.estimated_price) : '',
+    // Očakávaných hostí sa počíta z menu → v modáli zašednuté (null = ručne)
+    menuGuests:     menuGuestsMode(row),
     isVo:           !!row.is_vo,
     voOrderNo:      row.vo_order_no ?? null,
     voStatus:       row.vo_status ?? null,
@@ -86,7 +89,8 @@ function toBackend(b) {
     status: b.status ?? 'dopyt',
     customer_phone: b.phone?.trim() || null,
     // Čas podávania (hlavné jedlo / raut) vlastní sekcia Menu — modál ho nezapisuje
-    // Prázdne (nezadané) → NULL; inak číslo
+    // Prázdne (nezadané) → NULL; inak číslo. Pri vytvorenom menu ho do dňa
+    // akcie prepíše databáza počtom z menu (trigger bookings_zz_expected_guests).
     expected_guests: b.expectedGuests !== '' && b.expectedGuests != null ? Number(b.expectedGuests) : null,
     estimated_price: b.estimatedPrice !== '' && b.estimatedPrice != null ? Number(b.estimatedPrice) : null,
   }

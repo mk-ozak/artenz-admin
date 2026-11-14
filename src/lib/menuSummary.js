@@ -39,6 +39,21 @@ export const BLOCK_TITLES = {
 }
 
 // Riadok z bookings → počty hostí a požiadavky ku strave (tvar formulára v BookingMenu)
+// Očakávaných hostí z menu (riadok z bookings) — podľa čoho ho počíta databáza
+// do dňa akcie (trigger bookings_zz_expected_guests; vzorec meň len tam):
+//   'main' hlavné jedlo:        dospelí + špeciály + deti s jedlom × 0,7
+//   'raut' len raut:            počet ľudí na raut (ako rautTotalOf)
+//   'kg'   len raut v kilách:   1 (paušál)
+//   'none' ani hlavné jedlo, ani raut → prázdne (v appke načerveno)
+//   null   menu nie je vytvorené — Očakávaných hostí sa zadáva ručne
+// Výsledok sa zaokrúhľuje na celé osoby aritmeticky (12,5 → 13).
+export function menuGuestsMode(row) {
+  if (!row?.menu_created) return null
+  if (row.main_enabled ?? true) return 'main'
+  if (row.raut_enabled ?? true) return row.raut_by_kg ? 'kg' : 'raut'
+  return 'none'
+}
+
 export function detailsFromRow(row) {
   return {
     guestsAdults:       row?.guests_adults ?? '',

@@ -47,7 +47,10 @@ const computedInputCls = `w-full border border-field-locked-border rounded-lg px
 // customerPrintTarget: miesto pre blok „Zhrnutie pre zákazníka" (spodok detailu)
 // vo: menu upravuje VO (veľkoobchod) — len tlač sumáru A4, bez nastavení menu
 //   a pridávania do katalógu, kg rautu a gramáž rautu len na čítanie
-export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo, customerPrintTarget, vo = false }) {
+// onGuestsChange: zavolá sa po každom uložení údajov menu (počty, prepínače
+//   blokov, vytvorenie menu) — databáza vtedy prepočíta Očakávaných hostí
+//   (viď menuGuestsMode v lib/menuSummary)
+export default function BookingMenu({ bookingId, editable, printSubtitle = '', ticketInfo, customerPrintTarget, vo = false, onGuestsChange }) {
   // Po hromadnej zmene (šablóna / reset) editor remountneme — načíta sa nanovo
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -158,6 +161,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     setVoiceSummary(plan.summary)
     await loadDetails()
     setRefreshKey(k => k + 1)
+    onGuestsChange?.()
   }, { maxMs: VOICE_MAX_MS })
 
   // Okno diktovania — nahrávanie štartuje hneď, v rámci kliknutia
@@ -188,6 +192,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     setMenuCreated(true)
     setShowTemplates(false)
     setRefreshKey(k => k + 1)
+    onGuestsChange?.()
   }
 
   async function saveDetail(field) {
@@ -203,7 +208,9 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       .from('bookings')
       .update({ [DETAIL_COLS[field]]: value })
       .eq('id', bookingId)
-    if (error) setError(error.message)
+    if (error) { setError(error.message); return }
+    // Počty hostí aj raut navyše/menej menia Očakávaných hostí (prepočíta databáza)
+    onGuestsChange?.()
   }
 
   // Zapnutie / vypnutie hlavného jedla, rautu alebo ZADAŤ KILÁ — ukladá sa hneď
@@ -215,7 +222,9 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
       .from('bookings')
       .update({ [column]: next })
       .eq('id', bookingId)
-    if (error) { setError(error.message); setValue(!next) }
+    if (error) { setError(error.message); setValue(!next); return }
+    // Hlavné jedlo / raut / kilá menia, z čoho sa počíta Očakávaných hostí
+    onGuestsChange?.()
   }
 
   // Čas podávania (hlavné jedlo / raut) — ukladá sa hneď po výbere
@@ -531,6 +540,7 @@ export default function BookingMenu({ bookingId, editable, printSubtitle = '', t
     setBusy(false)
     setShowTemplates(false)
     setRefreshKey(k => k + 1)
+    onGuestsChange?.()
   }
 
   async function handleReset() {
