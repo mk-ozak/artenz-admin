@@ -4,8 +4,19 @@
 
 import { parseAmount } from './ingredients'
 
-// Bloky rautu (Raut + Prílohy pre raut) — pri vypnutom raute sa skryjú
+// Bloky rautu v kg (Raut + Prílohy pre raut) — kontrola kíl, štítky RAUT,
+// rámček RAUT na lístku, VO v nich nemení množstvá
 export const RAUT_BLOCKS = [4, 5]
+
+// Komplet jedlo v raute — zadáva sa v ks, do kíl rautu sa nepočíta (ako
+// studená kuchyňa), ale patrí k rautu: pri vypnutom raute sa skryje
+export const RAUT_COMPLETE_BLOCK = 6
+
+// Studená kuchyňa — ks, mimo rautu; na termo tlači aj samostatný lístok za rezom
+export const COLD_BLOCK = 7
+
+// Bloky, ktoré sa skryjú pri vypnutom raute (menu, kalkulácia aj tlač)
+export const RAUT_TOGGLE_BLOCKS = [...RAUT_BLOCKS, RAUT_COMPLETE_BLOCK]
 
 // Bloky hlavného jedla (dospelí, deti, špeciály) — pri vypnutom hlavnom jedle sa skryjú
 export const MAIN_BLOCKS = [1, 2, 3]
@@ -17,7 +28,7 @@ export const PER_PERSON_BLOCKS = [1, 2]
 
 // Skryté bloky podľa prepínačov Hlavné jedlo / Raut (menu, kalkulácia aj tlač)
 export function hiddenBlocksOf({ mainOn = true, rautOn = true }) {
-  return [...(mainOn ? [] : MAIN_BLOCKS), ...(rautOn ? [] : RAUT_BLOCKS)]
+  return [...(mainOn ? [] : MAIN_BLOCKS), ...(rautOn ? [] : RAUT_TOGGLE_BLOCKS)]
 }
 
 // "HH:MM:SS" z DB → "HH:MM", prázdne → ''
@@ -35,7 +46,8 @@ export const BLOCK_TITLES = {
   3: 'Hlavné jedlo špeciál',
   4: 'Raut',
   5: 'Prílohy pre raut',
-  6: 'Studená kuchyňa',
+  [RAUT_COMPLETE_BLOCK]: 'Komplet jedlo v raute',
+  [COLD_BLOCK]: 'Studená kuchyňa',
 }
 
 // Riadok z bookings → počty hostí a požiadavky ku strave (tvar formulára v BookingMenu)
@@ -119,8 +131,8 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
     // (calc.countByBlock) — deti bez detí s jedlom, inak by tam ostala
     // zrkadlená polievka s 0 L
     hideZeroBlocks: [2],
-    // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke
-    qtyBlocks: [6],
+    // Bloky, kde sa v zhrnutí zobrazí naklikané množstvo pri položke (ks)
+    qtyBlocks: [RAUT_COMPLETE_BLOCK, COLD_BLOCK],
     // Bloky zobrazené vedľa seba (dva stĺpce): RAUT + Prílohy pre raut
     pairBlocks: [4, 5],
     printSubtitle,
@@ -135,7 +147,8 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
       specials: Number(details.guestsSpecials) || 0,
     },
     // Raut + Prílohy pre raut: naklikané kg vs cieľ = počet ľudí na raut ×
-    // (gramáž/1000) kg, pri ZADAŤ KILÁ zadaná celková hmotnosť
+    // (gramáž/1000) kg, pri ZADAŤ KILÁ zadaná celková hmotnosť (Komplet jedlo
+    // v raute a Studená kuchyňa sa nepočítajú — sú v ks)
     weightCheck: {
       blocks: RAUT_BLOCKS,
       target: byKg
@@ -157,7 +170,7 @@ export function menuSummaryConfig(details, { printSubtitle = '', ticketInfo, rau
         // raut zadaný v kg — celková hmotnosť (null = raut podľa počtu ľudí)
         rautKg:       byKg ? rautKg : null,
       },
-      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 a 6 bez počtu,
+      // Počet osôb v pruhu sekcie (s ktorým admin sekciu počíta); 5 – 7 bez počtu,
       // raut zadaný v kg tiež (a jeho položky sa na lístku nevynechajú pri 0 ľuďoch)
       sectionCount: {
         1: Number(details.guestsAdults) || 0,

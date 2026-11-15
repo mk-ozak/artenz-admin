@@ -8,7 +8,7 @@ import {
   SOUP_CATEGORY, SPECIAL_SOUP_CATEGORY, calcCount, calcLine, fmtQty, sectionHeadCount,
 } from '../lib/menuCalc'
 import { selLabel } from '../lib/menuVariants'
-import { RAUT_BLOCKS } from '../lib/menuSummary'
+import { COLD_BLOCK, RAUT_BLOCKS, RAUT_COMPLETE_BLOCK } from '../lib/menuSummary'
 import { DAYS_LONG, DAYS_SHORT } from './format'
 import { VO_KITCHEN_NAME } from '../lib/vo'
 
@@ -45,7 +45,8 @@ const SOUP_PARTS = [
 
 // Sekcie podľa čísla bloku (menu_categories.block; bloky nemajú ID ani názov)
 const SPECIAL_BLOCK = 3 // Hlavné jedlo špeciál — rámček + požiadavky ku strave
-const COLD_BLOCK    = 6 // Studená kuchyňa — aj samostatný lístok za rezom
+// COLD_BLOCK (lib/menuSummary) — Studená kuchyňa: aj samostatný lístok za rezom;
+// Komplet jedlo v raute (RAUT_COMPLETE_BLOCK) len ako sekcia v lístku do kuchyne
 
 // ── Model lístka ─────────────────────────────────────────────────────────
 
@@ -942,12 +943,12 @@ const A5_PT_MM   = A5_CONTENT / (A5_MM.w - 2 * A5_MARGIN)  // bodov na mm
 const A5_ITEM    = { nameSize: 40, nameMinScale: 0.78 }
 // Sekcie v dvoch stĺpcoch (podľa lístka na nástenke): vľavo hlavné jedlo
 // dospelí, vpravo deti a pod nimi špeciál; vľavo raut, vpravo prílohy pre
-// raut a pod nimi studená kuchyňa. Bez ľavej sekcie ide doľava prvá z pravých.
-// Sekcia bez dvojice ide cez celú šírku — okrem špeciálu, ten ostáva v ľavom
-// stĺpci. Polievka a nové bloky cez celú šírku.
+// raut, pod nimi komplet jedlo v raute a studená kuchyňa. Bez ľavej sekcie
+// ide doľava prvá z pravých. Sekcia bez dvojice ide cez celú šírku — okrem
+// špeciálu, ten ostáva v ľavom stĺpci. Polievka a nové bloky cez celú šírku.
 const A5_COLUMNS = [
   { left: [1], right: [2, SPECIAL_BLOCK] },
-  { left: [4], right: [5, COLD_BLOCK] },
+  { left: [4], right: [5, RAUT_COMPLETE_BLOCK, COLD_BLOCK] },
 ]
 
 // POZNÁMKY na A5: jeden riadok bez rámčeka — „Poznámky:" a poznámka akcie

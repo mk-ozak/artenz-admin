@@ -4,7 +4,7 @@
 // Diktovanie len dopĺňa: nič nemaže a položku, ktorá už v menu je, nechá
 // tak — doplní jej len nadiktované množstvo alebo chýbajúci variant.
 
-import { BLOCK_TITLES, MAIN_BLOCKS, RAUT_BLOCKS } from './menuSummary'
+import { BLOCK_TITLES, MAIN_BLOCKS, RAUT_BLOCKS, RAUT_TOGGLE_BLOCKS } from './menuSummary'
 import { fmtQty } from './menuCalc'
 import { groupVariantsByItem, selCatId } from './menuVariants'
 
@@ -135,7 +135,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
           text: patch.quantity != null ? `${name} — ${qtyText(cat, qty)}` : name,
           note: cat.name,
         })
-        if (RAUT_BLOCKS.includes(cat.block)) touchesRaut = true
+        if (RAUT_TOGGLE_BLOCKS.includes(cat.block)) touchesRaut = true
         if (MAIN_BLOCKS.includes(cat.block)) touchesMain = true
       } else {
         summary.already.push({ text: name, note: cat.name })
@@ -163,7 +163,7 @@ export function planVoiceMenu(parsed, { byRef, selections, booking, lockedQtyBlo
     if (!variant && variantGroup) {
       summary.missingVariant.push({ text: item.name, note: `chýba ${variantGroup.toLowerCase()}` })
     }
-    if (RAUT_BLOCKS.includes(cat.block)) touchesRaut = true
+    if (RAUT_TOGGLE_BLOCKS.includes(cat.block)) touchesRaut = true
     if (MAIN_BLOCKS.includes(cat.block)) touchesMain = true
   }
 
